@@ -4,11 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // filter chip, the visible week), which is what StateProvider is for.
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../auth/data/auth_repository.dart';
 import '../domain/models.dart';
 import 'lessons_repository.dart';
 import '../../../core/clock.dart';
 
 final profileProvider = FutureProvider<UserProfile>((ref) {
+  // Watched, not ignored: the router reads this provider on its very first
+  // redirect, which happens before anyone has signed in. That read fails and
+  // the failure is what gets cached. Nothing else re-runs it, so without this
+  // dependency the profile stays empty for the whole session — the user shows
+  // as a nameless student however they signed in, and, worse, the
+  // must_change_password gate never fires because the router sees a null
+  // profile and skips the check.
+  ref.watch(authStateProvider);
   return ref.watch(lessonsRepositoryProvider).currentProfile();
 });
 

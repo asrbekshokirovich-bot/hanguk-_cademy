@@ -88,7 +88,11 @@ void main() {
       find.byType(TextFormField).first,
       'Dilnoza Sattorova',
     );
+    // Past the floating-label animation. A single pump captures the label
+    // mid-flight, sitting on top of the value it is supposed to have moved
+    // out of the way of.
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     // Filling in a hundred students by hand is the daily job; the handle is
     // the field people hesitate over, so it is proposed.

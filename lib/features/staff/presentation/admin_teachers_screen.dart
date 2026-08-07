@@ -29,108 +29,117 @@ class AdminTeachersScreen extends ConsumerWidget {
     return AppShell(
       title: 'O‘qituvchilar',
       subtitle: 'Yuklama va guruhlar',
-      child: AsyncSection(
-        value: ref.watch(teacherRosterProvider),
-        onRetry: () => ref.invalidate(teacherRosterProvider),
-        loadingHeight: 260,
-        isEmpty: (t) => t.isEmpty,
-        emptyMessage: 'Hali o‘qituvchi qo‘shilmagan',
-        builder: (teachers) {
-          final totalLessons =
-              teachers.fold<int>(0, (a, t) => a + t.weeklyLessons);
-          final averageLoad = teachers.isEmpty
-              ? 0.0
-              : teachers.fold<double>(0, (a, t) => a + t.load) /
-                  teachers.length;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Outside the AsyncSection: an empty roster must not hide the only
+          // way to fill it.
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Yuklama shu haftadagi darslar soniga qarab '
-                      'hisoblanadi.',
-                      style: HkType.body.copyWith(fontSize: 13),
+              Expanded(
+                child: Text(
+                  'Yuklama shu haftadagi darslar soniga qarab hisoblanadi.',
+                  style: HkType.body.copyWith(fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                height: 44,
+                child: FilledButton.icon(
+                  onPressed: () => _addTeacher(context, ref),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: HkColors.royalBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(HkRadius.control),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                  ),
+                  icon: const Icon(Icons.person_add_alt_rounded, size: 18),
+                  label: const Text(
+                    'O‘qituvchi qo‘shish',
+                    style: TextStyle(
+                      fontFamily: HkType.family,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    height: 44,
-                    child: FilledButton.icon(
-                      onPressed: () => _addTeacher(context, ref),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: HkColors.royalBlue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(HkRadius.control),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                      ),
-                      icon: const Icon(Icons.person_add_alt_rounded, size: 18),
-                      label: const Text(
-                        'O‘qituvchi qo‘shish',
-                        style: TextStyle(
-                          fontFamily: HkType.family,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: HkSpace.gridGapWide),
-              HkStatRow(
-                cards: [
-                  HkStatCard(
-                    label: 'O‘qituvchilar',
-                    value: '${teachers.length}',
-                    icon: Icons.school_rounded,
-                    note: 'Ro‘yxatda',
-                  ),
-                  HkStatCard(
-                    label: 'Haftalik darslar',
-                    value: '$totalLessons',
-                    icon: Icons.calendar_month_rounded,
-                    note: 'Jami',
-                  ),
-                  HkStatCard(
-                    label: "O'rtacha yuklama",
-                    value: hkPercent(averageLoad),
-                    icon: Icons.speed_rounded,
-                    note: 'To‘liq hafta 16 darsdan',
-                    highlight: true,
-                  ),
-                  HkStatCard(
-                    label: 'Talabalar',
-                    value:
-                        '${teachers.fold<int>(0, (a, t) => a + t.studentCount)}',
-                    icon: Icons.people_alt_rounded,
-                    note: 'Guruhlarda',
-                  ),
-                ],
-              ),
-              const SizedBox(height: HkSpace.gridGapWide),
-              HkTable(
-                showHeader: layout.isExpanded,
-                columns: const [
-                  HkColumn('O‘qituvchi', 5),
-                  HkColumn('Yo‘nalish', 4),
-                  HkColumn('Darslar', 2),
-                  HkColumn('Talabalar', 2),
-                  HkColumn('Reyting', 2),
-                  HkColumn('Yuklama', 4),
-                  HkColumn('Holat', 3),
-                ],
-                rows: [
-                  for (final t in teachers)
-                    _TeacherRow(teacher: t, expanded: layout.isExpanded),
-                ],
+                ),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: HkSpace.gridGapWide),
+          AsyncSection(
+            value: ref.watch(teacherRosterProvider),
+            onRetry: () => ref.invalidate(teacherRosterProvider),
+            loadingHeight: 260,
+            isEmpty: (t) => t.isEmpty,
+            emptyMessage:
+                'Hali o‘qituvchi yo‘q — “O‘qituvchi qo‘shish” tugmasi bilan '
+                'qo‘shing',
+            builder: (teachers) {
+              final totalLessons = teachers.fold<int>(
+                0,
+                (a, t) => a + t.weeklyLessons,
+              );
+              final averageLoad = teachers.isEmpty
+                  ? 0.0
+                  : teachers.fold<double>(0, (a, t) => a + t.load) /
+                        teachers.length;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  HkStatRow(
+                    cards: [
+                      HkStatCard(
+                        label: 'O‘qituvchilar',
+                        value: '${teachers.length}',
+                        icon: Icons.school_rounded,
+                        note: 'Ro‘yxatda',
+                      ),
+                      HkStatCard(
+                        label: 'Haftalik darslar',
+                        value: '$totalLessons',
+                        icon: Icons.calendar_month_rounded,
+                        note: 'Jami',
+                      ),
+                      HkStatCard(
+                        label: "O'rtacha yuklama",
+                        value: hkPercent(averageLoad),
+                        icon: Icons.speed_rounded,
+                        note: 'To‘liq hafta 16 darsdan',
+                        highlight: true,
+                      ),
+                      HkStatCard(
+                        label: 'Talabalar',
+                        value:
+                            '${teachers.fold<int>(0, (a, t) => a + t.studentCount)}',
+                        icon: Icons.people_alt_rounded,
+                        note: 'Guruhlarda',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: HkSpace.gridGapWide),
+                  HkTable(
+                    showHeader: layout.isExpanded,
+                    columns: const [
+                      HkColumn('O‘qituvchi', 5),
+                      HkColumn('Yo‘nalish', 4),
+                      HkColumn('Darslar', 2),
+                      HkColumn('Talabalar', 2),
+                      HkColumn('Reyting', 2),
+                      HkColumn('Yuklama', 4),
+                      HkColumn('Holat', 3),
+                    ],
+                    rows: [
+                      for (final t in teachers)
+                        _TeacherRow(teacher: t, expanded: layout.isExpanded),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -138,8 +147,7 @@ class AdminTeachersScreen extends ConsumerWidget {
   Future<void> _addTeacher(BuildContext context, WidgetRef ref) async {
     // The same account dialog, opened with the teacher role preselected —
     // an admin adding staff should not have to remember to change it.
-    final created =
-        await showCreateUserDialog(context, initialRole: 'teacher');
+    final created = await showCreateUserDialog(context, initialRole: 'teacher');
     if (created == null || !context.mounted) return;
 
     ref.invalidate(teacherRosterProvider);

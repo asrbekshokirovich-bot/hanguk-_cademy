@@ -38,102 +38,124 @@ class AdminStudentsScreen extends ConsumerWidget {
     return AppShell(
       title: 'Talabalar',
       subtitle: 'Hisoblar, guruhlar va to‘lov holati',
-      child: AsyncSection(
-        value: ref.watch(adminStudentsProvider),
-        onRetry: () => ref.invalidate(adminStudentsProvider),
-        loadingHeight: 260,
-        isEmpty: (s) => s.isEmpty,
-        emptyMessage: 'Hali talaba qo‘shilmagan',
-        builder: (students) {
-          final shown = filter == null
-              ? students
-              : students.where((s) => s.paymentStatus == filter).toList();
-
-          int countOf(PaymentStatus s) =>
-              students.where((x) => x.paymentStatus == s).length;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Outside the AsyncSection on purpose. It used to live inside the
+          // data builder, so an empty roster replaced the whole block —
+          // including this button — with "Hali talaba qo'shilmagan". The one
+          // moment you certainly need to add a student is when there are
+          // none.
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _Chip(
-                          label: 'Barchasi · ${students.length}',
-                          active: filter == null,
-                          onTap: () => ref
-                              .read(adminStudentFilterProvider.notifier)
-                              .state = null,
-                        ),
-                        for (final s in [
-                          PaymentStatus.confirmed,
-                          PaymentStatus.pending,
-                          PaymentStatus.overdue,
-                        ])
-                          if (countOf(s) > 0)
-                            _Chip(
-                              label: '${s.label} · ${countOf(s)}',
-                              active: filter == s,
-                              accent: s.color,
-                              onTap: () => ref
-                                  .read(adminStudentFilterProvider.notifier)
-                                  .state = s,
-                            ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    height: 44,
-                    child: FilledButton.icon(
-                      onPressed: () => _createStudent(context, ref),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: HkColors.royalBlue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(HkRadius.control),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                      ),
-                      icon: const Icon(Icons.person_add_alt_rounded, size: 18),
-                      label: const Text(
-                        'Yangi talaba',
-                        style: TextStyle(
-                          fontFamily: HkType.family,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              Expanded(
+                child: Text(
+                  'Har bir talaba va o‘qituvchiga login va parol shu yerdan '
+                  'beriladi.',
+                  style: HkType.body.copyWith(fontSize: 13),
+                ),
               ),
-              const SizedBox(height: HkSpace.gridGapWide),
-              HkTable(
-                showHeader: layout.isExpanded,
-                columns: const [
-                  HkColumn('Talaba', 5),
-                  HkColumn('Telefon', 4),
-                  HkColumn('Guruh', 4),
-                  HkColumn("O'qituvchi", 4),
-                  HkColumn('Davomat', 3),
-                  HkColumn("To'lov", 3),
-                ],
-                rows: [
-                  for (final s in shown)
-                    _StudentRow(
-                      student: s,
-                      expanded: layout.isExpanded,
-                      now: now,
+              const SizedBox(width: 16),
+              SizedBox(
+                height: 44,
+                child: FilledButton.icon(
+                  onPressed: () => _createStudent(context, ref),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: HkColors.royalBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(HkRadius.control),
                     ),
-                ],
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                  ),
+                  icon: const Icon(Icons.person_add_alt_rounded, size: 18),
+                  label: const Text(
+                    'Yangi talaba',
+                    style: TextStyle(
+                      fontFamily: HkType.family,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: HkSpace.gridGapWide),
+          AsyncSection(
+            value: ref.watch(adminStudentsProvider),
+            onRetry: () => ref.invalidate(adminStudentsProvider),
+            loadingHeight: 260,
+            isEmpty: (s) => s.isEmpty,
+            emptyMessage:
+                'Hali talaba yo‘q — “Yangi talaba” tugmasi bilan qo‘shing',
+            builder: (students) {
+              final shown = filter == null
+                  ? students
+                  : students.where((s) => s.paymentStatus == filter).toList();
+
+              int countOf(PaymentStatus s) =>
+                  students.where((x) => x.paymentStatus == s).length;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _Chip(
+                        label: 'Barchasi · ${students.length}',
+                        active: filter == null,
+                        onTap: () =>
+                            ref
+                                    .read(adminStudentFilterProvider.notifier)
+                                    .state =
+                                null,
+                      ),
+                      for (final s in [
+                        PaymentStatus.confirmed,
+                        PaymentStatus.pending,
+                        PaymentStatus.overdue,
+                      ])
+                        if (countOf(s) > 0)
+                          _Chip(
+                            label: '${s.label} · ${countOf(s)}',
+                            active: filter == s,
+                            accent: s.color,
+                            onTap: () =>
+                                ref
+                                        .read(
+                                          adminStudentFilterProvider.notifier,
+                                        )
+                                        .state =
+                                    s,
+                          ),
+                    ],
+                  ),
+                  const SizedBox(height: HkSpace.gridGapWide),
+                  HkTable(
+                    showHeader: layout.isExpanded,
+                    columns: const [
+                      HkColumn('Talaba', 5),
+                      HkColumn('Telefon', 4),
+                      HkColumn('Guruh', 4),
+                      HkColumn("O'qituvchi", 4),
+                      HkColumn('Davomat', 3),
+                      HkColumn("To'lov", 3),
+                    ],
+                    rows: [
+                      for (final s in shown)
+                        _StudentRow(
+                          student: s,
+                          expanded: layout.isExpanded,
+                          now: now,
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }

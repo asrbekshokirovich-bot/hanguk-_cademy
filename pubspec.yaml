@@ -1,0 +1,64 @@
+name: hanguk_online
+description: "Hanguk Academy — Onlayn ta'lim platformasi."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^3.3.1
+  go_router: ^17.1.0
+  supabase_flutter: ^2.12.2
+  intl: ^0.20.2
+  url_launcher: ^6.3.0
+  # Desktop: size/centre/title the window before the first frame so the
+  # 1440x920 shell from the design isn't at the mercy of the WM default.
+  window_manager: ^0.4.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  # Bundled rather than fetched from Google Fonts: the app has to render
+  # correctly on first launch offline, and desktop builds have no CDN
+  # fallback the way a browser does. Same faces the student app ships.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-400.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-500.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-600.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-700.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-800.ttf
+          weight: 800
+        - asset: assets/fonts/Inter-900.ttf
+          weight: 900
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-600.ttf
+          weight: 600
+    # Korean lesson copy (수업, 한국어 …) falls back to this; Inter has no
+    # hangul coverage and would render tofu.
+    - family: NotoSansKR
+      fonts:
+        - asset: assets/fonts/NotoSansKR-500.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansKR-700.ttf
+          weight: 700

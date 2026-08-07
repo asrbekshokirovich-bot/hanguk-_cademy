@@ -12,6 +12,7 @@ import 'package:hanguk_online/features/lessons/presentation/lesson_detail_screen
 import 'package:hanguk_online/features/lessons/presentation/live_room_screen.dart';
 import 'package:hanguk_online/features/lessons/presentation/recordings_screen.dart';
 import 'package:hanguk_online/features/lessons/presentation/schedule_screen.dart';
+import 'package:hanguk_online/core/clock.dart';
 import 'package:hanguk_online/main.dart';
 
 /// Renders each screen at the design's 1440×920 and compares against a
@@ -25,11 +26,22 @@ import 'package:hanguk_online/main.dart';
 ///
 /// Goldens are inherently platform-sensitive (font hinting differs between
 /// hosts), so treat a diff as "look at it" rather than "the build is broken".
+
+/// Pinned so the rendered output is a function of the fixtures alone. With a
+/// real clock the live lesson's running timer ticks between the run that
+/// writes a golden and the run that checks it, and every comparison fails on
+/// a few changed digits. A Friday at 12:58, so "today" has a live lesson and
+/// the week stepper lands mid-week.
+final _fixedNow = DateTime(2026, 6, 26, 12, 58, 30);
+
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('uz');
     await _loadBundledFonts();
+    hkNow = () => _fixedNow;
   });
+
+  tearDownAll(() => hkNow = DateTime.now);
 
   Future<void> pumpScreen(WidgetTester tester, Widget screen) async {
     tester.view.physicalSize = const Size(1440, 920);

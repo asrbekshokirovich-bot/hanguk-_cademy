@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../domain/models.dart';
 import 'lessons_repository.dart';
+import '../../../core/clock.dart';
 
 final profileProvider = FutureProvider<UserProfile>((ref) {
   return ref.watch(lessonsRepositoryProvider).currentProfile();
@@ -68,7 +69,7 @@ final assignmentProvider =
 
 /// Start of the week currently shown in the schedule, as a Monday.
 final scheduleWeekStartProvider = StateProvider<DateTime>((ref) {
-  final now = DateTime.now();
+  final now = hkNow();
   final today = DateTime(now.year, now.month, now.day);
   return today.subtract(Duration(days: today.weekday - 1));
 });
@@ -78,4 +79,26 @@ final weekLessonsProvider = FutureProvider<List<Lesson>>((ref) {
   return ref
       .watch(lessonsRepositoryProvider)
       .lessonsBetween(start, start.add(const Duration(days: 7)));
+});
+
+final notificationsProvider = FutureProvider<List<AppNotification>>((ref) {
+  return ref.watch(lessonsRepositoryProvider).notifications();
+});
+
+/// Drives the bell's red dot. Derived from the list rather than a separate
+/// count query — the panel needs the rows anyway, and two sources would drift
+/// (dot still red after the panel says everything is read).
+final unreadCountProvider = Provider<int>((ref) {
+  final list = ref.watch(notificationsProvider).value;
+  if (list == null) return 0;
+  return list.where((n) => n.isUnread).length;
+});
+
+/// What the user has typed into the search sheet.
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
+  final query = ref.watch(searchQueryProvider);
+  if (query.trim().length < 2) return SearchResults.empty;
+  return ref.watch(lessonsRepositoryProvider).search(query);
 });

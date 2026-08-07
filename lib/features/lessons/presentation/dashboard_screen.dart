@@ -13,6 +13,7 @@ import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import '../../../core/clock.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -83,10 +84,10 @@ class _LiveHeroBannerState extends State<LiveHeroBanner> {
   @override
   void initState() {
     super.initState();
-    _elapsed = widget.lesson.elapsedAt(DateTime.now());
+    _elapsed = widget.lesson.elapsedAt(hkNow());
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() => _elapsed = widget.lesson.elapsedAt(DateTime.now()));
+      setState(() => _elapsed = widget.lesson.elapsedAt(hkNow()));
     });
   }
 

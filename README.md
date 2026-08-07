@@ -17,6 +17,17 @@ u universitetga hujjat topshirish uchun, bu esa onlayn darslar uchun.
 | `/recordings/:id` | Dars tafsiloti — pleyer, materiallar, test, uy vazifasi | pleyer o'rin egallovchi |
 | `/schedule` | Jadval — haftalik jadval, avto-yozuv tugmasi (xodimlar uchun) | to'liq |
 
+### Yuqori o'ng burchakdagi boshqaruvlar
+
+- **🔍 Qidiruv** — darslar va yozuvlar bo'ylab, nomi, kategoriyasi yoki
+  o'qituvchi ismi bo'yicha. Natijaga bosilsa o'sha sahifaga o'tadi.
+- **🔔 Bildirishnomalar** — `ol_notifications` jadvalidan. O'qilmaganlar
+  qizil nuqta bilan sanaladi, "O'qildi" bittada hammasini belgilaydi.
+- **Avatar** — profil menyusi: ism, rol, daraja, ma'lumot manbai (Supabase
+  yoki demo) va chiqish tugmasi.
+
+Telefonda qidiruv va qo'ng'iroq yuqoridagi sarlavhada turadi.
+
 ### Hozircha ulanmagan
 
 Bular ataylab qoldirilgan, keyingi bosqich:
@@ -28,6 +39,8 @@ Bular ataylab qoldirilgan, keyingi bosqich:
   progressdan chiziladi, lekin video dekodlanmaydi.
 - **Ishtirokchilar va suhbat** jonli xonada `DemoData` dan olinadi.
 - **Test / uy vazifasi modullari** — kartalar bor, oynalar yo'q.
+- **Chiqish** — kirish (login) ekrani hali yo'q, shuning uchun profil
+  menyusidagi "Chiqish" hozircha xabar ko'rsatadi.
 
 ## Ishga tushirish
 

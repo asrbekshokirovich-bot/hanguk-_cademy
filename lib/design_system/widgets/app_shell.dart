@@ -4,10 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/lessons/data/providers.dart';
 import '../../features/lessons/domain/models.dart';
+import '../../features/lessons/presentation/notifications_panel.dart';
+import '../../features/lessons/presentation/profile_menu.dart';
+import '../../features/lessons/presentation/search_sheet.dart';
 import '../layout.dart';
 import '../tokens.dart';
 import 'ambient_background.dart';
 import 'command_dock.dart';
+import 'glass.dart';
 
 /// The persistent chrome every screen sits inside: ambient canvas, floating
 /// logo capsule, command dock, user cluster and the page heading.
@@ -37,6 +41,7 @@ class AppShell extends ConsumerWidget {
     final layout = HkLayout.of(context);
     final liveActive = ref.watch(liveLessonProvider).value != null;
     final profile = ref.watch(profileProvider).value;
+    final unread = ref.watch(unreadCountProvider);
 
     void go(HkDestination d) {
       if (d.route != GoRouterState.of(context).uri.path) context.go(d.route);
@@ -67,9 +72,20 @@ class AppShell extends ConsumerWidget {
                   : content,
             ),
             if (layout.isCompact)
-              _CompactHeader(title: title, subtitle: subtitle)
+              _CompactHeader(
+                title: title,
+                subtitle: subtitle,
+                unread: unread,
+              )
             else
-              ..._floatingChrome(context, layout, liveActive, profile, go),
+              ..._floatingChrome(
+                context,
+                layout,
+                liveActive,
+                profile,
+                unread,
+                go,
+              ),
           ],
         ),
       ),
@@ -88,6 +104,7 @@ class AppShell extends ConsumerWidget {
     HkLayout layout,
     bool liveActive,
     UserProfile? profile,
+    int unread,
     ValueChanged<HkDestination> go,
   ) {
     return [
@@ -114,7 +131,10 @@ class AppShell extends ConsumerWidget {
             name: profile?.fullName ?? '—',
             subtitle: profile?.subtitle ?? '',
             initials: profile?.initials ?? '?',
-            hasUnread: true,
+            hasUnread: unread > 0,
+            onSearch: () => showHkSearch(context),
+            onNotifications: () => showHkNotifications(context),
+            onProfile: () => showHkProfileMenu(context),
           ),
         ),
       Positioned(
@@ -127,10 +147,15 @@ class AppShell extends ConsumerWidget {
 }
 
 class _CompactHeader extends StatelessWidget {
-  const _CompactHeader({required this.title, required this.subtitle});
+  const _CompactHeader({
+    required this.title,
+    required this.subtitle,
+    required this.unread,
+  });
 
   final String title;
   final String subtitle;
+  final int unread;
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +184,39 @@ class _CompactHeader extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: PageHeading(title: title, subtitle: subtitle),
+                ),
+                IconButton(
+                  tooltip: 'Qidiruv',
+                  onPressed: () => showHkSearch(context),
+                  icon: const Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: HkColors.textSecondary,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Bildirishnomalar',
+                  onPressed: () => showHkNotifications(context),
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(
+                        Icons.notifications_none_rounded,
+                        size: 20,
+                        color: HkColors.textSecondary,
+                      ),
+                      if (unread > 0)
+                        const Positioned(
+                          right: -1,
+                          top: -1,
+                          child: PulsingDot(
+                            color: HkColors.danger,
+                            size: 6,
+                            animate: false,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),

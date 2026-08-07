@@ -39,14 +39,21 @@ class GlassPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final border = BorderRadius.circular(radius);
 
+    // Two layers, not one BoxDecoration carrying both `color` and `gradient`:
+    // when a BoxDecoration has a gradient, Flutter paints the gradient shader
+    // and *silently ignores* `color`. Setting both meant `tint` never
+    // rendered anywhere — including on a 94%-opaque dialog backing, which
+    // showed the page straight through it.
     Widget surface = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: HkGlass.gradient,
-        color: tint,
-        borderRadius: border,
-        border: Border.all(color: borderColor ?? HkGlass.border),
+      decoration: BoxDecoration(color: tint, borderRadius: border),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: HkGlass.gradient,
+          borderRadius: border,
+          border: Border.all(color: borderColor ?? HkGlass.border),
+        ),
+        child: Padding(padding: padding, child: child),
       ),
-      child: Padding(padding: padding, child: child),
     );
 
     // The inset top highlight from the handoff. Flutter has no inset shadow,

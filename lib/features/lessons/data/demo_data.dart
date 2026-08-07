@@ -1,3 +1,4 @@
+import '../../../core/clock.dart';
 import '../domain/models.dart';
 
 /// The prototype's fixture data, transcribed from the handoff's `recordings[]`
@@ -18,7 +19,7 @@ abstract final class DemoData {
   /// Today at [hour]:[minute], so the dashboard's "today" filter and the live
   /// lesson's running clock behave the same on any day the demo is opened.
   static DateTime _todayAt(int hour, int minute) {
-    final now = DateTime.now();
+    final now = hkNow();
     return DateTime(now.year, now.month, now.day, hour, minute);
   }
 
@@ -63,7 +64,7 @@ abstract final class DemoData {
               "shakllari va tinglab tushunish mashqlari ko'rib chiqiladi.",
           // 12:45 elapsed in the design's hero. Anchoring the start 12m45s
           // ago keeps the running clock honest whenever the demo is opened.
-          startsAt: DateTime.now().subtract(
+          startsAt: hkNow().subtract(
             const Duration(minutes: 12, seconds: 45),
           ),
           durationMinutes: 60,
@@ -225,6 +226,45 @@ abstract final class DemoData {
     submitted: false,
   );
 
+  static List<AppNotification> notifications() {
+    final now = hkNow();
+    return [
+      AppNotification(
+        id: 'n1',
+        kind: 'lesson_starting',
+        title: 'Suhbat amaliyoti boshlandi',
+        body: 'Jasur Karimov jonli efirga chiqdi.',
+        createdAt: now.subtract(const Duration(minutes: 12)),
+        lessonId: 'd2',
+      ),
+      AppNotification(
+        id: 'n2',
+        kind: 'new_recording',
+        title: 'Yangi yozuv qo‘shildi',
+        body: 'Grammatika · Daraja 2 — 7-dars arxivga tushdi.',
+        createdAt: now.subtract(const Duration(hours: 5)),
+        recordingId: 'r3',
+      ),
+      AppNotification(
+        id: 'n3',
+        kind: 'homework',
+        title: 'Uy vazifasi topshirilmagan',
+        body: 'Suhbat amaliyoti · 8-dars uchun vazifa kutilmoqda.',
+        createdAt: now.subtract(const Duration(days: 1)),
+        recordingId: 'r1',
+        readAt: null,
+      ),
+      AppNotification(
+        id: 'n4',
+        kind: 'info',
+        title: 'Jadval yangilandi',
+        body: 'Kelasi hafta TOPIK darsi 16:00 ga ko‘chirildi.',
+        createdAt: now.subtract(const Duration(days: 3)),
+        readAt: now.subtract(const Duration(days: 2)),
+      ),
+    ];
+  }
+
   static List<Participant> participants() => const [
         Participant(
           id: 'p0',
@@ -245,7 +285,7 @@ abstract final class DemoData {
       ];
 
   static List<ChatMessage> chat() {
-    final now = DateTime.now();
+    final now = hkNow();
     return [
       ChatMessage(
         id: 'c1',

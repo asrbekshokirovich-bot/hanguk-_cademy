@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/env.dart';
 import '../domain/models.dart';
 import 'demo_data.dart';
+import '../../../core/clock.dart';
 
 /// Reads the online-lessons product out of Supabase.
 ///
@@ -69,7 +70,7 @@ class LessonsRepository {
   }
 
   Future<List<Lesson>> todaysLessons() {
-    final now = DateTime.now();
+    final now = hkNow();
     final start = DateTime(now.year, now.month, now.day);
     return lessonsBetween(start, start.add(const Duration(days: 1)));
   }
@@ -211,6 +212,89 @@ class LessonsRepository {
             .maybeSingle();
 
     return Assignment.fromMap({...row, 'submitted': submission != null});
+  }
+
+  // -------------------------------------------------------------- search ---
+
+  /// Matches [query] against lesson and recording titles, categories and
+  /// teacher names.
+  ///
+  /// Two round trips rather than one RPC: the two tables have genuinely
+  /// different shapes and a union would have to flatten them into a lowest
+  /// common denominator that the result rows then could not render.
+  Future<SearchResults> search(String query) async {
+    final q = query.trim();
+    if (q.length < 2) return SearchResults.empty;
+
+    if (isDemo) {
+      final needle = q.toLowerCase();
+      bool hitLesson(Lesson l) =>
+          l.title.toLowerCase().contains(needle) ||
+          l.category.toLowerCase().contains(needle) ||
+          (l.teacher?.fullName.toLowerCase().contains(needle) ?? false);
+      bool hitRecording(Recording r) =>
+          r.title.toLowerCase().contains(needle) ||
+          r.category.toLowerCase().contains(needle) ||
+          (r.teacher?.fullName.toLowerCase().contains(needle) ?? false);
+
+      return SearchResults(
+        lessons: DemoData.weekSchedule().where(hitLesson).toList(),
+        recordings: DemoData.recordings().where(hitRecording).toList(),
+      );
+    }
+
+    // PostgREST `or` takes a comma-separated filter list. Commas and parens
+    // inside the value would be read as filter syntax, so they are stripped
+    // rather than escaped — a search term containing them is not meaningful
+    // here anyway.
+    final safe = q.replaceAll(RegExp(r'[,()*]'), ' ').trim();
+    if (safe.isEmpty) return SearchResults.empty;
+    final filter = 'title.ilike.%$safe%,'
+        'category.ilike.%$safe%,'
+        'teacher_name.ilike.%$safe%';
+
+    final results = await Future.wait([
+      _db
+          .from('ol_v_lessons')
+          .select()
+          .or(filter)
+          .order('starts_at', ascending: false)
+          .limit(20),
+      _db
+          .from('ol_v_recordings')
+          .select()
+          .or(filter)
+          .order('recorded_at', ascending: false)
+          .limit(20),
+    ]);
+
+    return SearchResults(
+      lessons: results[0].map((r) => Lesson.fromMap(r)).toList(),
+      recordings: results[1].map((r) => Recording.fromMap(r)).toList(),
+    );
+  }
+
+  // ------------------------------------------------------- notifications ---
+
+  Future<List<AppNotification>> notifications() async {
+    if (isDemo) return DemoData.notifications();
+
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return const [];
+
+    final rows = await _db
+        .from('ol_notifications')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(50);
+
+    return rows.map((r) => AppNotification.fromMap(r)).toList();
+  }
+
+  Future<void> markNotificationsRead() async {
+    if (isDemo) return;
+    await _db.rpc('ol_mark_notifications_read');
   }
 
   // --------------------------------------------------------------- stats ---

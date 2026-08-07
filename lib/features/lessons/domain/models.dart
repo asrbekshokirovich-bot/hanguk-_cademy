@@ -438,3 +438,80 @@ class UserProfile {
     );
   }
 }
+
+/// A row in the bell panel.
+class AppNotification {
+  const AppNotification({
+    required this.id,
+    required this.title,
+    required this.kind,
+    required this.createdAt,
+    this.body,
+    this.lessonId,
+    this.recordingId,
+    this.readAt,
+  });
+
+  final String id;
+  final String title;
+
+  /// `lesson_starting` | `new_recording` | `homework` | `info`. Deliberately
+  /// a string — see the migration for why it is not an enum.
+  final String kind;
+  final DateTime createdAt;
+  final String? body;
+  final String? lessonId;
+  final String? recordingId;
+  final DateTime? readAt;
+
+  bool get isUnread => readAt == null;
+
+  /// Where tapping the row goes, or null if it links nowhere.
+  String? get route {
+    if (recordingId != null) return '/recordings/$recordingId';
+    if (kind == 'lesson_starting') return '/live';
+    if (lessonId != null) return '/schedule';
+    return null;
+  }
+
+  IconData get icon => switch (kind) {
+        'lesson_starting' => Icons.videocam_rounded,
+        'new_recording' => Icons.play_circle_outline_rounded,
+        'homework' => Icons.assignment_outlined,
+        _ => Icons.info_outline_rounded,
+      };
+
+  Color get accent => switch (kind) {
+        'lesson_starting' => HkColors.lime,
+        'new_recording' => HkColors.infoText,
+        'homework' => HkColors.warningBright,
+        _ => HkColors.textSecondary,
+      };
+
+  factory AppNotification.fromMap(Map<String, dynamic> map) => AppNotification(
+        id: map['id'] as String,
+        title: (map['title'] as String?) ?? '',
+        kind: (map['kind'] as String?) ?? 'info',
+        createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
+        body: map['body'] as String?,
+        lessonId: map['lesson_id'] as String?,
+        recordingId: map['recording_id'] as String?,
+        readAt: map['read_at'] == null
+            ? null
+            : DateTime.parse(map['read_at'] as String).toLocal(),
+      );
+}
+
+/// What the search sheet found. Kept as one object so the sheet can show
+/// "nothing matched" once rather than per section.
+class SearchResults {
+  const SearchResults({required this.lessons, required this.recordings});
+
+  final List<Lesson> lessons;
+  final List<Recording> recordings;
+
+  static const empty = SearchResults(lessons: [], recordings: []);
+
+  bool get isEmpty => lessons.isEmpty && recordings.isEmpty;
+  int get total => lessons.length + recordings.length;
+}

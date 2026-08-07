@@ -246,7 +246,10 @@ select
       'initials', t.initials,
       'avatar_url', t.avatar_url
     )
-  end as teacher
+  end as teacher,
+  -- Flat copy of the teacher's name purely so search can ilike it; the jsonb
+  -- object above is what the app actually reads.
+  t.full_name as teacher_name
 from ol_lessons l
 left join ol_teachers t on t.id = l.teacher_id
 left join (
@@ -284,7 +287,8 @@ select
       'initials', t.initials,
       'avatar_url', t.avatar_url
     )
-  end as teacher
+  end as teacher,
+  t.full_name as teacher_name
 from ol_recordings r
 left join ol_teachers t on t.id = r.teacher_id
 left join ol_recording_progress p
@@ -446,6 +450,70 @@ create policy ol_assignment_submissions_own on ol_assignment_submissions
   using (student_id = auth.uid() or ol_is_staff())
   with check (student_id = auth.uid());
 
+
+-- ------------------------------------------------------ notifications ---
+
+create table ol_notifications (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users (id) on delete cascade,
+  title         text not null,
+  body          text,
+  -- 'lesson_starting' | 'new_recording' | 'homework' | 'info'. Free text
+  -- rather than an enum so a new notification type does not need a migration
+  -- and an app deploy in lockstep.
+  kind          text not null default 'info',
+  -- Optional deep link targets. Both nullable: an 'info' notice points at
+  -- nothing.
+  lesson_id     uuid references ol_lessons (id) on delete cascade,
+  recording_id  uuid references ol_recordings (id) on delete cascade,
+  read_at       timestamptz,
+  created_at    timestamptz not null default now()
+);
+
+create index ol_notifications_user_idx
+  on ol_notifications (user_id, created_at desc);
+
+-- The bell's unread dot is read on every screen; this keeps that a count over
+-- a handful of rows rather than a scan of the user's whole history.
+create index ol_notifications_unread_idx
+  on ol_notifications (user_id) where read_at is null;
+
+alter table ol_notifications enable row level security;
+
+-- A user reads and dismisses only their own. Staff may create notifications
+-- for anyone (that is how "dars boshlanmoqda" gets delivered) but cannot read
+-- another person's inbox back.
+create policy ol_notifications_select_own on ol_notifications
+  for select to authenticated
+  using (user_id = auth.uid());
+
+create policy ol_notifications_update_own on ol_notifications
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy ol_notifications_insert on ol_notifications
+  for insert to authenticated
+  with check (user_id = auth.uid() or ol_is_staff());
+
+create policy ol_notifications_delete_own on ol_notifications
+  for delete to authenticated
+  using (user_id = auth.uid() or ol_is_staff());
+
+-- Marking the panel read is one statement rather than one update per row.
+create or replace function ol_mark_notifications_read()
+returns void
+language sql
+volatile
+security definer
+set search_path = public
+as $$
+  update ol_notifications
+     set read_at = now()
+   where user_id = auth.uid()
+     and read_at is null;
+$$;
+
 -- ---------------------------------------------------------- auto-profile ---
 
 -- Everyone who signs up gets a student profile; without this the app's first
@@ -474,3 +542,4 @@ create trigger ol_on_auth_user_created
 grant execute on function ol_dashboard_stats() to authenticated;
 grant execute on function ol_current_role() to authenticated;
 grant execute on function ol_is_staff() to authenticated;
+grant execute on function ol_mark_notifications_read() to authenticated;

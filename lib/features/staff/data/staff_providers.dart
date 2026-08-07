@@ -42,3 +42,7 @@ final paymentsProvider = FutureProvider<List<Payment>>((ref) {
 final plansProvider = FutureProvider<List<PaymentPlan>>((ref) {
   return ref.watch(staffRepositoryProvider).plans();
 });
+
+final groupsProvider = FutureProvider<List<StudyGroup>>((ref) {
+  return ref.watch(staffRepositoryProvider).groups();
+});

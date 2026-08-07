@@ -338,6 +338,7 @@ class AdminStudent {
     this.phone,
     this.level,
     this.groupName,
+    this.groupId,
     this.teacherName,
     this.lastSeenAt,
   });
@@ -350,6 +351,10 @@ class AdminStudent {
   final String? phone;
   final int? level;
   final String? groupName;
+
+  /// Which group they are in, so the assignment dialog can preselect it. The
+  /// group is what decides whose student they are.
+  final String? groupId;
   final String? teacherName;
   final DateTime? lastSeenAt;
 
@@ -368,6 +373,7 @@ class AdminStudent {
         phone: map['phone'] as String?,
         level: (map['level'] as num?)?.toInt(),
         groupName: map['group_name'] as String?,
+        groupId: map['group_id'] as String?,
         teacherName: map['teacher_name'] as String?,
         lastSeenAt: map['last_seen_at'] == null
             ? null
@@ -470,4 +476,44 @@ String hkSumShort(int amount) {
   if (amount.abs() >= 1000000) return '${(amount / 1000000).round()}M';
   if (amount.abs() >= 1000) return '${(amount / 1000).round()}K';
   return '$amount';
+}
+
+/// A teaching group. The link between a student and a teacher: a student is
+/// in a group, a group has a teacher.
+class StudyGroup {
+  const StudyGroup({
+    required this.id,
+    required this.name,
+    required this.memberCount,
+    this.level,
+    this.teacherId,
+    this.teacherName,
+    this.isActive = true,
+  });
+
+  final String id;
+  final String name;
+  final int memberCount;
+  final int? level;
+  final String? teacherId;
+  final String? teacherName;
+  final bool isActive;
+
+  String get subtitle {
+    final parts = <String>[
+      ?teacherName,
+      '$memberCount ta talaba',
+    ];
+    return parts.join(' · ');
+  }
+
+  factory StudyGroup.fromMap(Map<String, dynamic> map) => StudyGroup(
+        id: map['id'] as String,
+        name: (map['name'] as String?) ?? '—',
+        memberCount: (map['member_count'] as num?)?.toInt() ?? 0,
+        level: (map['level'] as num?)?.toInt(),
+        teacherId: map['teacher_id'] as String?,
+        teacherName: map['teacher_name'] as String?,
+        isActive: (map['is_active'] as bool?) ?? true,
+      );
 }

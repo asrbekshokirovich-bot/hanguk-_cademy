@@ -77,6 +77,57 @@ class StaffRepository {
         .eq('student_id', studentId);
   }
 
+  // -------------------------------------------------------------- groups ---
+
+  Future<List<StudyGroup>> groups() async {
+    if (isDemo) return StaffDemoData.groups();
+    final rows = await _db.from('ol_v_groups').select().order('name');
+    return rows.map((r) => StudyGroup.fromMap(r)).toList();
+  }
+
+  Future<void> createGroup({
+    required String name,
+    required String teacherId,
+    int? level,
+  }) async {
+    if (isDemo) throw StateError('Demo rejimda guruh yaratib bo‘lmaydi');
+    await _db.from('ol_groups').insert({
+      'name': name.trim(),
+      'teacher_id': teacherId,
+      'level': level,
+    });
+  }
+
+  Future<void> updateGroup(
+    String groupId, {
+    String? name,
+    String? teacherId,
+    int? level,
+  }) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db.from('ol_groups').update({
+      if (name != null) 'name': name.trim(),
+      'teacher_id': ?teacherId,
+      'level': level,
+    }).eq('id', groupId);
+  }
+
+  Future<void> deleteGroup(String groupId) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db.from('ol_groups').delete().eq('id', groupId);
+  }
+
+  /// Moves a student into a group, or out of every group when [groupId] is
+  /// null. Which group they are in is what decides whose student they are, so
+  /// this goes through one function rather than being assembled by the client.
+  Future<void> assignStudentGroup(String studentId, String? groupId) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db.rpc('ol_assign_student_group', params: {
+      'p_student_id': studentId,
+      'p_group_id': groupId,
+    });
+  }
+
   // --------------------------------------------------------------- admin ---
 
   Future<AdminKpis> adminKpis() async {
@@ -156,6 +207,67 @@ class StaffRepository {
       'paid_at': confirmed ? now.toUtc().toIso8601String() : null,
       'recorded_by': _db.auth.currentUser?.id,
     }, onConflict: 'student_id,period');
+  }
+  // ------------------------------------------------------------- lessons ---
+
+  Future<void> createLesson({
+    required String title,
+    required String category,
+    required DateTime startsAt,
+    required int durationMinutes,
+    String? teacherId,
+    String? groupId,
+    String? description,
+    bool autoRecord = true,
+  }) async {
+    if (isDemo) throw StateError('Demo rejimda dars yaratib bo‘lmaydi');
+    await _db.from('ol_lessons').insert({
+      'title': title.trim(),
+      'category': category,
+      // UTC on the wire, always. The column is timestamptz; sending a local
+      // string without an offset is how a 16:00 lesson becomes 11:00 for
+      // whoever reads it next.
+      'starts_at': startsAt.toUtc().toIso8601String(),
+      'duration_minutes': durationMinutes,
+      'teacher_id': teacherId,
+      'group_id': groupId,
+      'description': description?.trim(),
+      'auto_record': autoRecord,
+      'created_by': _db.auth.currentUser?.id,
+    });
+  }
+
+  Future<void> updateLesson(
+    String lessonId, {
+    String? title,
+    String? category,
+    DateTime? startsAt,
+    int? durationMinutes,
+    String? teacherId,
+    String? groupId,
+    String? description,
+    bool? autoRecord,
+    String? status,
+  }) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db.from('ol_lessons').update({
+      if (title != null) 'title': title.trim(),
+      'category': ?category,
+      'starts_at': ?startsAt?.toUtc().toIso8601String(),
+      'duration_minutes': ?durationMinutes,
+      'auto_record': ?autoRecord,
+      'status': ?status,
+      // Null is meaningful for these two — "no teacher yet", "not tied to a
+      // group" — so they are always written rather than only when non-null.
+      'teacher_id': teacherId,
+      'group_id': groupId,
+      if (description != null) 'description': description.trim(),
+    }).eq('id', lessonId);
+  }
+
+  Future<void> deleteLesson(String lessonId) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db.from('ol_lessons').delete().eq('id', lessonId);
   }
 }
 

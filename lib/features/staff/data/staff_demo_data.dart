@@ -117,6 +117,40 @@ abstract final class StaffDemoData {
     ];
   }
 
+  static List<StudyGroup> groups() => const [
+        StudyGroup(
+          id: 'g-2a',
+          name: 'Daraja 2 · A',
+          level: 2,
+          teacherId: 'tr-jk',
+          teacherName: 'Jasur Karimov',
+          memberCount: 24,
+        ),
+        StudyGroup(
+          id: 'g-2b',
+          name: 'Daraja 2 · B',
+          level: 2,
+          teacherId: 'tr-ny',
+          teacherName: 'Nodira Yusupova',
+          memberCount: 22,
+        ),
+        StudyGroup(
+          id: 'g-1a',
+          name: 'Daraja 1 · A',
+          level: 1,
+          teacherId: 'tr-ms',
+          teacherName: 'Malika Sodiqova',
+          memberCount: 18,
+        ),
+        StudyGroup(
+          id: 'g-topik',
+          name: 'TOPIK guruhi',
+          teacherId: 'tr-ar',
+          teacherName: 'Aziz Rahimov',
+          memberCount: 20,
+        ),
+      ];
+
   static const adminKpis = AdminKpis(
     activeStudents: 132,
     weeklyLessons: 46,
@@ -194,6 +228,7 @@ abstract final class StaffDemoData {
         fullName: 'Dilshod Mahmudov',
         phone: '+998 90 123 45 67',
         groupName: 'Daraja 2 · A',
+        groupId: 'g-2a',
         teacherName: 'Jasur Karimov',
         attendance: 0.96,
         paymentStatus: PaymentStatus.confirmed,
@@ -204,6 +239,7 @@ abstract final class StaffDemoData {
         fullName: 'Nilufar Rashidova',
         phone: '+998 91 234 56 78',
         groupName: 'Daraja 2 · A',
+        groupId: 'g-2a',
         teacherName: 'Jasur Karimov',
         attendance: 1,
         paymentStatus: PaymentStatus.confirmed,
@@ -214,6 +250,7 @@ abstract final class StaffDemoData {
         fullName: 'Sardor Mirzayev',
         phone: '+998 93 345 67 89',
         groupName: 'Daraja 2 · B',
+        groupId: 'g-2b',
         teacherName: 'Nodira Yusupova',
         attendance: 0.74,
         paymentStatus: PaymentStatus.pending,
@@ -224,6 +261,7 @@ abstract final class StaffDemoData {
         fullName: 'Malika Tosheva',
         phone: '+998 94 456 78 90',
         groupName: 'TOPIK guruhi',
+        groupId: 'g-topik',
         teacherName: 'Aziz Rahimov',
         attendance: 0.92,
         paymentStatus: PaymentStatus.confirmed,
@@ -234,6 +272,7 @@ abstract final class StaffDemoData {
         fullName: 'Javohir Bekmurodov',
         phone: '+998 97 567 89 01',
         groupName: 'Daraja 2 · B',
+        groupId: 'g-2b',
         teacherName: 'Nodira Yusupova',
         attendance: 0.61,
         paymentStatus: PaymentStatus.overdue,
@@ -244,6 +283,7 @@ abstract final class StaffDemoData {
         fullName: 'Zilola Saidova',
         phone: '+998 99 678 90 12',
         groupName: 'TOPIK guruhi',
+        groupId: 'g-topik',
         teacherName: 'Aziz Rahimov',
         attendance: 0.98,
         paymentStatus: PaymentStatus.confirmed,
@@ -254,6 +294,7 @@ abstract final class StaffDemoData {
         fullName: 'Aziz Tursunov',
         phone: '+998 90 789 01 23',
         groupName: 'Daraja 1 · A',
+        groupId: 'g-1a',
         teacherName: 'Malika Sodiqova',
         attendance: 0.88,
         paymentStatus: PaymentStatus.pending,

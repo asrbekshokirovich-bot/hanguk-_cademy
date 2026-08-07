@@ -16,6 +16,7 @@ import '../../admin/presentation/create_user_dialog.dart';
 import '../../admin/presentation/password_result_dialog.dart';
 import '../data/staff_providers.dart';
 import '../domain/staff_models.dart';
+import 'group_dialogs.dart';
 
 /// Payment-state filter for the roster. `null` shows everyone.
 final adminStudentFilterProvider = StateProvider<PaymentStatus?>((ref) => null);
@@ -55,7 +56,36 @@ class AdminStudentsScreen extends ConsumerWidget {
                   style: HkType.body.copyWith(fontSize: 13),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
+              SizedBox(
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final changed = await showGroupsDialog(context);
+                    if (changed == true) {
+                      ref.invalidate(adminStudentsProvider);
+                      ref.invalidate(teacherRosterProvider);
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: HkColors.textPrimary,
+                    side: const BorderSide(color: HkGlass.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(HkRadius.control),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                  ),
+                  icon: const Icon(Icons.groups_2_outlined, size: 18),
+                  label: const Text(
+                    'Guruhlar',
+                    style: TextStyle(
+                      fontFamily: HkType.family,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
               SizedBox(
                 height: 44,
                 child: FilledButton.icon(
@@ -141,6 +171,7 @@ class AdminStudentsScreen extends ConsumerWidget {
                       HkColumn("O'qituvchi", 4),
                       HkColumn('Davomat', 3),
                       HkColumn("To'lov", 3),
+                      HkColumn('', 1),
                     ],
                     rows: [
                       for (final s in shown)
@@ -148,6 +179,7 @@ class AdminStudentsScreen extends ConsumerWidget {
                           student: s,
                           expanded: layout.isExpanded,
                           now: now,
+                          onAssign: () => _assignGroup(context, ref, s),
                         ),
                     ],
                   ),
@@ -158,6 +190,21 @@ class AdminStudentsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// A student's teacher follows from their group, so this one action covers
+  /// both halves of "biriktirish".
+  Future<void> _assignGroup(
+    BuildContext context,
+    WidgetRef ref,
+    AdminStudent student,
+  ) async {
+    final saved = await showAssignGroupDialog(context, student: student);
+    if (saved == true) {
+      ref.invalidate(adminStudentsProvider);
+      ref.invalidate(groupsProvider);
+      ref.invalidate(teacherRosterProvider);
+    }
   }
 
   Future<void> _createStudent(BuildContext context, WidgetRef ref) async {
@@ -182,11 +229,13 @@ class _StudentRow extends StatelessWidget {
     required this.student,
     required this.expanded,
     required this.now,
+    required this.onAssign,
   });
 
   final AdminStudent student;
   final bool expanded;
   final DateTime now;
+  final VoidCallback onAssign;
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +271,16 @@ class _StudentRow extends StatelessWidget {
                       'Davomat ${hkPercent(s.attendance)}',
                       style: HkType.muted.copyWith(
                         color: hkRateColor(s.attendance),
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Guruhga biriktirish',
+                      onPressed: onAssign,
+                      icon: const Icon(
+                        Icons.group_add_outlined,
+                        size: 18,
+                        color: HkColors.textTertiary,
                       ),
                     ),
                   ],
@@ -286,6 +345,18 @@ class _StudentRow extends StatelessWidget {
               label: s.paymentStatus.label,
               background: s.paymentStatus.background,
               foreground: s.paymentStatus.color,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: IconButton(
+            tooltip: 'Guruhga biriktirish',
+            onPressed: onAssign,
+            icon: const Icon(
+              Icons.group_add_outlined,
+              size: 17,
+              color: HkColors.textTertiary,
             ),
           ),
         ),

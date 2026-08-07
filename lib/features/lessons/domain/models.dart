@@ -102,6 +102,7 @@ class Lesson {
     this.teacher,
     this.liveRoom,
     this.description,
+    this.groupId,
   });
 
   final String id;
@@ -113,6 +114,10 @@ class Lesson {
   final bool autoRecord;
   final int enrolledCount;
   final Teacher? teacher;
+
+  /// The class this lesson belongs to, if any. Only the schedule's edit dialog
+  /// reads it — but it has to, or re-saving would detach the class.
+  final String? groupId;
 
   /// LiveKit room name. Populated by the backend when a lesson goes live;
   /// unused until the media layer lands.
@@ -156,6 +161,7 @@ class Lesson {
           : null,
       liveRoom: map['live_room'] as String?,
       description: map['description'] as String?,
+      groupId: map['group_id'] as String?,
     );
   }
 }

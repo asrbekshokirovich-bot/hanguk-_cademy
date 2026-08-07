@@ -7,6 +7,7 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
+import '../../staff/presentation/lesson_dialog.dart';
 import '../data/lessons_repository.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
@@ -23,8 +24,11 @@ class ScheduleScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = HkLayout.of(context);
     final weekStart = ref.watch(scheduleWeekStartProvider);
-    final isStaff =
-        ref.watch(profileProvider).value?.isStaff ?? false;
+    final profile = ref.watch(profileProvider).value;
+    final isStaff = profile?.isStaff ?? false;
+    // Scheduling is the admin's job: they own the timetable, teachers teach
+    // what is on it. Auto-record stays open to any staff member.
+    final isAdmin = profile?.isAdmin ?? false;
 
     return AppShell(
       title: 'Jadval',
@@ -32,7 +36,7 @@ class ScheduleScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _WeekHeader(weekStart: weekStart, isStaff: isStaff),
+          _WeekHeader(weekStart: weekStart, isAdmin: isAdmin),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(
             value: ref.watch(weekLessonsProvider),
@@ -47,7 +51,11 @@ class ScheduleScreen extends ConsumerWidget {
                 children: [
                   if (layout.isExpanded) const _TableHeader(),
                   for (final lesson in lessons)
-                    _LessonRow(lesson: lesson, isStaff: isStaff),
+                    _LessonRow(
+                      lesson: lesson,
+                      isStaff: isStaff,
+                      isAdmin: isAdmin,
+                    ),
                 ],
               ),
             ),
@@ -59,10 +67,10 @@ class ScheduleScreen extends ConsumerWidget {
 }
 
 class _WeekHeader extends ConsumerWidget {
-  const _WeekHeader({required this.weekStart, required this.isStaff});
+  const _WeekHeader({required this.weekStart, required this.isAdmin});
 
   final DateTime weekStart;
-  final bool isStaff;
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -112,18 +120,13 @@ class _WeekHeader extends ConsumerWidget {
           icon: Icons.fiber_manual_record_rounded,
           padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         ),
-        if (isStaff)
+        if (isAdmin)
           SizedBox(
             height: 44,
             child: FilledButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Dars yaratish oynasi keyingi bosqichda qo‘shiladi.',
-                    ),
-                  ),
-                );
+              onPressed: () async {
+                final saved = await showLessonDialog(context);
+                if (saved == true) ref.invalidate(weekLessonsProvider);
               },
               style: FilledButton.styleFrom(
                 backgroundColor: HkColors.royalBlue,
@@ -175,10 +178,15 @@ class _TableHeader extends StatelessWidget {
 }
 
 class _LessonRow extends ConsumerStatefulWidget {
-  const _LessonRow({required this.lesson, required this.isStaff});
+  const _LessonRow({
+    required this.lesson,
+    required this.isStaff,
+    required this.isAdmin,
+  });
 
   final Lesson lesson;
   final bool isStaff;
+  final bool isAdmin;
 
   @override
   ConsumerState<_LessonRow> createState() => _LessonRowState();
@@ -366,17 +374,13 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
           ),
           SizedBox(
             width: 40,
-            child: widget.isStaff
+            child: widget.isAdmin
                 ? IconButton(
                     tooltip: 'Tahrirlash',
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Tahrirlash oynasi keyingi bosqichda qo‘shiladi.',
-                          ),
-                        ),
-                      );
+                    onPressed: () async {
+                      final saved =
+                          await showLessonDialog(context, lesson: widget.lesson);
+                      if (saved == true) ref.invalidate(weekLessonsProvider);
                     },
                     icon: const Icon(
                       Icons.edit_outlined,

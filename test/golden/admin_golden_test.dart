@@ -9,7 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:hanguk_online/core/clock.dart';
 import 'package:hanguk_online/features/admin/presentation/password_result_dialog.dart';
-import 'package:hanguk_online/features/admin/presentation/users_screen.dart';
+import 'package:hanguk_online/features/staff/presentation/admin_students_screen.dart';
 import 'package:hanguk_online/features/auth/presentation/change_password_screen.dart';
 import 'package:hanguk_online/features/auth/presentation/login_screen.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
@@ -64,23 +64,23 @@ void main() {
   });
 
   testWidgets('account roster', (tester) async {
-    await pump(tester, const UsersScreen());
+    await pump(tester, const AdminStudentsScreen());
 
-    expect(find.text('Aziza Karimova'), findsOneWidget);
-    expect(find.text('Administrator'), findsOneWidget);
-    // The account created two days ago has never signed in.
-    expect(find.text('Hech qachon'), findsOneWidget);
+    expect(find.text('Dilshod Mahmudov'), findsOneWidget);
+    // Payment state is the column this screen exists for.
+    expect(find.text('Kechikkan'), findsWidgets);
+    expect(find.text('+998 90 123 45 67'), findsOneWidget);
 
     await expectLater(
-      find.byType(UsersScreen),
+      find.byType(AdminStudentsScreen),
       matchesGoldenFile('goldens/admin_users.png'),
     );
   });
 
   testWidgets('create dialog suggests a login from the name', (tester) async {
-    await pump(tester, const UsersScreen());
+    await pump(tester, const AdminStudentsScreen());
 
-    await tester.tap(find.text('Yangi hisob'));
+    await tester.tap(find.text('Yangi talaba'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -106,10 +106,10 @@ void main() {
 
   testWidgets('the issued password is shown once and cannot be dismissed by '
       'tapping away', (tester) async {
-    await pump(tester, const UsersScreen());
+    await pump(tester, const AdminStudentsScreen());
 
     showPasswordResultDialog(
-      tester.element(find.byType(UsersScreen)),
+      tester.element(find.byType(AdminStudentsScreen)),
       title: 'Hisob yaratildi',
       username: 'dilnoza.s',
       fullName: 'Dilnoza Sattorova',
@@ -134,9 +134,9 @@ void main() {
   });
 
   testWidgets('creating is refused in demo mode', (tester) async {
-    await pump(tester, const UsersScreen());
+    await pump(tester, const AdminStudentsScreen());
 
-    await tester.tap(find.text('Yangi hisob'));
+    await tester.tap(find.text('Yangi talaba'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

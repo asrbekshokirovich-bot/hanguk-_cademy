@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
-import '../../../design_system/widgets/command_dock.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
@@ -23,7 +22,6 @@ class DashboardScreen extends ConsumerWidget {
     final layout = HkLayout.of(context);
 
     return AppShell(
-      destination: HkDestination.dashboard,
       title: 'Asosiy',
       subtitle: "Bugungi darslar va so'nggi yozuvlar",
       child: Column(

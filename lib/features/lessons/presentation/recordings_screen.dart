@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
-import '../../../design_system/widgets/command_dock.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
@@ -31,7 +30,6 @@ class RecordingsScreen extends ConsumerWidget {
     final active = ref.watch(recordingsFilterProvider);
 
     return AppShell(
-      destination: HkDestination.recordings,
       title: 'Yozuvlar',
       subtitle: 'Yozib olingan darslar arxivi',
       child: Column(

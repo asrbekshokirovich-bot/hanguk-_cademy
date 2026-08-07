@@ -11,16 +11,21 @@ import '../domain/managed_user.dart';
 
 /// Collects a new account's details. Returns the created account, including
 /// its one-time password, or null if the admin backed out.
-Future<CreatedAccount?> showCreateUserDialog(BuildContext context) {
+Future<CreatedAccount?> showCreateUserDialog(
+  BuildContext context, {
+  String initialRole = 'student',
+}) {
   return showDialog<CreatedAccount>(
     context: context,
     barrierColor: const Color(0xB3000000),
-    builder: (_) => const _CreateUserDialog(),
+    builder: (_) => _CreateUserDialog(initialRole: initialRole),
   );
 }
 
 class _CreateUserDialog extends ConsumerStatefulWidget {
-  const _CreateUserDialog();
+  const _CreateUserDialog({required this.initialRole});
+
+  final String initialRole;
 
   @override
   ConsumerState<_CreateUserDialog> createState() => _CreateUserDialogState();
@@ -31,7 +36,7 @@ class _CreateUserDialogState extends ConsumerState<_CreateUserDialog> {
   final _fullName = TextEditingController();
   final _username = TextEditingController();
 
-  String _role = 'student';
+  late String _role = widget.initialRole;
   int? _level = 1;
   bool _busy = false;
   String? _error;

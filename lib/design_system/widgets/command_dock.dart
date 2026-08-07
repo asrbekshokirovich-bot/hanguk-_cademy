@@ -1,24 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../layout.dart';
+import '../navigation.dart';
 import '../tokens.dart';
 import 'glass.dart';
-
-/// One destination in the app. The order here is the order in the dock and in
-/// the compact bottom bar.
-enum HkDestination {
-  dashboard('Asosiy', Icons.grid_view_rounded, '/'),
-  live('Jonli', Icons.videocam_rounded, '/live'),
-  recordings('Yozuvlar', Icons.play_circle_outline_rounded, '/recordings'),
-  schedule('Jadval', Icons.calendar_month_rounded, '/schedule'),
-  students('Talabalar', Icons.people_alt_rounded, '/admin/users');
-
-  const HkDestination(this.label, this.icon, this.route);
-
-  final String label;
-  final IconData icon;
-  final String route;
-}
 
 /// The floating glass command dock — the design's replacement for a sidebar.
 ///
@@ -27,27 +12,22 @@ enum HkDestination {
 class CommandDock extends StatelessWidget {
   const CommandDock({
     super.key,
+    required this.destinations,
     required this.current,
     required this.onSelect,
     this.liveActive = false,
-    this.showAdmin = false,
   });
 
-  final HkDestination current;
+  final List<HkDestination> destinations;
+  final HkDestination? current;
   final ValueChanged<HkDestination> onSelect;
 
-  /// Shows the pulsing red dot on "Jonli" when a lesson is broadcasting.
+  /// Shows the pulsing red dot on the live entry when a lesson is
+  /// broadcasting.
   final bool liveActive;
-
-  /// "Talabalar" is the account panel, which only an admin may open. Showing
-  /// it to a student would be a dock item that bounces them straight back.
-  final bool showAdmin;
 
   @override
   Widget build(BuildContext context) {
-    final destinations = HkDestination.values
-        .where((d) => d != HkDestination.students || showAdmin);
-
     return GlassPanel(
       radius: HkRadius.pill,
       padding: const EdgeInsets.all(6),
@@ -58,7 +38,7 @@ class CommandDock extends StatelessWidget {
             _DockItem(
               destination: d,
               active: d == current,
-              showLiveDot: d == HkDestination.live && liveActive,
+              showLiveDot: d.route == '/live' && liveActive,
               onTap: () => onSelect(d),
             ),
         ],
@@ -138,26 +118,23 @@ class _DockItemState extends State<_DockItem> {
 class CompactNavBar extends StatelessWidget {
   const CompactNavBar({
     super.key,
+    required this.destinations,
     required this.current,
     required this.onSelect,
     this.liveActive = false,
   });
 
-  final HkDestination current;
+  final List<HkDestination> destinations;
+  final HkDestination? current;
   final ValueChanged<HkDestination> onSelect;
   final bool liveActive;
 
   @override
   Widget build(BuildContext context) {
-    // "Talabalar" is dropped on phones: it routes to the same place as
-    // "Jadval" in this milestone, and five tabs at this width truncate every
-    // label to an ellipsis.
-    const shown = [
-      HkDestination.dashboard,
-      HkDestination.live,
-      HkDestination.recordings,
-      HkDestination.schedule,
-    ];
+    // Four at most. A fifth tab at 390pt truncates every label to an
+    // ellipsis, and the staff roles are the ones with five — on a phone the
+    // last one is reachable from its screen rather than the bar.
+    final shown = destinations.take(4).toList();
 
     return Container(
       decoration: const BoxDecoration(
@@ -187,7 +164,7 @@ class CompactNavBar extends StatelessWidget {
                                   ? HkColors.lime
                                   : HkColors.textTertiary,
                             ),
-                            if (d == HkDestination.live && liveActive)
+                            if (d.route == '/live' && liveActive)
                               const Positioned(
                                 right: -3,
                                 top: -2,

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/admin/presentation/users_screen.dart';
+import '../design_system/navigation.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/change_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -14,6 +14,13 @@ import '../features/lessons/presentation/lesson_detail_screen.dart';
 import '../features/lessons/presentation/live_room_screen.dart';
 import '../features/lessons/presentation/recordings_screen.dart';
 import '../features/lessons/presentation/schedule_screen.dart';
+import '../features/staff/presentation/admin_dashboard_screen.dart';
+import '../features/staff/presentation/admin_finance_screen.dart';
+import '../features/staff/presentation/admin_students_screen.dart';
+import '../features/staff/presentation/admin_teachers_screen.dart';
+import '../features/staff/presentation/teacher_dashboard_screen.dart';
+import '../features/staff/presentation/teacher_grading_screen.dart';
+import '../features/staff/presentation/teacher_students_screen.dart';
 
 /// Real routes rather than the prototype's `setState({view})`, so the desktop
 /// window's back/forward and the web build's URL bar both behave.
@@ -62,9 +69,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
       if (location == '/change-password') return '/';
 
-      // The account panel is admin-only. The dock hides it, but a typed URL
-      // or a stale deep link must not get through either.
-      if (location.startsWith('/admin') && !profile.isAdmin) return '/';
+      // The staff panels are gated here as well as hidden from the dock: a
+      // hidden menu item is not access control, and a bookmarked URL from a
+      // demoted account would otherwise still open.
+      if (HkNav.isAdminRoute(location) && !profile.isAdmin) {
+        return HkNav.homeFor(profile.role);
+      }
+      if (HkNav.isTeacherRoute(location) && !profile.isStaff) {
+        return HkNav.homeFor(profile.role);
+      }
+
+      // Each role has its own home. A teacher landing on the student
+      // dashboard would see a screen built around lessons they are teaching,
+      // framed as lessons they are attending.
+      if (location == '/' && profile.role != 'student') {
+        return HkNav.homeFor(profile.role);
+      }
 
       return null;
     },
@@ -105,8 +125,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             _fade(state, const ChangePasswordScreen()),
       ),
       GoRoute(
-        path: '/admin/users',
-        pageBuilder: (context, state) => _fade(state, const UsersScreen()),
+        path: '/teacher',
+        pageBuilder: (context, state) =>
+            _fade(state, const TeacherDashboardScreen()),
+      ),
+      GoRoute(
+        path: '/teacher/students',
+        pageBuilder: (context, state) =>
+            _fade(state, const TeacherStudentsScreen()),
+      ),
+      GoRoute(
+        path: '/teacher/grading',
+        pageBuilder: (context, state) =>
+            _fade(state, const TeacherGradingScreen()),
+      ),
+      GoRoute(
+        path: '/admin',
+        pageBuilder: (context, state) =>
+            _fade(state, const AdminDashboardScreen()),
+      ),
+      GoRoute(
+        path: '/admin/students',
+        pageBuilder: (context, state) =>
+            _fade(state, const AdminStudentsScreen()),
+      ),
+      GoRoute(
+        path: '/admin/teachers',
+        pageBuilder: (context, state) =>
+            _fade(state, const AdminTeachersScreen()),
+      ),
+      GoRoute(
+        path: '/admin/finance',
+        pageBuilder: (context, state) =>
+            _fade(state, const AdminFinanceScreen()),
       ),
     ],
   );

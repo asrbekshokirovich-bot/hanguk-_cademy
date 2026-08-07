@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
-import '../../../design_system/widgets/command_dock.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
@@ -30,7 +29,6 @@ class LessonDetailScreen extends ConsumerWidget {
     final async = ref.watch(recordingByIdProvider(recordingId));
 
     return AppShell(
-      destination: HkDestination.recordings,
       title: 'Dars tafsiloti',
       subtitle: 'Yozuv, materiallar va test',
       child: Column(

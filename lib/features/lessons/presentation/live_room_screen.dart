@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
-import '../../../design_system/widgets/command_dock.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../data/demo_data.dart';
 import '../data/providers.dart';
@@ -45,7 +44,6 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     final lesson = ref.watch(liveLessonProvider).value;
 
     return AppShell(
-      destination: HkDestination.live,
       title: 'Jonli dars',
       subtitle: lesson?.title ?? 'Hozir efirda dars yo‘q',
       scrollable: layout.isCompact,

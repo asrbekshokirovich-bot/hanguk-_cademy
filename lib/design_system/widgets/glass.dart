@@ -358,7 +358,10 @@ class LimeButton extends StatelessWidget {
             onTap: onPressed,
             borderRadius: BorderRadius.circular(HkRadius.cardSmall),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              // Tighter on the short variant. 24 is right for a full-width
+              // call to action; inside a table row, where the button is
+              // sized to its column, it pushes the label out of the box.
+              padding: EdgeInsets.symmetric(horizontal: height >= 46 ? 24 : 14),
               child: Row(
                 mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,

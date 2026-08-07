@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
+import 'package:hanguk_online/main.dart';
 import 'package:hanguk_online/features/lessons/presentation/dashboard_screen.dart';
 
 void main() {
@@ -25,7 +27,17 @@ void main() {
         // Demo mode: HkEnv defaults to the live project, and this test is
         // asserting on the fixture data, not on production rows.
         overrides: [supabaseClientProvider.overrideWithValue(null)],
-        child: const MaterialApp(home: DashboardScreen()),
+        child: MaterialApp.router(
+          theme: hangukTheme,
+          // AppShell reads the current location to decide which dock item is
+          // active, so it needs a router above it — a bare MaterialApp is no
+          // longer enough.
+          routerConfig: GoRouter(
+            routes: [
+              GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
+            ],
+          ),
+        ),
       ),
     );
     await tester.pump();

@@ -18,7 +18,35 @@ u universitetga hujjat topshirish uchun, bu esa onlayn darslar uchun.
 | `/schedule` | Jadval — haftalik jadval, avto-yozuv tugmasi (xodimlar uchun) | to'liq |
 | `/login` | Kirish — login + parol | to'liq |
 | `/change-password` | Birinchi kirishda majburiy parol almashtirish | to'liq |
-| `/admin/users` | Talabalar — hisoblarni yaratish, parol tiklash, rol | to'liq (admin) |
+
+### Uchta panel
+
+Navigatsiya hisobning roliga qarab tanlanadi. Rol almashtirgich **yo'q** —
+prototipdagi chip dizaynerga uchta rolni ko'rsatish uchun; mahsulotda u yo
+yolg'on bo'lardi (talaba admin bo'la olmaydi), yo teshik (agar ishlaganda).
+
+| Rol | Ekranlar |
+|---|---|
+| **Talaba** | `/` Asosiy · `/live` Jonli · `/recordings` Yozuvlar · `/schedule` Jadval |
+| **O'qituvchi** | `/teacher` Asosiy · `/live` Darsim · `/teacher/students` Talabalarim · `/teacher/grading` Baholash · `/recordings` Yozuvlar |
+| **Admin** | `/admin` Boshqaruv · `/admin/students` Talabalar · `/admin/teachers` O'qituvchilar · `/schedule` Jadval · `/admin/finance` Moliya |
+
+Yopiq marshrutlar routerda ham tekshiriladi — dokdan yashirish himoya emas.
+
+### Pul
+
+Summalar **butun so'mda, `bigint`** saqlanadi. Kasrli tiyin amalda yo'q, va
+5 000 000 UZS ni `double` da saqlash bugun to'g'ri ko'rinadi-yu, birinchi
+bo'lishda xato beradi.
+
+Moliya bo'limi — **daftar, to'lov tizimi emas**. Pul naqd yoki bank orqali
+keladi, kimdir uni shu yerda qayd etadi; ilova mablag' harakatlantirmaydi.
+"Tasdiqlash" holat bilan birga sanani ham yozadi — sanasiz tasdiq bank
+ko'chirmasi bilan solishtirilmaydi.
+
+Kechikkan holati **hisoblab chiqariladi**, saqlanmaydi: faqat fon vazifasi
+ishlaganda to'g'ri bo'ladigan ustun — bu vazifa ishlamagan paytda noto'g'ri
+bo'ladigan ustun.
 
 ### Hisoblar va kirish
 

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
-import '../../../design_system/widgets/command_dock.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/lessons_repository.dart';
@@ -28,7 +27,6 @@ class ScheduleScreen extends ConsumerWidget {
         ref.watch(profileProvider).value?.isStaff ?? false;
 
     return AppShell(
-      destination: HkDestination.schedule,
       title: 'Jadval',
       subtitle: 'Darslarni rejalashtirish va boshqarish',
       child: Column(

@@ -8,6 +8,7 @@ import '../../features/lessons/presentation/notifications_panel.dart';
 import '../../features/lessons/presentation/profile_menu.dart';
 import '../../features/lessons/presentation/search_sheet.dart';
 import '../layout.dart';
+import '../navigation.dart';
 import '../tokens.dart';
 import 'ambient_background.dart';
 import 'command_dock.dart';
@@ -21,14 +22,12 @@ import 'glass.dart';
 class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
-    required this.destination,
     required this.title,
     required this.subtitle,
     required this.child,
     this.scrollable = true,
   });
 
-  final HkDestination destination;
   final String title;
   final String subtitle;
   final Widget child;
@@ -43,8 +42,17 @@ class AppShell extends ConsumerWidget {
     final profile = ref.watch(profileProvider).value;
     final unread = ref.watch(unreadCountProvider);
 
+    // Navigation follows the account's role, so a teacher's dock is not a
+    // student's dock with items removed.
+    final destinations = HkNav.forRole(profile?.role);
+    final location = GoRouterState.of(context).uri.path;
+    // Derived from the location rather than declared by each screen: the
+    // same route is a different dock item depending on who is looking at it
+    // ("Jonli" for a student, "Darsim" for the teacher running it).
+    final current = HkNav.currentFor(profile?.role, location);
+
     void go(HkDestination d) {
-      if (d.route != GoRouterState.of(context).uri.path) context.go(d.route);
+      if (d.route != location) context.go(d.route);
     }
 
     final content = Padding(
@@ -81,6 +89,8 @@ class AppShell extends ConsumerWidget {
               ..._floatingChrome(
                 context,
                 layout,
+                destinations,
+                current,
                 liveActive,
                 profile,
                 unread,
@@ -91,7 +101,8 @@ class AppShell extends ConsumerWidget {
       ),
       bottomNavigationBar: layout.isCompact
           ? CompactNavBar(
-              current: destination,
+              destinations: destinations,
+              current: current,
               onSelect: go,
               liveActive: liveActive,
             )
@@ -102,6 +113,8 @@ class AppShell extends ConsumerWidget {
   List<Widget> _floatingChrome(
     BuildContext context,
     HkLayout layout,
+    List<HkDestination> destinations,
+    HkDestination? current,
     bool liveActive,
     UserProfile? profile,
     int unread,
@@ -115,10 +128,10 @@ class AppShell extends ConsumerWidget {
         right: 0,
         child: Center(
           child: CommandDock(
-            current: destination,
+            destinations: destinations,
+            current: current,
             onSelect: go,
             liveActive: liveActive,
-            showAdmin: profile?.isAdmin ?? false,
           ),
         ),
       ),

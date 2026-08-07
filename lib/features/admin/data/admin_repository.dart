@@ -7,9 +7,15 @@ import '../domain/managed_user.dart';
 /// Account administration.
 ///
 /// Reads go straight to the `ol_v_users` view — row-level security already
-/// restricts it to staff. Writes that touch auth (create, delete, reset a
-/// password) go through the `admin-users` Edge Function, because they need the
-/// service-role key and that key must never be inside this app.
+/// restricts it to staff.
+///
+/// Writes that touch auth (create, delete, reset a password) go through
+/// SECURITY DEFINER database functions rather than the client, because the
+/// privileges they need must never be inside this app. They were originally
+/// in the `admin-users` Edge Function, which is still in the repo and does
+/// exactly the same three jobs; deploying it needs dashboard access that has
+/// not worked for this project, and the database is reachable from the SQL
+/// editor. See `20260807170000_admin_user_rpc.sql` for the trade-off.
 class AdminRepository {
   AdminRepository(this._client);
 
@@ -18,8 +24,6 @@ class AdminRepository {
   bool get isDemo => _client == null;
 
   SupabaseClient get _db => _client!;
-
-  static const _function = 'admin-users';
 
   Future<List<ManagedUser>> users() async {
     if (isDemo) return ManagedUser.demoRoster();
@@ -44,12 +48,11 @@ class AdminRepository {
     if (isDemo) {
       throw StateError('Demo rejimda hisob yaratib bo‘lmaydi');
     }
-    final data = await _invoke({
-      'action': 'create',
-      'username': username,
-      'full_name': fullName,
-      'role': role,
-      'level': level,
+    final data = await _rpc('ol_admin_create_user', {
+      'p_username': username,
+      'p_full_name': fullName,
+      'p_role': role,
+      'p_level': level,
     });
     return CreatedAccount(
       userId: data['user_id'] as String,
@@ -62,16 +65,13 @@ class AdminRepository {
   /// Issues a new password. Returns it for the admin to pass on.
   Future<String> resetPassword(String userId) async {
     if (isDemo) throw StateError('Demo rejimda mavjud emas');
-    final data = await _invoke({
-      'action': 'reset_password',
-      'user_id': userId,
-    });
+    final data = await _rpc('ol_admin_reset_password', {'p_user_id': userId});
     return data['password'] as String;
   }
 
   Future<void> deleteUser(String userId) async {
     if (isDemo) throw StateError('Demo rejimda mavjud emas');
-    await _invoke({'action': 'delete', 'user_id': userId});
+    await _db.rpc('ol_admin_delete_user', params: {'p_user_id': userId});
   }
 
   /// Role and level are plain columns, so they change through the table —
@@ -84,22 +84,34 @@ class AdminRepository {
         .update({'role': role, 'level': level}).eq('user_id', userId);
   }
 
-  Future<Map<String, dynamic>> _invoke(Map<String, dynamic> body) async {
-    final response = await _db.functions.invoke(_function, body: body);
-    final data = response.data;
-
-    if (response.status >= 400) {
-      // The function answers with {"error": "..."} in Uzbek; surface that
-      // rather than "FunctionsHttpError: 400", which tells the admin nothing.
-      final message = data is Map && data['error'] != null
-          ? '${data['error']}'
-          : 'Server xatosi (${response.status})';
-      throw AdminActionException(message);
-    }
-    if (data is! Map) {
+  /// Calls a `set`-returning admin function and unwraps its single row.
+  ///
+  /// Postgres raises are surfaced as PostgrestException with the message the
+  /// function wrote — already in Uzbek — so they are passed straight through
+  /// rather than wrapped in "PostgrestException(...)", which tells an
+  /// administrator nothing.
+  Future<Map<String, dynamic>> _rpc(
+    String function,
+    Map<String, dynamic> params,
+  ) async {
+    try {
+      final data = await _db.rpc(function, params: params);
+      if (data is List && data.isNotEmpty) {
+        return Map<String, dynamic>.from(data.first as Map);
+      }
+      if (data is Map) return Map<String, dynamic>.from(data);
       throw const AdminActionException('Serverdan kutilmagan javob keldi');
+    } on PostgrestException catch (e) {
+      // 42883 is "function does not exist" — the migration has not been
+      // applied. Saying so beats an opaque SQL error code.
+      if (e.code == '42883' || e.message.contains('does not exist')) {
+        throw const AdminActionException(
+          'Server funksiyasi topilmadi. supabase/migrations dagi oxirgi '
+          'migratsiya qo‘llanganini tekshiring.',
+        );
+      }
+      throw AdminActionException(e.message);
     }
-    return Map<String, dynamic>.from(data);
   }
 }
 

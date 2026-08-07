@@ -66,21 +66,26 @@ administrator yaratadi va login bilan parolni qo'lga beradi.
 - Rollar: `student` / `teacher` / `admin`. Jadvaldagi tahrirlash va avto-yozuv
   o'qituvchi va adminda; hisoblar paneli faqat adminda.
 
-Hisob yaratish, o'chirish va parol tiklash `supabase/functions/admin-users`
-Edge Function orqali bajariladi. Sabab: bu amallar `service_role` kalitini
-talab qiladi, u esa hech qachon ilova ichida bo'lmasligi kerak — binarni
-ochgan odam bazaning egasiga aylanardi. Funksiya har bir so'rovda chaqiruvchi
-haqiqatan admin ekanini tekshiradi.
+Hisob yaratish, o'chirish va parol tiklash **bazadagi `SECURITY DEFINER`
+funksiyalar** orqali bajariladi (`20260807170000_admin_user_rpc.sql`). Bu
+amallar oshirilgan huquq talab qiladi, u esa hech qachon ilova ichida
+bo'lmasligi kerak — binarni ochgan odam bazaning egasiga aylanardi. Har bir
+funksiyaning birinchi satri chaqiruvchi haqiqatan admin ekanini tekshiradi.
 
-Joylashtirish:
+Kelishuv ochiq aytiladi: bu `auth.users` ga to'g'ridan-to'g'ri yozadi, buni
+Supabase tavsiya qilmaydi — o'sha sxema GoTrue niki va versiyalar orasida
+o'zgarishi mumkin. Xatolik ko'rinadigan bo'ladi (yangi majburiy ustun paydo
+bo'lsa funksiya xato beradi, buzuq hisob yaratmaydi), lekin GoTrue yangilangach
+qayta sinash kerak.
+
+`supabase/functions/admin-users` — xuddi shu uch ishni bajaradigan Edge
+Function, repoda qoldirilgan. U odatdagi yo'l va afzalroq; agar joylashtira
+olsangiz, `AdminRepository` ni unga qaytarib, bu funksiyalarni o'chirsa
+bo'ladi.
 
 ```bash
 supabase functions deploy admin-users
 ```
-
-yoki Supabase paneli → Edge Functions → yangi funksiya yaratib, faylni
-qo'yish. Sozlanadigan maxfiy qiymat yo'q — `SUPABASE_URL` va
-`SUPABASE_SERVICE_ROLE_KEY` platformaning o'zi tomonidan beriladi.
 
 ### Yuqori o'ng burchakdagi boshqaruvlar
 

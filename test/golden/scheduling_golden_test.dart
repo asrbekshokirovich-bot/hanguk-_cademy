@@ -11,6 +11,7 @@ import 'package:hanguk_online/core/clock.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/staff/data/staff_demo_data.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_students_screen.dart';
+import 'package:hanguk_online/features/staff/presentation/admin_groups_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/group_dialogs.dart';
 import 'package:hanguk_online/features/staff/presentation/lesson_dialog.dart';
 import 'package:hanguk_online/main.dart';
@@ -31,7 +32,7 @@ void main() {
 
   tearDownAll(() => hkNow = DateTime.now);
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, [Widget? screen]) async {
     tester.view.physicalSize = const Size(1440, 920);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -44,7 +45,10 @@ void main() {
           debugShowCheckedModeBanner: false,
           routerConfig: GoRouter(
             routes: [
-              GoRoute(path: '/', builder: (_, _) => const AdminStudentsScreen()),
+              GoRoute(
+                path: '/',
+                builder: (_, _) => screen ?? const AdminStudentsScreen(),
+              ),
             ],
           ),
         ),
@@ -115,22 +119,40 @@ void main() {
     );
   });
 
-  testWidgets('the group list is reachable from the roster', (tester) async {
-    await pump(tester);
-    await tester.tap(find.text('Guruhlar'));
+  testWidgets('the groups section is the hinge of the admin panel',
+      (tester) async {
+    await pump(tester, const AdminGroupsScreen());
+
+    // A group is what ties a student to a teacher, so the screen says which
+    // teacher runs each one rather than leaving it to be inferred.
+    expect(find.text('Daraja 2 · A'), findsOneWidget);
+    expect(find.text('Jasur Karimov'), findsOneWidget);
+    expect(find.text('Yangi guruh'), findsOneWidget);
+
+    await expectLater(
+      find.byType(AdminGroupsScreen),
+      matchesGoldenFile('goldens/admin_groups.png'),
+    );
+  });
+
+  testWidgets('the group form picks a teacher, not a student', (tester) async {
+    await pump(tester, const AdminGroupsScreen());
+    await tester.tap(find.text('Yangi guruh'));
     await settleDialog(tester);
 
     final dialog = find.byType(Dialog);
     expect(
-      find.descendant(of: dialog, matching: find.text('Daraja 2 · A')),
+      find.descendant(of: dialog, matching: find.text('Yangi guruh')),
       findsOneWidget,
     );
-    expect(find.textContaining('24 ta talaba'), findsOneWidget);
-    expect(find.text('Yangi guruh'), findsOneWidget);
+    expect(
+      find.descendant(of: dialog, matching: find.text('O‘qituvchini tanlang')),
+      findsNothing,
+    );
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/groups_dialog.png'),
+      matchesGoldenFile('goldens/group_form_dialog.png'),
     );
   });
 }

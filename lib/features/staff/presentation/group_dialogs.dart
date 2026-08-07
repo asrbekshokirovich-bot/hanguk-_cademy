@@ -27,12 +27,13 @@ Future<bool?> showAssignGroupDialog(
   );
 }
 
-/// The group list: create, rename, retire, and see who teaches what.
-Future<bool?> showGroupsDialog(BuildContext context) {
+/// Create or edit one group. The list itself is a screen ("Guruhlar" in the
+/// admin dock), not a dialog — it is where an admin spends real time.
+Future<bool?> showGroupFormDialog(BuildContext context, {StudyGroup? group}) {
   return showDialog<bool>(
     context: context,
     barrierColor: const Color(0xB3000000),
-    builder: (_) => const _GroupsDialog(),
+    builder: (_) => _GroupFormDialog(group: group),
   );
 }
 
@@ -126,138 +127,6 @@ class _AssignGroupDialogState extends ConsumerState<_AssignGroupDialog> {
           onPressed: _busy ? null : _save,
         ),
       ],
-    );
-  }
-}
-
-class _GroupsDialog extends ConsumerStatefulWidget {
-  const _GroupsDialog();
-
-  @override
-  ConsumerState<_GroupsDialog> createState() => _GroupsDialogState();
-}
-
-class _GroupsDialogState extends ConsumerState<_GroupsDialog> {
-  /// Whether anything was written, so the caller knows to refresh the roster.
-  bool _dirty = false;
-
-  Future<void> _edit({StudyGroup? group}) async {
-    final saved = await showDialog<bool>(
-      context: context,
-      barrierColor: const Color(0xB3000000),
-      builder: (_) => _GroupFormDialog(group: group),
-    );
-    if (saved == true) {
-      _dirty = true;
-      ref.invalidate(groupsProvider);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final groups = ref.watch(groupsProvider);
-
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.of(context).pop(_dirty);
-      },
-      child: _DialogFrame(
-        title: 'Guruhlar',
-        subtitle: 'Har bir guruhning o‘qituvchisi bor — talaba guruhga '
-            'qo‘shilganda o‘sha o‘qituvchiga biriktiriladi.',
-        onClose: () => Navigator.of(context).pop(_dirty),
-        children: [
-          switch (groups) {
-            AsyncError(:final error) => Text(
-                'Yuklanmadi: $error',
-                style: HkType.muted.copyWith(color: HkColors.dangerBright),
-              ),
-            AsyncData(:final value) when value.isEmpty => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                child: Text('Hali guruh yaratilmagan', style: HkType.muted),
-              ),
-            AsyncData(:final value) => Column(
-                children: [
-                  for (final g in value)
-                    _GroupRow(group: g, onEdit: () => _edit(group: g)),
-                ],
-              ),
-            _ => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-          },
-          const SizedBox(height: 18),
-          LimeButton(
-            label: 'Yangi guruh',
-            icon: Icons.add_rounded,
-            expand: true,
-            onPressed: _edit,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GroupRow extends StatelessWidget {
-  const _GroupRow({required this.group, required this.onEdit});
-
-  final StudyGroup group;
-  final VoidCallback onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
-      decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
-        borderRadius: BorderRadius.circular(HkRadius.cardSmall),
-        border: Border.all(color: HkGlass.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  group.name,
-                  style: HkType.cardTitle.copyWith(fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  group.teacherName == null
-                      ? '${group.memberCount} ta talaba · o‘qituvchi yo‘q'
-                      : group.subtitle,
-                  style: HkType.muted,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (group.level != null)
-            HkPill(
-              label: '${group.level}-daraja',
-              background: const Color(0x2E6EA0E0),
-              foreground: HkColors.infoText,
-            ),
-          IconButton(
-            tooltip: 'Tahrirlash',
-            onPressed: onEdit,
-            icon: const Icon(
-              Icons.edit_outlined,
-              size: 17,
-              color: HkColors.textTertiary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -439,14 +308,12 @@ class _DialogFrame extends StatelessWidget {
     required this.children,
     this.subtitle,
     this.form,
-    this.onClose,
   });
 
   final String title;
   final String? subtitle;
   final List<Widget> children;
   final GlobalKey<FormState>? form;
-  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -460,7 +327,7 @@ class _DialogFrame extends StatelessWidget {
               Expanded(child: Text(title, style: HkType.pageTitle)),
               IconButton(
                 tooltip: 'Yopish',
-                onPressed: onClose ?? () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(
                   Icons.close_rounded,
                   size: 19,

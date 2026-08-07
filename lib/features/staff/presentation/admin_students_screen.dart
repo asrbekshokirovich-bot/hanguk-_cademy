@@ -56,36 +56,7 @@ class AdminStudentsScreen extends ConsumerWidget {
                   style: HkType.body.copyWith(fontSize: 13),
                 ),
               ),
-              const SizedBox(width: 12),
-              SizedBox(
-                height: 44,
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final changed = await showGroupsDialog(context);
-                    if (changed == true) {
-                      ref.invalidate(adminStudentsProvider);
-                      ref.invalidate(teacherRosterProvider);
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: HkColors.textPrimary,
-                    side: const BorderSide(color: HkGlass.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(HkRadius.control),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                  ),
-                  icon: const Icon(Icons.groups_2_outlined, size: 18),
-                  label: const Text(
-                    'Guruhlar',
-                    style: TextStyle(
-                      fontFamily: HkType.family,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               SizedBox(
                 height: 44,
                 child: FilledButton.icon(

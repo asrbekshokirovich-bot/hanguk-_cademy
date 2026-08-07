@@ -8,9 +8,6 @@ import '../../../design_system/widgets/data_table.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/stat_card.dart';
 import '../../../design_system/widgets/states.dart';
-import '../../admin/data/admin_repository.dart';
-import '../../admin/presentation/create_user_dialog.dart';
-import '../../admin/presentation/password_result_dialog.dart';
 import '../data/staff_providers.dart';
 import '../domain/staff_models.dart';
 
@@ -32,39 +29,11 @@ class AdminTeachersScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Outside the AsyncSection: an empty roster must not hide the only
-          // way to fill it.
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Yuklama shu haftadagi darslar soniga qarab hisoblanadi.',
-                  style: HkType.body.copyWith(fontSize: 13),
-                ),
-              ),
-              const SizedBox(width: 16),
-              SizedBox(
-                height: 44,
-                child: FilledButton.icon(
-                  onPressed: () => _addTeacher(context, ref),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: HkColors.royalBlue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(HkRadius.control),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                  ),
-                  icon: const Icon(Icons.person_add_alt_rounded, size: 18),
-                  label: const Text(
-                    'O‘qituvchi qo‘shish',
-                    style: TextStyle(
-                      fontFamily: HkType.family,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            'Yuklama shu haftadagi darslar soniga qarab hisoblanadi. Yangi '
+            'o‘qituvchi hisobi “Talabalar” bo‘limidagi hisob oynasidan, rol '
+            'sifatida “O‘qituvchi” tanlab ochiladi.',
+            style: HkType.body.copyWith(fontSize: 13),
           ),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(
@@ -72,9 +41,7 @@ class AdminTeachersScreen extends ConsumerWidget {
             onRetry: () => ref.invalidate(teacherRosterProvider),
             loadingHeight: 260,
             isEmpty: (t) => t.isEmpty,
-            emptyMessage:
-                'Hali o‘qituvchi yo‘q — “O‘qituvchi qo‘shish” tugmasi bilan '
-                'qo‘shing',
+            emptyMessage: 'Hali o‘qituvchi yo‘q',
             builder: (teachers) {
               final totalLessons = teachers.fold<int>(
                 0,
@@ -144,22 +111,6 @@ class AdminTeachersScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _addTeacher(BuildContext context, WidgetRef ref) async {
-    // The same account dialog, opened with the teacher role preselected —
-    // an admin adding staff should not have to remember to change it.
-    final created = await showCreateUserDialog(context, initialRole: 'teacher');
-    if (created == null || !context.mounted) return;
-
-    ref.invalidate(teacherRosterProvider);
-    ref.invalidate(managedUsersProvider);
-    await showPasswordResultDialog(
-      context,
-      title: 'Hisob yaratildi',
-      username: created.username,
-      fullName: created.fullName,
-      password: created.password,
-    );
-  }
 }
 
 class _TeacherRow extends StatelessWidget {

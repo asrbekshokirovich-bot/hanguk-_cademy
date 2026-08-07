@@ -40,6 +40,7 @@ abstract final class HkNav {
     HkDestination('Boshqaruv', Icons.insights_rounded, '/admin'),
     HkDestination('Talabalar', Icons.people_alt_rounded, '/admin/students'),
     HkDestination('O‘qituvchilar', Icons.school_rounded, '/admin/teachers'),
+    HkDestination('Guruhlar', Icons.groups_2_rounded, '/admin/groups'),
     HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
     HkDestination('Moliya', Icons.payments_rounded, '/admin/finance'),
   ];

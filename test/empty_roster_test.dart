@@ -11,6 +11,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/staff/data/staff_providers.dart';
 import 'package:hanguk_online/features/staff/domain/staff_models.dart';
+import 'package:hanguk_online/features/staff/presentation/admin_groups_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_students_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_teachers_screen.dart';
 import 'package:hanguk_online/main.dart';
@@ -61,15 +62,26 @@ void main() {
     expect(find.text('Yangi talaba'), findsOneWidget);
   });
 
-  testWidgets('an empty teacher roster still offers the create button',
+  testWidgets('an empty group list still offers the create button',
       (tester) async {
+    await pump(tester, const AdminGroupsScreen(), [
+      groupsProvider.overrideWith((ref) async => <StudyGroup>[]),
+    ]);
+
+    expect(find.textContaining('Hali guruh yo‘q'), findsOneWidget);
+    expect(find.text('Yangi guruh'), findsOneWidget);
+  });
+
+  testWidgets('the teacher roster no longer creates accounts', (tester) async {
+    // Accounts are issued in one place. Two doors to the same thing is how an
+    // office ends up with two lists of the same people.
     await pump(tester, const AdminTeachersScreen(), [
       teacherRosterProvider
           .overrideWith((ref) async => <TeacherRosterEntry>[]),
     ]);
 
     expect(find.textContaining('Hali o‘qituvchi yo‘q'), findsOneWidget);
-    expect(find.text('O‘qituvchi qo‘shish'), findsOneWidget);
+    expect(find.text('O‘qituvchi qo‘shish'), findsNothing);
   });
 
   testWidgets('the button is there while the roster is still loading',

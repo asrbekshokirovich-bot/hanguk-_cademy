@@ -11,7 +11,7 @@ enum HkDestination {
   live('Jonli', Icons.videocam_rounded, '/live'),
   recordings('Yozuvlar', Icons.play_circle_outline_rounded, '/recordings'),
   schedule('Jadval', Icons.calendar_month_rounded, '/schedule'),
-  students('Talabalar', Icons.people_alt_rounded, '/schedule');
+  students('Talabalar', Icons.people_alt_rounded, '/admin/users');
 
   const HkDestination(this.label, this.icon, this.route);
 
@@ -30,6 +30,7 @@ class CommandDock extends StatelessWidget {
     required this.current,
     required this.onSelect,
     this.liveActive = false,
+    this.showAdmin = false,
   });
 
   final HkDestination current;
@@ -38,15 +39,22 @@ class CommandDock extends StatelessWidget {
   /// Shows the pulsing red dot on "Jonli" when a lesson is broadcasting.
   final bool liveActive;
 
+  /// "Talabalar" is the account panel, which only an admin may open. Showing
+  /// it to a student would be a dock item that bounces them straight back.
+  final bool showAdmin;
+
   @override
   Widget build(BuildContext context) {
+    final destinations = HkDestination.values
+        .where((d) => d != HkDestination.students || showAdmin);
+
     return GlassPanel(
       radius: HkRadius.pill,
       padding: const EdgeInsets.all(6),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final d in HkDestination.values)
+          for (final d in destinations)
             _DockItem(
               destination: d,
               active: d == current,

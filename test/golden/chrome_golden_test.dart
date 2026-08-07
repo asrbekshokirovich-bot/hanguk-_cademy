@@ -125,7 +125,9 @@ void main() {
     expect(find.text('Talaba'), findsOneWidget);
     // Demo mode has to be visible somewhere, and this is where.
     expect(find.text('Demo (offline)'), findsOneWidget);
-    expect(find.text('Chiqish'), findsOneWidget);
+    // No sign-out in demo mode: there is no session to end, and a button
+    // that quietly does nothing is worse than no button.
+    expect(find.text('Chiqish'), findsNothing);
 
     await expectLater(
       find.byType(MaterialApp),

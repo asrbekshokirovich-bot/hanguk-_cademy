@@ -412,7 +412,9 @@ class UserProfile {
     required this.fullName,
     required this.initials,
     required this.role,
+    this.username,
     this.level,
+    this.mustChangePassword = false,
   });
 
   final String id;
@@ -421,11 +423,28 @@ class UserProfile {
 
   /// 'student' | 'teacher' | 'admin'
   final String role;
+
+  /// The login an administrator issued. Null for an account created by hand
+  /// with a real email address.
+  final String? username;
   final int? level;
 
-  bool get isAdmin => role == 'admin' || role == 'teacher';
+  /// Set when an admin issues or resets this account's password. While it is
+  /// true the router holds the user on the change-password screen.
+  final bool mustChangePassword;
 
-  String get subtitle => level == null ? 'Talaba' : 'Daraja $level';
+  /// Teachers and admins both get the staff-only controls on the schedule.
+  bool get isStaff => role == 'admin' || role == 'teacher';
+
+  /// Only a full admin sees the account panel. A teacher managing the roster
+  /// would be a different decision, and this is the conservative one.
+  bool get isAdmin => role == 'admin';
+
+  String get subtitle => switch (role) {
+        'admin' => 'Administrator',
+        'teacher' => "O'qituvchi",
+        _ => level == null ? 'Talaba' : 'Daraja $level',
+      };
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     final name = (map['full_name'] as String?) ?? 'Talaba';
@@ -434,7 +453,9 @@ class UserProfile {
       fullName: name,
       initials: (map['initials'] as String?) ?? Teacher._initialsOf(name),
       role: (map['role'] as String?) ?? 'student',
+      username: map['username'] as String?,
       level: (map['level'] as num?)?.toInt(),
+      mustChangePassword: (map['must_change_password'] as bool?) ?? false,
     );
   }
 }

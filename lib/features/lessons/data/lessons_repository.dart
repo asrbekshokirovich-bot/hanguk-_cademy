@@ -31,7 +31,7 @@ class LessonsRepository {
     }
     final row = await _db
         .from('ol_profiles')
-        .select('user_id, full_name, initials, role, level')
+        .select('user_id, full_name, initials, role, level, username, must_change_password')
         .eq('user_id', userId)
         .maybeSingle();
 

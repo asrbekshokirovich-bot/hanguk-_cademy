@@ -118,6 +118,7 @@ class AppShell extends ConsumerWidget {
             current: destination,
             onSelect: go,
             liveActive: liveActive,
+            showAdmin: profile?.isAdmin ?? false,
           ),
         ),
       ),

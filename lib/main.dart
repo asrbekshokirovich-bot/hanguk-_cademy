@@ -53,15 +53,15 @@ Future<void> main() async {
 bool get _isDesktop =>
     !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
-class HangukOnlineApp extends StatelessWidget {
+class HangukOnlineApp extends ConsumerWidget {
   const HangukOnlineApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: "Hanguk Academy — Onlayn ta'lim",
       debugShowCheckedModeBanner: false,
-      routerConfig: appRouter,
+      routerConfig: ref.watch(appRouterProvider),
       theme: hangukTheme,
     );
   }

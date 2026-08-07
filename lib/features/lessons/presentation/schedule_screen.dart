@@ -25,7 +25,7 @@ class ScheduleScreen extends ConsumerWidget {
     final layout = HkLayout.of(context);
     final weekStart = ref.watch(scheduleWeekStartProvider);
     final isStaff =
-        ref.watch(profileProvider).value?.isAdmin ?? false;
+        ref.watch(profileProvider).value?.isStaff ?? false;
 
     return AppShell(
       destination: HkDestination.schedule,

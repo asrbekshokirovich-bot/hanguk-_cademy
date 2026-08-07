@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../auth/data/auth_repository.dart';
 import '../data/lessons_repository.dart';
 import '../data/providers.dart';
 
@@ -85,21 +86,26 @@ class _ProfileDialog extends ConsumerWidget {
                     ? 'Demo (offline)'
                     : 'Supabase',
               ),
+              if (!ref.watch(authRepositoryProvider).isDemo) ...[
               const Divider(color: HkGlass.border, height: 26),
               SizedBox(
                 width: double.infinity,
                 height: 44,
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Kirish ekrani hali qo‘shilmagan — chiqish '
-                          'keyingi bosqichda ulanadi.',
-                        ),
-                      ),
-                    );
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final navigator = Navigator.of(context);
+                    try {
+                      await ref.read(authRepositoryProvider).signOut();
+                      // The router's redirect sends us to /login on the auth
+                      // event; this only closes the menu on top of it.
+                      navigator.pop();
+                    } catch (e) {
+                      navigator.pop();
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Chiqib bo‘lmadi: $e')),
+                      );
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0x33DC2626)),
@@ -122,6 +128,7 @@ class _ProfileDialog extends ConsumerWidget {
                   ),
                 ),
               ),
+              ],
             ],
           ),
         ),

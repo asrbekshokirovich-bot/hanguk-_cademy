@@ -16,6 +16,43 @@ u universitetga hujjat topshirish uchun, bu esa onlayn darslar uchun.
 | `/recordings` | Yozuvlar — filtr chiplari + karta panjarasi | to'liq |
 | `/recordings/:id` | Dars tafsiloti — pleyer, materiallar, test, uy vazifasi | pleyer o'rin egallovchi |
 | `/schedule` | Jadval — haftalik jadval, avto-yozuv tugmasi (xodimlar uchun) | to'liq |
+| `/login` | Kirish — login + parol | to'liq |
+| `/change-password` | Birinchi kirishda majburiy parol almashtirish | to'liq |
+| `/admin/users` | Talabalar — hisoblarni yaratish, parol tiklash, rol | to'liq (admin) |
+
+### Hisoblar va kirish
+
+Ochiq ro'yxatdan o'tish **yo'q**. Har bir talaba va o'qituvchi hisobini
+administrator yaratadi va login bilan parolni qo'lga beradi.
+
+- **Kirish** login bilan (`aziza.k`), email bilan emas. Ko'p talabada
+  ishlatiladigan email yo'q. Ichkarida login `aziza.k@users.hanguk-academy.uz`
+  ko'rinishiga aylantiriladi — bu domenga hech qachon xat yuborilmaydi.
+  Aylantirish ilovaning o'zida hisoblanadi, bazadan **so'ralmaydi**: "bunday
+  login bormi?" deb javob beradigan ochiq so'rov butun ro'yxatni birma-bir
+  yig'ib olishga imkon berardi.
+- **Parol tizim tomonidan yaratiladi** va bir marta ko'rsatiladi. Admin uni
+  nusxalab talabaga beradi.
+- **Birinchi kirishda parol almashtiriladi.** Admin ko'rgan parol hisobning
+  haqiqiy paroli bo'lib qolmaydi — router boshqa hamma ekranni yopib turadi.
+- Rollar: `student` / `teacher` / `admin`. Jadvaldagi tahrirlash va avto-yozuv
+  o'qituvchi va adminda; hisoblar paneli faqat adminda.
+
+Hisob yaratish, o'chirish va parol tiklash `supabase/functions/admin-users`
+Edge Function orqali bajariladi. Sabab: bu amallar `service_role` kalitini
+talab qiladi, u esa hech qachon ilova ichida bo'lmasligi kerak — binarni
+ochgan odam bazaning egasiga aylanardi. Funksiya har bir so'rovda chaqiruvchi
+haqiqatan admin ekanini tekshiradi.
+
+Joylashtirish:
+
+```bash
+supabase functions deploy admin-users
+```
+
+yoki Supabase paneli → Edge Functions → yangi funksiya yaratib, faylni
+qo'yish. Sozlanadigan maxfiy qiymat yo'q — `SUPABASE_URL` va
+`SUPABASE_SERVICE_ROLE_KEY` platformaning o'zi tomonidan beriladi.
 
 ### Yuqori o'ng burchakdagi boshqaruvlar
 
@@ -39,8 +76,9 @@ Bular ataylab qoldirilgan, keyingi bosqich:
   progressdan chiziladi, lekin video dekodlanmaydi.
 - **Ishtirokchilar va suhbat** jonli xonada `DemoData` dan olinadi.
 - **Test / uy vazifasi modullari** — kartalar bor, oynalar yo'q.
-- **Chiqish** — kirish (login) ekrani hali yo'q, shuning uchun profil
-  menyusidagi "Chiqish" hozircha xabar ko'rsatadi.
+- **Hisobni vaqtincha bloklash** — hozircha faqat o'chirish bor.
+- **Parolni o'zi tiklash** — talaba parolni unutsa, adminga murojaat qiladi.
+  Emailsiz hisobga avtomatik tiklash yuborib bo'lmaydi.
 
 ## Ishga tushirish
 

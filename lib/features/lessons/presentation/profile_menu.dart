@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/env.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../data/lessons_repository.dart';
 import '../data/providers.dart';
 
 /// The menu behind the avatar: who is signed in, and sign out.
@@ -77,9 +77,13 @@ class _ProfileDialog extends ConsumerWidget {
                 _InfoRow(label: 'Daraja', value: '${profile!.level}'),
               _InfoRow(
                 label: "Ma'lumot manbai",
-                // Worth surfacing: in demo mode every number on every screen
-                // is fixture data, and that is not otherwise visible.
-                value: HkEnv.hasSupabase ? 'Supabase' : 'Demo (offline)',
+                // Asked of the repository, not of HkEnv: the build can be
+                // configured for Supabase while the running app is still on
+                // fixtures (a test override, a failed init), and this row is
+                // the only place that difference is visible on screen.
+                value: ref.watch(lessonsRepositoryProvider).isDemo
+                    ? 'Demo (offline)'
+                    : 'Supabase',
               ),
               const Divider(color: HkGlass.border, height: 26),
               SizedBox(

@@ -10,6 +10,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/presentation/dashboard_screen.dart';
 import 'package:hanguk_online/core/clock.dart';
+import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/main.dart';
 
 /// Exercises the three user-cluster controls — search, notifications, profile
@@ -40,6 +41,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        // Pinned to demo mode. HkEnv now defaults to the real project, so
+        // without this every test would issue live HTTP against Supabase —
+        // slow, network-dependent, and dependent on whatever rows happen to
+        // be in the database that day.
+        overrides: [supabaseClientProvider.overrideWithValue(null)],
         child: MaterialApp.router(
           theme: hangukTheme,
           debugShowCheckedModeBanner: false,
@@ -128,7 +134,9 @@ void main() {
   });
 
   testWidgets('unread count drives the bell dot', (tester) async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [supabaseClientProvider.overrideWithValue(null)],
+    );
     addTearDown(container.dispose);
 
     await container.read(notificationsProvider.future);

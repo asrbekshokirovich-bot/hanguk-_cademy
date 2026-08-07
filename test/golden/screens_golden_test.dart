@@ -13,6 +13,7 @@ import 'package:hanguk_online/features/lessons/presentation/live_room_screen.dar
 import 'package:hanguk_online/features/lessons/presentation/recordings_screen.dart';
 import 'package:hanguk_online/features/lessons/presentation/schedule_screen.dart';
 import 'package:hanguk_online/core/clock.dart';
+import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/main.dart';
 
 /// Renders each screen at the design's 1440×920 and compares against a
@@ -50,6 +51,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        // Pinned to demo mode. HkEnv now defaults to the real project, so
+        // without this every test would issue live HTTP against Supabase —
+        // slow, network-dependent, and dependent on whatever rows happen to
+        // be in the database that day.
+        overrides: [supabaseClientProvider.overrideWithValue(null)],
         child: MaterialApp.router(
           theme: hangukTheme,
           debugShowCheckedModeBanner: false,

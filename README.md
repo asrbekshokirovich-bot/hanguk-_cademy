@@ -46,18 +46,32 @@ Bular ataylab qoldirilgan, keyingi bosqich:
 
 ```bash
 flutter pub get
-
-# Demo rejim — Supabase kalitlarisiz, dizayn fikstura ma'lumotlari bilan
 flutter run -d windows
-
-# Haqiqiy ma'lumot bilan
-flutter run -d windows \
-  --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=eyJ...
 ```
 
-Kalitlar berilmasa ilova `lib/features/lessons/data/demo_data.dart` dagi
-fiksturalarni ko'rsatadi. Shuning uchun repoda hech qanday kalit saqlanmaydi.
+Bayroqsiz ishlaydi — `lib/core/env.dart` loyihaning o'z Supabase manzilini va
+publishable kalitini ichida saqlaydi. Bu kalit binarda yuborilishi uchun
+mo'ljallangan: uning o'zida hech qanday huquq yo'q, har bir so'rov baribir
+migratsiyadagi RLS qoidalaridan o'tadi. **`service_role` va `sb_secret_…`
+kalitlarini hech qachon bu yerga yozmang.**
+
+Boshqa loyihaga yo'naltirish:
+
+```bash
+flutter run -d windows \
+  --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+Bo'sh URL berish demo rejimni yoqadi — `demo_data.dart` dagi fiksturalar
+ishlatiladi, tarmoqqa umuman chiqmaydi:
+
+```bash
+flutter run -d windows --dart-define=SUPABASE_URL=
+```
+
+Profil menyusidagi "Ma'lumot manbai" qatori qaysi rejimda ekaningizni
+ko'rsatadi.
 
 Boshqa platformalar: `-d android`, `-d ios`, `-d chrome`, `-d linux`.
 
@@ -67,11 +81,8 @@ Boshqa platformalar: `-d android`, `-d ios`, `-d chrome`, `-d linux`.
 `ol_` prefiksi bilan, shuning uchun mavjud Supabase loyihasi bilan bir joyda
 yashay oladi.
 
-**Bu migratsiya hali qo'llanilmagan.** Qo'llash uchun:
-
-```bash
-supabase db push
-```
+Qo'llash: Supabase'da **SQL Editor** ni ochib, `.sql` faylning butun
+mazmunini qo'ying va **Run** bosing. Yoki CLI bilan `supabase db push`.
 
 Rollar `ol_profiles.role` dan keladi (`student` / `teacher` / `admin`) va
 har bir RLS siyosati shunga tayanadi. Talaba faqat o'z progressini va o'z

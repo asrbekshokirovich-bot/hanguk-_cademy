@@ -41,10 +41,7 @@ Future<void> main() async {
   if (HkEnv.hasSupabase) {
     await Supabase.initialize(
       url: HkEnv.supabaseUrl,
-      // Named `anonKey` until supabase_flutter's rename settles; the value
-      // is the project's publishable key either way.
-      // ignore: deprecated_member_use
-      anonKey: HkEnv.supabaseAnonKey,
+      publishableKey: HkEnv.supabasePublishableKey,
     );
   }
 

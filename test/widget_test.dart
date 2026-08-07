@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/presentation/dashboard_screen.dart';
 
 void main() {
@@ -20,8 +21,11 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: DashboardScreen()),
+      ProviderScope(
+        // Demo mode: HkEnv defaults to the live project, and this test is
+        // asserting on the fixture data, not on production rows.
+        overrides: [supabaseClientProvider.overrideWithValue(null)],
+        child: const MaterialApp(home: DashboardScreen()),
       ),
     );
     await tester.pump();

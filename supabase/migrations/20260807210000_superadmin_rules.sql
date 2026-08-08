@@ -103,16 +103,22 @@ grant select on ol_v_users to authenticated;
 
 -- These two were written before the tier existed and compare to the literal
 -- 'admin', which would now lock a superadmin out of the screens it outranks.
+--
+-- Only the WHERE clause changes. `create or replace view` refuses to drop or
+-- rename a column ("42P16: cannot drop columns from view"), so the select
+-- list below is the original one character for character — retyping it from
+-- memory is what produced that error the first time.
 
 create or replace view ol_v_teacher_students
 with (security_invoker = false)
 as
 select
-  m.student_id,
+  p.user_id as student_id,
   p.full_name,
-  p.level,
-  g.name as group_name,
-  g.teacher_id,
+  p.username,
+  g.id      as group_id,
+  g.name    as group_name,
+  t.id      as teacher_id,
   s.attendance,
   s.progress,
   s.last_seen_at

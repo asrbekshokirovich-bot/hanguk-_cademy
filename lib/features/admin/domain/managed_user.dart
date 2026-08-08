@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/clock.dart';
 import '../../../design_system/tokens.dart';
 import '../../auth/data/username.dart';
 
@@ -86,7 +87,9 @@ class ManagedUser {
   /// Shown in demo mode so the panel's layout can be reviewed without a
   /// backend. Creating or deleting anything is refused there.
   static List<ManagedUser> demoRoster() {
-    final now = DateTime.now();
+    // hkNow, not DateTime.now: these dates are rendered, so a golden over
+    // this screen would otherwise fail on any run a minute later.
+    final now = hkNow();
     return [
       ManagedUser(
         userId: 'u1',

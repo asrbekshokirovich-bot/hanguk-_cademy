@@ -99,6 +99,24 @@ makes the screens reviewable without a backend.
 The owner does not have it; he has been running the web build. Do not
 recommend `-d windows` to him without that caveat.
 
+### Deploying the web build
+
+Vercel, from the GitHub repo. There is no Flutter runtime on Vercel, so
+`scripts/vercel_build.sh` fetches a **pinned** SDK (3.44.9) into the build
+cache and runs `flutter build web --release`; `vercel.json` points at
+`build/web`. The first deploy pays a few minutes for the download, later
+ones restore it from cache.
+
+The version is pinned deliberately. A Flutter release that changes codegen
+should break a local build, where someone is reading the error, rather than
+a deploy nobody is watching. Bumping it means editing both
+`scripts/vercel_build.sh` and the local toolchain together.
+
+`index.html`, `flutter_bootstrap.js`, `flutter_service_worker.js` and
+`version.json` are served `must-revalidate`; everything under `assets/` and
+`canvaskit/` is immutable and cached for a year. Getting this backwards is
+how a deploy lands and users keep running the previous build.
+
 ---
 
 ## 3. Verification — read this before you change anything

@@ -110,6 +110,33 @@ makes the screens reviewable without a backend.
 The owner does not have it; he has been running the web build. Do not
 recommend `-d windows` to him without that caveat.
 
+### Shipping the Android app
+
+`docs/play-store.md` is the whole Play procedure, written for the owner.
+Three things in it are easy to get wrong and were:
+
+- **INTERNET.** Flutter declares it only in the debug and profile manifests.
+  A release built from the template has no network at all, and fails as a
+  connection error on a device nobody is watching. It is in the main manifest
+  now.
+- **R8.** Minification pulls in the engine's Play-deferred-components code,
+  whose library is not on the classpath, and the build stops with "Missing
+  class com.google.android.play.core…". `-dontwarn` for that package.
+- **Signing.** `android/key.properties` (gitignored) supplies the release
+  key; without it the build falls back to the debug key and says so, rather
+  than quietly producing something Play will reject.
+
+The bundle is built by `.github/workflows/android-release.yml` — Actions tab,
+"Run workflow" — so the owner never installs the Android SDK. The keystore
+lives in repository secrets.
+
+Store screenshots come from `test/store_screenshots_test.dart`, tagged out of
+the default run:
+
+```bash
+flutter test test/store_screenshots_test.dart --tags store --update-goldens
+```
+
 ### Deploying the web build
 
 Vercel, from the GitHub repo. There is no Flutter runtime on Vercel, so
@@ -174,7 +201,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 61 tests
+flutter test             # 67 tests
 flutter build linux --release
 ```
 

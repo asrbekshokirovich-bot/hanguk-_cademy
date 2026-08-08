@@ -2,7 +2,9 @@ name: hanguk_online
 description: "Hanguk Academy — Onlayn ta'lim platformasi."
 publish_to: 'none'
 
-version: 0.1.0+1
+# versionName+versionCode. Play refuses an upload whose versionCode it has
+# seen before, so the build number goes up on every release, never down.
+version: 1.0.0+1
 
 environment:
   sdk: ^3.11.0

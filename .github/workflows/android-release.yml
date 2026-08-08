@@ -1,0 +1,103 @@
+name: Android release bundle
+
+# Builds the signed .aab that gets uploaded to Play.
+#
+# It runs here rather than on the owner's machine on purpose: building an
+# Android release needs the Android SDK, a JDK and a Gradle cache — an
+# afternoon of installation on Windows, and a second afternoon the next time
+# any of the three moves. Here it is a button.
+#
+# Start it from the Actions tab ("Run workflow"), then download the bundle
+# from the run's Artifacts section.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Pinned, like the Vercel build. A Flutter release that changes
+          # codegen should break a build someone is watching.
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Restore the signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set. Without it the"
+            echo "::error::bundle would be signed with the debug key and Play"
+            echo "::error::would reject it. See docs/play-store.md."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          cat > android/key.properties <<EOF
+          storeFile=$RUNNER_TEMP/upload.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - run: flutter pub get
+
+      # The same checks that guard every push. A release is the worst moment
+      # to find out a golden was left failing.
+      - run: flutter analyze
+      - run: flutter test
+
+      - run: flutter build appbundle --release
+
+      - name: Check the bundle is not debug-signed
+        run: |
+          # A bundle signed with the debug key carries CN=Android Debug. Play
+          # rejects it, but only after the upload — this fails in ten seconds
+          # instead.
+          unzip -p build/app/outputs/bundle/release/app-release.aab \
+            META-INF/*.RSA 2>/dev/null \
+            | keytool -printcert 2>/dev/null | head -20 || true
+          if unzip -p build/app/outputs/bundle/release/app-release.aab \
+               META-INF/*.RSA 2>/dev/null \
+               | keytool -printcert 2>/dev/null | grep -q "Android Debug"; then
+            echo "::error::Signed with the DEBUG key. Check the secrets."
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hanguk-academy-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          # Long enough to survive a Play review round trip.
+          retention-days: 30
+
+      # The mapping file is what turns a crash report on Play from hex
+      # addresses into line numbers. Useless later if not kept now.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hanguk-academy-symbols
+          path: |
+            build/app/outputs/mapping/release/mapping.txt
+            build/app/intermediates/merged_native_libs/release/**/*.so
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean up the key
+        if: always()
+        run: rm -f android/key.properties "$RUNNER_TEMP/upload.jks"

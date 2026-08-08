@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Every screen in this app reads from Supabase. Flutter only declares
+         INTERNET in the debug and profile manifests, so a release build built
+         from the template has no network at all — and it fails silently, as
+         connection refused, on a device nobody was watching. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="Hanguk Onlayn"
+        android:label="Hanguk Academy"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

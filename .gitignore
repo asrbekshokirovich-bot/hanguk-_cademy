@@ -50,3 +50,10 @@ test/golden/failures/
 
 # Vercel
 .vercel/
+
+# Android release signing. The keystore is the app's identity on Play — lose
+# it and the listing cannot be updated, leak it and someone else can sign as
+# you. It lives on the owner's machine and in CI secrets, never here.
+android/key.properties
+*.jks
+*.keystore

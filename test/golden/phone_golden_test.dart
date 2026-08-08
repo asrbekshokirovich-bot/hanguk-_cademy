@@ -157,6 +157,18 @@ Future<void> _loadBundledFonts() async {
     await loader.load();
   }
 
+  // Material's icon font. flutter_test does not load it, so every Icon in a
+  // golden renders as an empty box — which is only cosmetic in a regression
+  // test and unusable in a store screenshot. Read from the SDK because that
+  // is where it lives; the app itself gets it from the engine at runtime.
+  final iconFont = File(
+    '${Platform.environment['FLUTTER_ROOT'] ?? '/opt/flutter'}'
+    '/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+  );
+  if (iconFont.existsSync()) {
+    await load('MaterialIcons', [iconFont.path]);
+  }
+
   await load('Inter', [
     for (final w in [400, 500, 600, 700, 800, 900])
       'assets/fonts/Inter-$w.ttf',

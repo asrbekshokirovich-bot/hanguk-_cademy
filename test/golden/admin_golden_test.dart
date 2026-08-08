@@ -13,6 +13,8 @@ import 'package:hanguk_online/features/staff/presentation/admin_students_screen.
 import 'package:hanguk_online/features/auth/presentation/change_password_screen.dart';
 import 'package:hanguk_online/features/auth/presentation/login_screen.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
+import 'package:hanguk_online/features/lessons/data/providers.dart';
+import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/main.dart';
 
 final _fixedNow = DateTime(2026, 6, 26, 12, 58, 30);
@@ -26,14 +28,26 @@ void main() {
 
   tearDownAll(() => hkNow = DateTime.now);
 
-  Future<void> pump(WidgetTester tester, Widget screen) async {
+  Future<void> pump(WidgetTester tester, Widget screen, {String? as}) async {
     tester.view.physicalSize = const Size(1440, 920);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseClientProvider.overrideWithValue(null)],
+        overrides: [
+          supabaseClientProvider.overrideWithValue(null),
+          // Who is looking. It matters on the admin panel now that the tier
+          // decides what is on screen; the demo profile is a student, which
+          // would render the panel as the one person who cannot open it.
+          if (as != null)
+            profileProvider.overrideWith((ref) async => UserProfile(
+                  id: 'viewer',
+                  fullName: 'Asrbek',
+                  initials: 'A',
+                  role: as,
+                )),
+        ],
         child: MaterialApp.router(
           theme: hangukTheme,
           debugShowCheckedModeBanner: false,
@@ -78,7 +92,7 @@ void main() {
   });
 
   testWidgets('create dialog suggests a login from the name', (tester) async {
-    await pump(tester, const AdminStudentsScreen());
+    await pump(tester, const AdminStudentsScreen(), as: 'superadmin');
 
     await tester.tap(find.text('Yangi talaba'));
     await tester.pump();
@@ -134,7 +148,7 @@ void main() {
   });
 
   testWidgets('creating is refused in demo mode', (tester) async {
-    await pump(tester, const AdminStudentsScreen());
+    await pump(tester, const AdminStudentsScreen(), as: 'superadmin');
 
     await tester.tap(find.text('Yangi talaba'));
     await tester.pump();

@@ -73,6 +73,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // The staff panels are gated here as well as hidden from the dock: a
       // hidden menu item is not access control, and a bookmarked URL from a
       // demoted account would otherwise still open.
+      if (HkNav.isSuperAdminRoute(location) && !profile.isSuperAdmin) {
+        return HkNav.homeFor(profile.role);
+      }
       if (HkNav.isAdminRoute(location) && !profile.isAdmin) {
         return HkNav.homeFor(profile.role);
       }

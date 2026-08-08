@@ -36,20 +36,32 @@ abstract final class HkNav {
     HkDestination('Yozuvlar', Icons.play_circle_outline_rounded, '/recordings'),
   ];
 
+  /// Runs the school day. No Moliya — money belongs to the tier above.
   static const admin = <HkDestination>[
     HkDestination('Boshqaruv', Icons.insights_rounded, '/admin'),
     HkDestination('Talabalar', Icons.people_alt_rounded, '/admin/students'),
     HkDestination('O‘qituvchilar', Icons.school_rounded, '/admin/teachers'),
     HkDestination('Guruhlar', Icons.groups_2_rounded, '/admin/groups'),
     HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
+  ];
+
+  /// Everything the admin has, plus the two things only the owner should
+  /// hold: money, and the right to issue an administrator account.
+  static const superAdmin = <HkDestination>[
+    ...admin,
     HkDestination('Moliya', Icons.payments_rounded, '/admin/finance'),
   ];
 
   static List<HkDestination> forRole(String? role) => switch (role) {
+        'superadmin' => superAdmin,
         'admin' => admin,
         'teacher' => teacher,
         _ => student,
       };
+
+  /// Routes only the top tier may open.
+  static bool isSuperAdminRoute(String location) =>
+      location.startsWith('/admin/finance');
 
   /// Where a role lands after signing in.
   static String homeFor(String? role) => forRole(role).first.route;

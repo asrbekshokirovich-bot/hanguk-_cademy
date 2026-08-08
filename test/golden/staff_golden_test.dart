@@ -10,6 +10,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:hanguk_online/core/clock.dart';
 import 'package:hanguk_online/design_system/widgets/data_table.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
+import 'package:hanguk_online/features/lessons/data/providers.dart';
+import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_dashboard_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_finance_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_teachers_screen.dart';
@@ -29,14 +31,26 @@ void main() {
 
   tearDownAll(() => hkNow = DateTime.now);
 
-  Future<void> pump(WidgetTester tester, Widget screen) async {
+  Future<void> pump(WidgetTester tester, Widget screen, {String? as}) async {
     tester.view.physicalSize = const Size(1440, 920);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseClientProvider.overrideWithValue(null)],
+        overrides: [
+          supabaseClientProvider.overrideWithValue(null),
+          // Who is looking. It matters on the admin panel now that the tier
+          // decides what is on screen; the demo profile is a student, which
+          // would render the panel as the one person who cannot open it.
+          if (as != null)
+            profileProvider.overrideWith((ref) async => UserProfile(
+                  id: 'viewer',
+                  fullName: 'Asrbek',
+                  initials: 'A',
+                  role: as,
+                )),
+        ],
         child: MaterialApp.router(
           theme: hangukTheme,
           debugShowCheckedModeBanner: false,
@@ -119,7 +133,7 @@ void main() {
   group('admin panel', () {
     testWidgets('dashboard, with alerts derived from the data',
         (tester) async {
-      await pump(tester, const AdminDashboardScreen());
+      await pump(tester, const AdminDashboardScreen(), as: 'superadmin');
 
       expect(find.text('Boshqaruv'), findsWidgets);
       // One fixture payment is overdue, and one student has not been seen in
@@ -146,7 +160,7 @@ void main() {
     });
 
     testWidgets('finance', (tester) async {
-      await pump(tester, const AdminFinanceScreen());
+      await pump(tester, const AdminFinanceScreen(), as: 'superadmin');
 
       // Money is written out in full in the table, short only on the cards.
       expect(find.text('10 000 000 UZS'), findsWidgets);

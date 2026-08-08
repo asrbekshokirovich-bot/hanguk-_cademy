@@ -24,6 +24,10 @@ class AdminDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = HkLayout.of(context);
+    // Money is the superadmin's. `ol_admin_kpis` already returns zero for the
+    // amounts below that tier, so this hides a card rather than hiding a
+    // number the caller could have read anyway.
+    final seesMoney = ref.watch(profileProvider).value?.isSuperAdmin ?? false;
 
     return AppShell(
       title: 'Boshqaruv',
@@ -56,14 +60,15 @@ class AdminDashboardScreen extends ConsumerWidget {
                   note: 'Barcha talabalar bo‘yicha',
                   highlight: true,
                 ),
-                HkStatCard(
-                  label: 'Bu oygi tushum',
-                  value: hkSumShort(k.monthRevenue),
-                  icon: Icons.payments_rounded,
-                  // Spelled out under the short form: "742M" is unreadable
-                  // as a sum of money without its unit.
-                  note: 'UZS · tasdiqlangan to‘lovlar',
-                ),
+                if (seesMoney)
+                  HkStatCard(
+                    label: 'Bu oygi tushum',
+                    value: hkSumShort(k.monthRevenue),
+                    icon: Icons.payments_rounded,
+                    // Spelled out under the short form: "742M" is unreadable
+                    // as a sum of money without its unit.
+                    note: 'UZS · tasdiqlangan to‘lovlar',
+                  ),
               ],
             ),
           ),
@@ -197,12 +202,14 @@ class _AlertsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(adminKpisProvider).value;
     final students = ref.watch(adminStudentsProvider).value;
+    final seesMoney = ref.watch(profileProvider).value?.isSuperAdmin ?? false;
 
     // Derived from the same numbers the rest of the screen shows, rather than
     // stored: an alerts table would need a job to keep it true, and would be
     // silently stale the first time that job failed.
     final alerts = <_Alert>[
-      if (kpis != null && kpis.outstandingCount > 0)
+      // Links to /admin/finance, which a plain admin cannot open.
+      if (seesMoney && kpis != null && kpis.outstandingCount > 0)
         _Alert(
           title: '${kpis.outstandingCount} ta to‘lov kechikkan',
           note: '${hkSum(kpis.outstandingAmount)} · eslatma yuborish',

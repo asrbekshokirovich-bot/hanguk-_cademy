@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/data/username.dart';
+import '../../lessons/data/providers.dart';
 import '../../auth/presentation/auth_scaffold.dart';
 import '../data/admin_repository.dart';
 import '../domain/managed_user.dart';
@@ -41,6 +42,10 @@ class _CreateUserDialogState extends ConsumerState<_CreateUserDialog> {
   bool _busy = false;
   String? _error;
   bool _usernameEdited = false;
+
+  /// Only a superadmin may hand out administrator rights.
+  bool get _canIssueAdmin =>
+      ref.watch(profileProvider).value?.isSuperAdmin ?? false;
 
   @override
   void initState() {
@@ -181,10 +186,15 @@ class _CreateUserDialogState extends ConsumerState<_CreateUserDialog> {
                   Wrap(
                     spacing: 8,
                     children: [
-                      for (final entry in const {
+                      for (final entry in {
                         'student': 'Talaba',
                         'teacher': "O'qituvchi",
-                        'admin': 'Administrator',
+                        // An administrator account is the top tier's to give.
+                        // The RPC refuses it either way; the chip is hidden so
+                        // a plain admin is not offered something that will
+                        // only come back as an error.
+                        if (_canIssueAdmin) 'admin': 'Administrator',
+                        if (_canIssueAdmin) 'superadmin': 'Super admin',
                       }.entries)
                         _Choice(
                           label: entry.value,

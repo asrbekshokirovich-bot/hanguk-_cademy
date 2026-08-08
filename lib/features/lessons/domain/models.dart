@@ -427,7 +427,7 @@ class UserProfile {
   final String fullName;
   final String initials;
 
-  /// 'student' | 'teacher' | 'admin'
+  /// 'student' | 'teacher' | 'admin' | 'superadmin'
   final String role;
 
   /// The login an administrator issued. Null for an account created by hand
@@ -440,13 +440,19 @@ class UserProfile {
   final bool mustChangePassword;
 
   /// Teachers and admins both get the staff-only controls on the schedule.
-  bool get isStaff => role == 'admin' || role == 'teacher';
+  bool get isStaff => isAdmin || role == 'teacher';
 
-  /// Only a full admin sees the account panel. A teacher managing the roster
-  /// would be a different decision, and this is the conservative one.
-  bool get isAdmin => role == 'admin';
+  /// Either administrator tier. A teacher managing the roster would be a
+  /// different decision, and this is the conservative one.
+  bool get isAdmin => role == 'admin' || role == 'superadmin';
+
+  /// The top tier. Two things are reserved for it, and both are reserved
+  /// because getting them wrong is not recoverable by rescheduling a lesson:
+  /// issuing accounts that carry administrator rights, and money.
+  bool get isSuperAdmin => role == 'superadmin';
 
   String get subtitle => switch (role) {
+        'superadmin' => 'Super admin',
         'admin' => 'Administrator',
         'teacher' => "O'qituvchi",
         _ => level == null ? 'Talaba' : 'Daraja $level',

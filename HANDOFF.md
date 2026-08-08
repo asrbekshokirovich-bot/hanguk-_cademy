@@ -39,7 +39,15 @@ dock:
 |---|---|
 | `student` | Asosiy · Jonli · Yozuvlar · Jadval |
 | `teacher` | Asosiy · Darsim · Talabalarim · Baholash · Yozuvlar |
-| `admin` | Boshqaruv · Talabalar · O'qituvchilar · **Guruhlar** · Jadval · Moliya |
+| `admin` | Boshqaruv · Talabalar · O'qituvchilar · Guruhlar · Jadval |
+| `superadmin` | the admin's sections, **plus Moliya** |
+
+The admin tier is split in two, because the two jobs carry different risk.
+An `admin` runs the school day. A `superadmin` runs the business: it is the
+only role that may issue an account carrying administrator rights, and the
+only role that sees money. Both are enforced in the database
+(`ol_is_super()` guards the payments policies and the account RPCs), not
+only in the dock.
 
 ### How the academy is meant to work
 
@@ -192,6 +200,12 @@ the due date at read time, not stored.
 | `..170000_admin_user_rpc` | `ol_admin_create_user` / `_reset_password` / `_delete_user` |
 | `..180000_teacher_sync_and_scheduling` | teacher sync trigger, `ol_v_groups`, `ol_assign_student_group`, enrolment triggers |
 | `..190000_admins_are_not_teachers` | admins off the teaching roster |
+| `..200000_superadmin_role` | adds the enum value — **must run alone** |
+| `..210000_superadmin_rules` | the tier's policies, views and RPCs |
+
+`200000` and `210000` cannot be pasted into the SQL Editor together:
+Postgres will not let a newly added enum value be used in the transaction
+that added it.
 
 **All seven are applied to the live project.** So is
 `seed/003_remove_starter_data.sql` — the demo fixtures are gone from the real

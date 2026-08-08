@@ -164,11 +164,17 @@ DateTime Function() hkNow = DateTime.now;   // tests pin it to a fixed instant
 tree.** A golden that embeds the wall clock fails on the next run a minute
 later.
 
+**Desktop goldens cannot see phone bugs.** Everything was verified at
+1440×920 for weeks while the compact layout was quietly broken: the header
+overlaid the first paragraph of every screen, two of the admin's six
+sections were unreachable, and the stat tiles overflowed. `phone_golden_test`
+renders at 390×844 with a notch and is now part of the check.
+
 Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 56 tests
+flutter test             # 61 tests
 flutter build linux --release
 ```
 
@@ -197,7 +203,7 @@ supabase/
   seed/            starter data, make-admin, cleanup
   functions/       admin-users — DEAD, see §7
 test/
-  golden/          23 goldens
+  golden/          27 goldens, incl. 4 at phone size
 ```
 
 **Riverpod 3** — note the API changes that cost time before:

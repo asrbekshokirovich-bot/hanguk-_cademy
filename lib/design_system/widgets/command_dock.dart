@@ -131,10 +131,12 @@ class CompactNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Four at most. A fifth tab at 390pt truncates every label to an
-    // ellipsis, and the staff roles are the ones with five — on a phone the
-    // last one is reachable from its screen rather than the bar.
-    final shown = destinations.take(4).toList();
+    // Four fit across a 390pt phone. Past that the bar scrolls sideways
+    // rather than dropping the overflow: an admin has six sections now, and
+    // the two that fell off the end — the timetable and payments — were
+    // simply unreachable on a phone. A tab you have to swipe to is worse
+    // than one you can see; a tab that does not exist is worse than both.
+    final scrolls = destinations.length > 4;
 
     return Container(
       decoration: const BoxDecoration(
@@ -145,10 +147,12 @@ class CompactNavBar extends StatelessWidget {
         top: false,
         child: SizedBox(
           height: 62,
-          child: Row(
+          child: _bar(
+            scrolls: scrolls,
             children: [
-              for (final d in shown)
-                Expanded(
+              for (final d in destinations)
+                _Tab(
+                  fixedWidth: scrolls,
                   child: InkWell(
                     onTap: () => onSelect(d),
                     child: Column(
@@ -196,6 +200,32 @@ class CompactNavBar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// A plain row when everything fits, a horizontally scrolling one when it
+  /// does not. Kept in one place so the tab itself does not have to know.
+  static Widget _bar({required bool scrolls, required List<Widget> children}) {
+    if (!scrolls) return Row(children: children);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(children: children),
+    );
+  }
+}
+
+/// One tab. Shares the width evenly in a plain row; takes a fixed, thumb-sized
+/// width in a scrolling one, where "an equal share" has no meaning.
+class _Tab extends StatelessWidget {
+  const _Tab({required this.fixedWidth, required this.child});
+
+  final bool fixedWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!fixedWidth) return Expanded(child: child);
+    return SizedBox(width: 84, child: child);
   }
 }
 

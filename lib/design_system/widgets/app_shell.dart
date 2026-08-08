@@ -60,44 +60,56 @@ class AppShell extends ConsumerWidget {
         layout.contentHorizontalPadding,
         layout.contentTopPadding,
         layout.contentHorizontalPadding,
-        36,
+        // The body extends behind the bottom bar (extendBody), so the last
+        // row of every list would come to rest underneath it. 62 is the bar,
+        // the view padding is the phone's home indicator.
+        layout.isCompact
+            ? 36 + 62 + MediaQuery.viewPaddingOf(context).bottom
+            : 36,
       ),
       child: child,
     );
+
+    final scroller = scrollable
+        ? SingleChildScrollView(primary: true, child: content)
+        : content;
 
     return Scaffold(
       backgroundColor: HkColors.canvasBottom,
       extendBody: true,
       body: AmbientBackground(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: scrollable
-                  ? SingleChildScrollView(
-                      primary: true,
-                      child: content,
-                    )
-                  : content,
-            ),
-            if (layout.isCompact)
-              _CompactHeader(
-                title: title,
-                subtitle: subtitle,
-                unread: unread,
+        // A column on compact, not a stack. The header's height depends on
+        // the phone's notch and on whether the subtitle wraps to a second
+        // line, so any padding guessed for the content below it is wrong on
+        // some device — and wrong here meant the heading printed on top of
+        // the first paragraph. A column cannot be wrong: the header takes
+        // what it needs and the content starts after it.
+        child: layout.isCompact
+            ? Column(
+                children: [
+                  _CompactHeader(
+                    title: title,
+                    subtitle: subtitle,
+                    unread: unread,
+                  ),
+                  Expanded(child: scroller),
+                ],
               )
-            else
-              ..._floatingChrome(
-                context,
-                layout,
-                destinations,
-                current,
-                liveActive,
-                profile,
-                unread,
-                go,
+            : Stack(
+                children: [
+                  Positioned.fill(child: scroller),
+                  ..._floatingChrome(
+                    context,
+                    layout,
+                    destinations,
+                    current,
+                    liveActive,
+                    profile,
+                    unread,
+                    go,
+                  ),
+                ],
               ),
-          ],
-        ),
       ),
       bottomNavigationBar: layout.isCompact
           ? CompactNavBar(
@@ -173,15 +185,11 @@ class _CompactHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sits above the scrolling content with an opaque backing, so titles stay
-    // legible as cards pass under them.
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        color: HkColors.canvasTop.withValues(alpha: 0.92),
-        child: SafeArea(
+    // Opaque, and sized by its content. It is the first row of a column now,
+    // not an overlay, so it pushes the page down instead of covering it.
+    return ColoredBox(
+      color: HkColors.canvasTop.withValues(alpha: 0.92),
+      child: SafeArea(
           bottom: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -236,7 +244,6 @@ class _CompactHeader extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }

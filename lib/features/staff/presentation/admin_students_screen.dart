@@ -10,6 +10,7 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/data_table.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../../design_system/widgets/section_intro.dart';
 import '../../../design_system/widgets/states.dart';
 import '../../admin/data/admin_repository.dart';
 import '../../admin/presentation/create_user_dialog.dart';
@@ -47,38 +48,27 @@ class AdminStudentsScreen extends ConsumerWidget {
           // including this button — with "Hali talaba qo'shilmagan". The one
           // moment you certainly need to add a student is when there are
           // none.
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Har bir talaba va o‘qituvchiga login va parol shu yerdan '
-                  'beriladi.',
-                  style: HkType.body.copyWith(fontSize: 13),
+          HkSectionIntro(
+            text: 'Har bir talaba va o‘qituvchiga login va parol shu yerdan '
+                'beriladi.',
+            action: FilledButton.icon(
+              onPressed: () => _createStudent(context, ref),
+              style: FilledButton.styleFrom(
+                backgroundColor: HkColors.royalBlue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(HkRadius.control),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              icon: const Icon(Icons.person_add_alt_rounded, size: 18),
+              label: const Text(
+                'Yangi talaba',
+                style: TextStyle(
+                  fontFamily: HkType.family,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 16),
-              SizedBox(
-                height: 44,
-                child: FilledButton.icon(
-                  onPressed: () => _createStudent(context, ref),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: HkColors.royalBlue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(HkRadius.control),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                  ),
-                  icon: const Icon(Icons.person_add_alt_rounded, size: 18),
-                  label: const Text(
-                    'Yangi talaba',
-                    style: TextStyle(
-                      fontFamily: HkType.family,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(

@@ -7,6 +7,7 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/data_table.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../../design_system/widgets/section_intro.dart';
 import '../../../design_system/widgets/states.dart';
 import '../../admin/data/admin_repository.dart';
 import '../../admin/domain/managed_user.dart';
@@ -35,41 +36,28 @@ class SuperAdminScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Outside the AsyncSection: an empty list must not hide the only way
-          // to fill it.
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Administrator akademiyaning kundalik ishini yuritadi — '
-                  'talabalar, o‘qituvchilar, guruhlar va jadval. Moliya va '
-                  'yangi admin ochish faqat sizda qoladi.',
-                  style: HkType.body.copyWith(fontSize: 13),
+          HkSectionIntro(
+            text: 'Administrator akademiyaning kundalik ishini yuritadi — '
+                'talabalar, o‘qituvchilar, guruhlar va jadval. Moliya va '
+                'yangi admin ochish faqat sizda qoladi.',
+            action: FilledButton.icon(
+              onPressed: () => _create(context, ref),
+              style: FilledButton.styleFrom(
+                backgroundColor: HkColors.royalBlue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(HkRadius.control),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              icon: const Icon(Icons.person_add_alt_rounded, size: 18),
+              label: const Text(
+                'Yangi admin',
+                style: TextStyle(
+                  fontFamily: HkType.family,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 16),
-              SizedBox(
-                height: 44,
-                child: FilledButton.icon(
-                  onPressed: () => _create(context, ref),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: HkColors.royalBlue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(HkRadius.control),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                  ),
-                  icon: const Icon(Icons.person_add_alt_rounded, size: 18),
-                  label: const Text(
-                    'Yangi admin',
-                    style: TextStyle(
-                      fontFamily: HkType.family,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(

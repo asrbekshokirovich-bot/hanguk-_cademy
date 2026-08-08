@@ -284,6 +284,9 @@ class _PaymentRowState extends ConsumerState<_PaymentRow> {
           );
 
     if (!widget.expanded) {
+      // The action gets its own line on a phone. A status pill, a sum in
+      // so'm and "Qabul qilish" side by side need more than 314pt, and the
+      // one that gets squeezed is the button you are reaching for.
       return HkTableRow(
         padding: const EdgeInsets.all(14),
         children: [
@@ -302,10 +305,14 @@ class _PaymentRowState extends ConsumerState<_PaymentRow> {
                   children: [
                     statusPill,
                     const SizedBox(width: 10),
-                    amount,
-                    const Spacer(),
-                    action,
+                    Flexible(child: amount),
                   ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: action,
                 ),
               ],
             ),

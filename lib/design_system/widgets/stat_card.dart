@@ -101,13 +101,26 @@ class HkStatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final layout = HkLayout.of(context);
-    return GridView.count(
-      crossAxisCount: layout.statColumns,
+    return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: HkSpace.gridGap,
-      crossAxisSpacing: HkSpace.gridGap,
-      childAspectRatio: layout.isCompact ? 1.45 : 1.75,
+      // A fixed height on compact rather than a ratio. A ratio ties the tile's
+      // height to the phone's width, and the tile's contents — a label, a
+      // number in the display face, a note — do not get shorter on a narrower
+      // phone. At 1.45 a 390pt screen gave them 118pt for 135pt of text.
+      gridDelegate: layout.isCompact
+          ? const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: HkSpace.gridGap,
+              crossAxisSpacing: HkSpace.gridGap,
+              mainAxisExtent: 140,
+            )
+          : SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: layout.statColumns,
+              mainAxisSpacing: HkSpace.gridGap,
+              crossAxisSpacing: HkSpace.gridGap,
+              childAspectRatio: 1.75,
+            ),
       children: cards,
     );
   }

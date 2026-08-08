@@ -6,6 +6,7 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/data_table.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../../design_system/widgets/section_intro.dart';
 import '../../../design_system/widgets/stat_card.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/staff_providers.dart';
@@ -39,40 +40,27 @@ class AdminGroupsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Outside the AsyncSection: an empty list must not hide the only way
-          // to fill it.
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Talaba guruhga qo‘shilganda o‘sha guruhning o‘qituvchisiga '
-                  'biriktiriladi va guruhning kelgusi darslariga yoziladi.',
-                  style: HkType.body.copyWith(fontSize: 13),
+          HkSectionIntro(
+            text: 'Talaba guruhga qo‘shilganda o‘sha guruhning o‘qituvchisiga '
+                'biriktiriladi va guruhning kelgusi darslariga yoziladi.',
+            action: FilledButton.icon(
+              onPressed: () => edit(),
+              style: FilledButton.styleFrom(
+                backgroundColor: HkColors.royalBlue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(HkRadius.control),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text(
+                'Yangi guruh',
+                style: TextStyle(
+                  fontFamily: HkType.family,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 16),
-              SizedBox(
-                height: 44,
-                child: FilledButton.icon(
-                  onPressed: () => edit(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: HkColors.royalBlue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(HkRadius.control),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text(
-                    'Yangi guruh',
-                    style: TextStyle(
-                      fontFamily: HkType.family,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(

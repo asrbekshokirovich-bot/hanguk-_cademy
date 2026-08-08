@@ -6,6 +6,7 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/data_table.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../../design_system/widgets/section_intro.dart';
 import '../../../design_system/widgets/stat_card.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/staff_providers.dart';
@@ -29,11 +30,10 @@ class AdminTeachersScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Yuklama shu haftadagi darslar soniga qarab hisoblanadi. Yangi '
-            'o‘qituvchi hisobi “Talabalar” bo‘limidagi hisob oynasidan, rol '
-            'sifatida “O‘qituvchi” tanlab ochiladi.',
-            style: HkType.body.copyWith(fontSize: 13),
+          const HkSectionIntro(
+            text: 'Yuklama shu haftadagi darslar soniga qarab hisoblanadi. '
+                'Yangi o‘qituvchi hisobi “Talabalar” bo‘limidagi hisob '
+                'oynasidan, rol sifatida “O‘qituvchi” tanlab ochiladi.',
           ),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(

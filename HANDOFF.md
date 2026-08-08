@@ -133,7 +133,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 46 tests
+flutter test             # 53 tests
 flutter build linux --release
 ```
 
@@ -158,7 +158,7 @@ lib/
     lessons/       dashboard, schedule, live room, recordings, search
     staff/         teacher + admin panels, groups, lesson dialog
 supabase/
-  migrations/      7 files, all applied to the live project
+  migrations/      9 files, all applied to the live project
   seed/            starter data, make-admin, cleanup
   functions/       admin-users — DEAD, see §7
 test/

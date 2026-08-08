@@ -14,6 +14,7 @@ import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_dashboard_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_finance_screen.dart';
+import 'package:hanguk_online/features/staff/presentation/admin_payments_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_teachers_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/super_admin_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/teacher_dashboard_screen.dart';
@@ -159,6 +160,45 @@ void main() {
       await expectLater(
         find.byType(AdminTeachersScreen),
         matchesGoldenFile('goldens/admin_teachers.png'),
+      );
+    });
+
+    testWidgets('payments — the front desk takes the money, not the totals',
+        (tester) async {
+      await pump(tester, const AdminPaymentsScreen(), as: 'admin');
+
+      // Every student for the month, paid or not — a receipt book, so the
+      // ones who have not paid are the point of the screen.
+      expect(find.text('Qabul qilish'), findsWidgets);
+      expect(find.text('Tasdiqlash'), findsWidgets);
+      // No aggregate anywhere — no revenue card, no arrears count. That is
+      // the whole reason this is a separate screen from Moliya. (The one
+      // mention of "tushum" on the page is the line saying where the totals
+      // live, which is the opposite of showing them.)
+      expect(find.text('Bu oygi tushum'), findsNothing);
+      expect(find.text('Kutilayotgan to‘lovlar'), findsNothing);
+      expect(find.text('Kechikkanlar'), findsNothing);
+
+      await expectLater(
+        find.byType(AdminPaymentsScreen),
+        matchesGoldenFile('goldens/admin_payments.png'),
+      );
+    });
+
+    testWidgets('the payment dialog proposes the tariff and lets it be '
+        'overridden', (tester) async {
+      await pump(tester, const AdminPaymentsScreen(), as: 'admin');
+
+      await tester.tap(find.text('Qabul qilish').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('To‘lovni qabul qilish'), findsOneWidget);
+      expect(find.textContaining('Tarifdan farq qilsa'), findsOneWidget);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/payment_dialog.png'),
       );
     });
 

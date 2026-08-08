@@ -39,14 +39,25 @@ dock:
 |---|---|
 | `student` | Asosiy · Jonli · Yozuvlar · Jadval |
 | `teacher` | Asosiy · Darsim · Talabalarim · Baholash · Yozuvlar |
-| `admin` | Boshqaruv · Talabalar · O'qituvchilar · Guruhlar · Jadval |
+| `admin` | Boshqaruv · Talabalar · O'qituvchilar · Guruhlar · Jadval · To'lovlar |
 | `superadmin` | Adminlar · Moliya — **and nothing else** |
 
 The admin tier is split in two, because the two jobs carry different risk.
 An `admin` runs the school day. A `superadmin` does exactly two things: it
-issues the administrator accounts that run the school day, and it holds the
-money. The two docks **do not overlap** — a superadmin cannot open the
+issues the administrator accounts that run the school day, and it reads the
+books. The two docks **do not overlap** — a superadmin cannot open the
 roster, the groups or the timetable at all.
+
+The money line is drawn between *a payment* and *the totals*, not around
+payments as a whole. The person a student hands cash to is the one at the
+desk, so an admin records and confirms that student's fee and sees its
+amount ("To'lovlar"). What the academy took in altogether, what is
+outstanding, the whole ledger — that is Moliya, and superadmin only.
+`ol_admin_kpis` is the only thing in the schema that sums money and it
+returns zero for both figures below the top tier, so the separation does not
+rest on a screen declining to add a column up. Deleting a payment row is
+superadmin-only too: correcting a mistake is an update, and an update leaves
+the row behind to be looked at.
 
 That last part is the app's job alone, and it is easy to undo by accident.
 The database deliberately lets a superadmin outrank an admin everywhere
@@ -157,7 +168,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 53 tests
+flutter test             # 56 tests
 flutter build linux --release
 ```
 
@@ -182,7 +193,7 @@ lib/
     lessons/       dashboard, schedule, live room, recordings, search
     staff/         teacher + admin panels, groups, lesson dialog
 supabase/
-  migrations/      9 files, all applied to the live project
+  migrations/      10 files, all applied to the live project
   seed/            starter data, make-admin, cleanup
   functions/       admin-users — DEAD, see §7
 test/
@@ -226,6 +237,7 @@ the due date at read time, not stored.
 | `..190000_admins_are_not_teachers` | admins off the teaching roster |
 | `..200000_superadmin_role` | adds the enum value — **must run alone** |
 | `..210000_superadmin_rules` | the tier's policies, views and RPCs |
+| `..220000_admin_takes_payments` | admin records payments; totals stay super |
 
 `200000` and `210000` cannot be pasted into the SQL Editor together:
 Postgres will not let a newly added enum value be used in the transaction

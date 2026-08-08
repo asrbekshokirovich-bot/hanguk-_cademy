@@ -17,6 +17,7 @@ import '../features/lessons/presentation/schedule_screen.dart';
 import '../features/staff/presentation/admin_dashboard_screen.dart';
 import '../features/staff/presentation/admin_finance_screen.dart';
 import '../features/staff/presentation/admin_groups_screen.dart';
+import '../features/staff/presentation/admin_payments_screen.dart';
 import '../features/staff/presentation/admin_students_screen.dart';
 import '../features/staff/presentation/super_admin_screen.dart';
 import '../features/staff/presentation/admin_teachers_screen.dart';
@@ -176,6 +177,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/groups',
         pageBuilder: (context, state) =>
             _fade(state, const AdminGroupsScreen()),
+      ),
+      GoRoute(
+        path: '/admin/payments',
+        pageBuilder: (context, state) =>
+            _fade(state, const AdminPaymentsScreen()),
       ),
       GoRoute(
         path: '/admin/finance',

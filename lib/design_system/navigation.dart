@@ -43,11 +43,14 @@ abstract final class HkNav {
     HkDestination('O‘qituvchilar', Icons.school_rounded, '/admin/teachers'),
     HkDestination('Guruhlar', Icons.groups_2_rounded, '/admin/groups'),
     HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
+    // Taking a student's fee is front-desk work; reading the month's takings
+    // is not. This is the first, "Moliya" is the second.
+    HkDestination('To‘lovlar', Icons.receipt_long_rounded, '/admin/payments'),
   ];
 
   /// Not a superset of the admin's dock — a different job. The top tier does
   /// two things and nothing else: it issues the administrator accounts that
-  /// run the school day, and it holds the money. Handing it the roster and
+  /// run the school day, and it reads the books. Handing it the roster and
   /// the timetable as well would make the split decorative.
   static const superAdmin = <HkDestination>[
     HkDestination('Adminlar', Icons.admin_panel_settings_rounded, '/super'),

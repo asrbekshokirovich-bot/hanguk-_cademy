@@ -7,64 +7,48 @@ hamma narsa shu faylda. Tartib bilan boring.
 
 ## 0. Bir marta hal qilinadigan, keyin o'zgarmaydigan narsa
 
-**Ilova identifikatori (package name):** `uz.hanguk.hanguk_online`
+**Ilova identifikatori (package name):** `uz.hangukacademy.app`
 
 Bu Play'dagi manzilingiz bo'ladi:
-`play.google.com/store/apps/details?id=uz.hanguk.hanguk_online`
+`play.google.com/store/apps/details?id=uz.hangukacademy.app`
 
-⚠️ **Birinchi yuklashdan keyin buni o'zgartirib bo'lmaydi.** O'zgartirish
-faqat yangi ilova ochish orqali — eski o'rnatgan foydalanuvchilar yangisini
-olmaydi. Boshqacha nom xohlasangiz (masalan `uz.hangukacademy.app`), **hozir**
-ayting.
+⚠️ **Birinchi yuklashdan keyin buni o'zgartirib bo'lmaydi.** Boshqacha nom
+xohlasangiz — Play Console'ga yuklashdan **oldin** ayting.
 
 ---
 
 ## 1. Imzolash kaliti (keystore)
 
-Kalit — ilovaning Play'dagi shaxsi. Yo'qotsangiz, ilovani yangilay olmaysiz.
-Boshqaga tarqalsa, sizning nomingizdan ilova imzolashi mumkin.
+**Kalit yaratildi — sizga fayl sifatida yuborilgan.** Uchta narsa:
 
-### Kalitni yaratish
+| Fayl | Nima |
+|---|---|
+| `hanguk-upload.jks` | kalitning o'zi |
+| `password.txt` | paroli |
+| `keystore-base64.txt` | GitHub'ga qo'yish uchun matn ko'rinishi |
 
-Kompyuterda Java bo'lishi kerak. Yo'q bo'lsa: https://adoptium.net (Temurin 17).
+📌 **`hanguk-upload.jks` va `password.txt` ni xavfsiz joyda saqlang** —
+Google Drive, tashqi disk, ikkalasida ham. Bu ikkisisiz ilovani abadiy
+yangilab bo'lmaydi.
 
-CMD'da, loyiha papkasida:
+Kalit hech qachon GitHub'ga yuklanmaydi — `.gitignore` to'sib qo'yadi.
 
-```
-keytool -genkeypair -v -keystore hanguk-upload.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-```
+> Play Console'da **Play App Signing** yoqiq bo'ladi (yangi ilovalarda
+> avtomatik). Ya'ni bu kalit — faqat *yuklash* kaliti. Agar u yo'qolsa yoki
+> boshqaga tarqalsa, Google'dan uni almashtirishni so'rash mumkin; ilova
+> o'zining asosiy kalitini yo'qotmaydi.
 
-So'raladi:
-- **parol** — o'ylab toping, yozib qo'ying (ikki marta so'raydi)
-- **ism, tashkilot, shahar, davlat** — Asrbek / Hanguk Academy / Tashkent / UZ
-- oxirida `yes` deb tasdiqlang
+### GitHub'ga maxfiy sifatida qo'yish
 
-Natija: `hanguk-upload.jks` fayli. **Uni GitHub'ga qo'ymang** — `.gitignore`
-allaqachon to'sib qo'yadi.
-
-📌 **Nusxasini xavfsiz joyda saqlang** (Google Drive, tashqi disk). Parolini
-ham. Bu ikkisisiz ilova abadiy yangilanmaydi.
-
-### Kalitni GitHub'ga (maxfiy sifatida) qo'yish
-
-Kalit faylni matnga o'girish kerak. CMD'da:
-
-```
-certutil -encode hanguk-upload.jks keystore-base64.txt
-```
-
-`keystore-base64.txt` ni Notepad'da oching. Birinchi va oxirgi qatorlarni
-(`-----BEGIN...` va `-----END...`) **o'chiring**, qolganini nusxalang.
-
-Keyin GitHub'da: repozitoriya → **Settings** → **Secrets and variables** →
-**Actions** → **New repository secret**. To'rtta maxfiy qo'shing:
+GitHub'da: repozitoriya → **Settings** → **Secrets and variables** →
+**Actions** → **New repository secret**. To'rtta:
 
 | Nomi | Qiymati |
 |---|---|
-| `ANDROID_KEYSTORE_BASE64` | yuqorida nusxalagan matn |
-| `ANDROID_STORE_PASSWORD` | keystore paroli |
+| `ANDROID_KEYSTORE_BASE64` | `keystore-base64.txt` ichidagi butun matn |
+| `ANDROID_STORE_PASSWORD` | `password.txt` ichidagi parol |
 | `ANDROID_KEY_ALIAS` | `upload` |
-| `ANDROID_KEY_PASSWORD` | keystore paroli (odatda bir xil) |
+| `ANDROID_KEY_PASSWORD` | o'sha parol |
 
 ---
 
@@ -234,21 +218,24 @@ Ochiq ro'yxatdan o'tish yo'qligi uchun quyidagini kiriting:
 
 **All or some functionality is restricted** → **Ha**
 
-Instruction:
+**Hisob tayyorlab qo'yildi:** `play.review` — talaba roli, parol
+o'zgartirish talab qilinmaydi (aks holda tekshiruvchi birinchi ekrandayoq
+to'xtab qolardi). Paroli sizga alohida yuborilgan.
+
+Instruction maydoniga (parolni o'zingiz qo'shib) yozing:
+
 ```
-Bu yopiq tizim — ro'yxatdan o'tish yo'q, hisobni markaz ma'muriyati ochadi.
-Tekshirish uchun quyidagi hisobdan foydalaning:
+Bu yopiq tizim — ochiq ro'yxatdan o'tish yo'q, hisobni o'quv markazi
+ma'muriyati ochib beradi. Tekshirish uchun:
 
-Login: (demo hisob logini)
-Parol: (demo hisob paroli)
+Login: play.review
+Parol: <sizga yuborilgan parol>
 
-Ilova o'zbek tilida. Kirgandan keyin pastdagi menyudan bo'limlarni ko'rish
-mumkin.
+Ilova o'zbek tilida. Kirgandan keyin pastdagi menyu orqali bo'limlarni
+ko'rish mumkin: Asosiy, Jonli, Yozuvlar, Jadval.
 ```
 
-📌 **Buning uchun alohida demo hisob oching** va parolini o'zgartirishga
-majburlamaydigan qilib qoldiring. Mavjud `demo` hisobini ishlatsangiz ham
-bo'ladi — lekin parolini biling va menga aytmang, o'zingiz kiriting.
+📌 Tekshiruvdan keyin bu hisobni o'chirib tashlashingiz mumkin.
 
 ---
 

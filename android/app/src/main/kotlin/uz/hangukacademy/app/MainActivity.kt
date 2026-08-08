@@ -1,4 +1,4 @@
-package uz.hanguk.hanguk_online
+package uz.hangukacademy.app
 
 import io.flutter.embedding.android.FlutterActivity
 

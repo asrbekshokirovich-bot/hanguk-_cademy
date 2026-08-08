@@ -23,7 +23,7 @@ val keystoreProperties = Properties().apply {
 val hasReleaseKey = keystoreProperties.getProperty("storeFile") != null
 
 android {
-    namespace = "uz.hanguk.hanguk_online"
+    namespace = "uz.hangukacademy.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -33,7 +33,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "uz.hanguk.hanguk_online"
+        applicationId = "uz.hangukacademy.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Both come from pubspec.yaml's `version:` — one place, so the number

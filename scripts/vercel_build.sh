@@ -13,7 +13,14 @@ set -euo pipefail
 
 FLUTTER_VERSION=3.44.9
 
-CACHE_DIR="${VERCEL_BUILD_CACHE_DIR:-.vercel/cache}"
+# Absolute, always. git rejects a relative path in safe.directory — with a
+# warning, not an error — and then refuses to read the SDK at all:
+#
+#   warning: safe.directory '.vercel/cache/flutter-3.44.9' not absolute
+#   fatal: detected dubious ownership in repository at '/vercel/path0/...'
+CACHE_DIR="${VERCEL_BUILD_CACHE_DIR:-$PWD/.vercel/cache}"
+mkdir -p "$CACHE_DIR"
+CACHE_DIR="$(cd "$CACHE_DIR" && pwd)"
 FLUTTER_DIR="$CACHE_DIR/flutter-$FLUTTER_VERSION"
 
 if [ ! -x "$FLUTTER_DIR/bin/flutter" ]; then
@@ -38,9 +45,11 @@ fi
 
 export PATH="$FLUTTER_DIR/bin:$PATH"
 
-# The SDK sits outside the repo and is owned by whoever the build runs as;
-# without this git refuses to read it and every flutter command fails.
+# The SDK is cloned by root and read by the build user, so git calls it
+# "dubious ownership" and refuses. Every flutter command shells out to git,
+# so this is not cosmetic — without it nothing runs.
 git config --global --add safe.directory "$FLUTTER_DIR" || true
+git config --global --add safe.directory "$PWD" || true
 
 flutter --version
 flutter pub get

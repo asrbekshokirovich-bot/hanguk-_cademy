@@ -5,28 +5,39 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/data/username.dart';
-import '../../lessons/data/providers.dart';
 import '../../auth/presentation/auth_scaffold.dart';
 import '../data/admin_repository.dart';
 import '../domain/managed_user.dart';
 
 /// Collects a new account's details. Returns the created account, including
 /// its one-time password, or null if the admin backed out.
+/// [roles] is what this caller is allowed to hand out, in the order the chips
+/// appear. It is not a display preference: an admin cannot mint an
+/// administrator, and a superadmin only ever creates administrators, so the
+/// two screens that open this dialog offer different sets. The database
+/// refuses the rest regardless — see `ol_admin_create_user`.
 Future<CreatedAccount?> showCreateUserDialog(
   BuildContext context, {
-  String initialRole = 'student',
+  List<String> roles = const ['student', 'teacher'],
 }) {
   return showDialog<CreatedAccount>(
     context: context,
     barrierColor: const Color(0xB3000000),
-    builder: (_) => _CreateUserDialog(initialRole: initialRole),
+    builder: (_) => _CreateUserDialog(roles: roles),
   );
 }
 
-class _CreateUserDialog extends ConsumerStatefulWidget {
-  const _CreateUserDialog({required this.initialRole});
+const _roleLabels = {
+  'student': 'Talaba',
+  'teacher': "O'qituvchi",
+  'admin': 'Administrator',
+  'superadmin': 'Super admin',
+};
 
-  final String initialRole;
+class _CreateUserDialog extends ConsumerStatefulWidget {
+  const _CreateUserDialog({required this.roles});
+
+  final List<String> roles;
 
   @override
   ConsumerState<_CreateUserDialog> createState() => _CreateUserDialogState();
@@ -37,15 +48,11 @@ class _CreateUserDialogState extends ConsumerState<_CreateUserDialog> {
   final _fullName = TextEditingController();
   final _username = TextEditingController();
 
-  late String _role = widget.initialRole;
+  late String _role = widget.roles.first;
   int? _level = 1;
   bool _busy = false;
   String? _error;
   bool _usernameEdited = false;
-
-  /// Only a superadmin may hand out administrator rights.
-  bool get _canIssueAdmin =>
-      ref.watch(profileProvider).value?.isSuperAdmin ?? false;
 
   @override
   void initState() {
@@ -181,28 +188,23 @@ class _CreateUserDialogState extends ConsumerState<_CreateUserDialog> {
                     validator: (v) => HkAuthNaming.validationError(v ?? ''),
                   ),
                   const SizedBox(height: 18),
-                  Text('Rol', style: HkType.muted),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final entry in {
-                        'student': 'Talaba',
-                        'teacher': "O'qituvchi",
-                        // An administrator account is the top tier's to give.
-                        // The RPC refuses it either way; the chip is hidden so
-                        // a plain admin is not offered something that will
-                        // only come back as an error.
-                        if (_canIssueAdmin) 'admin': 'Administrator',
-                        if (_canIssueAdmin) 'superadmin': 'Super admin',
-                      }.entries)
-                        _Choice(
-                          label: entry.value,
-                          selected: _role == entry.key,
-                          onTap: () => setState(() => _role = entry.key),
-                        ),
-                    ],
-                  ),
+                  // A single option is a statement, not a choice: the chip row
+                  // would read as something to decide.
+                  if (widget.roles.length > 1) ...[
+                    Text('Rol', style: HkType.muted),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final role in widget.roles)
+                          _Choice(
+                            label: _roleLabels[role] ?? role,
+                            selected: _role == role,
+                            onTap: () => setState(() => _role = role),
+                          ),
+                      ],
+                    ),
+                  ],
                   if (_role == 'student') ...[
                     const SizedBox(height: 18),
                     Text('Daraja', style: HkType.muted),

@@ -19,7 +19,7 @@ class ManagedUser {
   final String userId;
   final String fullName;
 
-  /// 'student' | 'teacher' | 'admin'
+  /// 'student' | 'teacher' | 'admin' | 'superadmin'
   final String role;
 
   /// Null for an account created by hand with a real email rather than a
@@ -32,19 +32,24 @@ class ManagedUser {
 
   bool get hasNeverSignedIn => lastSignInAt == null;
 
+  bool get isAdministrator => role == 'admin' || role == 'superadmin';
+
   String get roleLabel => switch (role) {
+        'superadmin' => 'Super admin',
         'admin' => 'Administrator',
         'teacher' => "O'qituvchi",
         _ => 'Talaba',
       };
 
   Color get roleColor => switch (role) {
+        'superadmin' => HkColors.warningBright,
         'admin' => HkColors.dangerBright,
         'teacher' => HkColors.lime,
         _ => HkColors.infoText,
       };
 
   Color get roleBackground => switch (role) {
+        'superadmin' => const Color(0x26E0A93A),
         'admin' => const Color(0x26DC2626),
         'teacher' => const Color(0x26D4E94C),
         _ => const Color(0x266EA0E0),
@@ -101,6 +106,14 @@ class ManagedUser {
         lastSignInAt: now.subtract(const Duration(minutes: 14)),
       ),
       ManagedUser(
+        userId: 'u5',
+        username: 'ofis',
+        fullName: 'Ofis xodimi',
+        role: 'admin',
+        createdAt: now.subtract(const Duration(days: 30)),
+        lastSignInAt: now.subtract(const Duration(hours: 6)),
+      ),
+      ManagedUser(
         userId: 'u3',
         username: 'bekzod.t',
         fullName: 'Bekzod Toshev',
@@ -113,7 +126,7 @@ class ManagedUser {
         userId: 'u4',
         username: 'admin',
         fullName: 'Asrbek',
-        role: 'admin',
+        role: 'superadmin',
         createdAt: now.subtract(const Duration(days: 200)),
         lastSignInAt: now.subtract(const Duration(minutes: 2)),
       ),

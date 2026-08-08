@@ -18,6 +18,7 @@ import '../features/staff/presentation/admin_dashboard_screen.dart';
 import '../features/staff/presentation/admin_finance_screen.dart';
 import '../features/staff/presentation/admin_groups_screen.dart';
 import '../features/staff/presentation/admin_students_screen.dart';
+import '../features/staff/presentation/super_admin_screen.dart';
 import '../features/staff/presentation/admin_teachers_screen.dart';
 import '../features/staff/presentation/teacher_dashboard_screen.dart';
 import '../features/staff/presentation/teacher_grading_screen.dart';
@@ -77,6 +78,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return HkNav.homeFor(profile.role);
       }
       if (HkNav.isAdminRoute(location) && !profile.isAdmin) {
+        return HkNav.homeFor(profile.role);
+      }
+
+      // The top tier's two screens are also its only two. It outranks admin
+      // in the database — it has to, to issue the accounts — so nothing else
+      // would turn it away, and a superadmin would quietly end up running the
+      // school day after all.
+      if (profile.isSuperAdmin && !HkNav.isSuperAdminRoute(location)) {
         return HkNav.homeFor(profile.role);
       }
       if (HkNav.isTeacherRoute(location) && !profile.isStaff) {
@@ -142,6 +151,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/teacher/grading',
         pageBuilder: (context, state) =>
             _fade(state, const TeacherGradingScreen()),
+      ),
+      GoRoute(
+        path: '/super',
+        pageBuilder: (context, state) =>
+            _fade(state, const SuperAdminScreen()),
       ),
       GoRoute(
         path: '/admin',

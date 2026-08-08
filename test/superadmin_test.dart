@@ -9,14 +9,17 @@ import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_dashboard_screen.dart';
+import 'package:hanguk_online/features/staff/presentation/super_admin_screen.dart';
 import 'package:hanguk_online/main.dart';
 
-/// The admin tier is split in two. A superadmin issues administrator accounts
-/// and is the only role that sees money; a plain admin runs the school day.
+/// The admin tier is split in two, and the two docks do not overlap.
 ///
-/// The database enforces both — `ol_is_super()` guards the payments policies
-/// and the account RPCs — so these tests cover the half that lives in the app:
-/// not offering an action that would only come back as an error.
+/// A superadmin does exactly two things — issues administrator accounts, and
+/// holds the money. An admin does everything else. The database enforces the
+/// money and the account rules (`ol_is_super()`), but it deliberately lets a
+/// superadmin outrank an admin everywhere, because issuing accounts needs
+/// that reach. So keeping the top tier *out* of the school day is the app's
+/// job alone, and that is what most of this file covers.
 UserProfile _profile(String role) => UserProfile(
       id: 'u-$role',
       fullName: role == 'superadmin' ? 'Asrbek' : 'Ofis xodimi',
@@ -28,31 +31,36 @@ void main() {
   setUpAll(() => initializeDateFormatting('uz'));
 
   group('navigation', () {
-    test('only the top tier is offered Moliya', () {
-      final admin = HkNav.forRole('admin').map((d) => d.label);
-      final superAdmin = HkNav.forRole('superadmin').map((d) => d.label);
+    test('the top tier has two sections and they are its own', () {
+      final superAdmin =
+          HkNav.forRole('superadmin').map((d) => d.label).toList();
 
-      expect(admin, isNot(contains('Moliya')));
-      expect(superAdmin, contains('Moliya'));
-
-      // Otherwise the two are the same job: a superadmin who could not open
-      // the roster would have to keep a second account to run the school.
-      expect(
-        superAdmin.where((l) => l != 'Moliya'),
-        orderedEquals(admin),
-      );
+      expect(superAdmin, orderedEquals(['Adminlar', 'Moliya']));
     });
 
-    test('the finance route is gated on its own, not on being an admin', () {
+    test('the two docks do not overlap', () {
+      final admin = HkNav.forRole('admin').map((d) => d.route).toSet();
+      final superAdmin = HkNav.forRole('superadmin').map((d) => d.route).toSet();
+
+      // A superadmin who could also open the roster and the timetable would
+      // make the split decorative — it would just be an admin with extras.
+      expect(admin.intersection(superAdmin), isEmpty);
+      expect(admin, isNot(contains('/admin/finance')));
+      expect(superAdmin, isNot(contains('/admin/students')));
+    });
+
+    test('the top tier’s routes are also the only ones it opens', () {
+      expect(HkNav.isSuperAdminRoute('/super'), isTrue);
       expect(HkNav.isSuperAdminRoute('/admin/finance'), isTrue);
       expect(HkNav.isSuperAdminRoute('/admin/students'), isFalse);
-      // Still an admin route, so a teacher is turned away before the tier
-      // check is ever reached.
+      expect(HkNav.isSuperAdminRoute('/schedule'), isFalse);
+      // Finance is still an admin route, so a teacher is turned away by the
+      // broader check whichever order they are evaluated in.
       expect(HkNav.isAdminRoute('/admin/finance'), isTrue);
     });
 
-    test('both tiers land on the same home', () {
-      expect(HkNav.homeFor('superadmin'), '/admin');
+    test('each tier lands on its own home', () {
+      expect(HkNav.homeFor('superadmin'), '/super');
       expect(HkNav.homeFor('admin'), '/admin');
     });
   });
@@ -72,7 +80,11 @@ void main() {
     });
   });
 
-  Future<void> pumpDashboard(WidgetTester tester, String role) async {
+  Future<void> pumpDashboard(
+    WidgetTester tester,
+    Widget screen,
+    String role,
+  ) async {
     tester.view.physicalSize = const Size(1440, 920);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -87,7 +99,7 @@ void main() {
           theme: hangukTheme,
           routerConfig: GoRouter(
             routes: [
-              GoRoute(path: '/', builder: (_, _) => const AdminDashboardScreen()),
+              GoRoute(path: '/', builder: (_, _) => screen),
             ],
           ),
         ),
@@ -97,28 +109,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  // Two tests rather than two pumps in one: pumping a second ProviderScope
-  // into the same tree reuses the element and keeps the first override's
-  // resolved value, so the assertion passes for the wrong reason.
-  testWidgets('the top tier sees the revenue card', (tester) async {
-    await pumpDashboard(tester, 'superadmin');
-    expect(find.text('Bu oygi tushum'), findsOneWidget);
-  });
+  testWidgets('the admin dashboard carries no money at all', (tester) async {
+    await pumpDashboard(tester, const AdminDashboardScreen(), 'admin');
 
-  testWidgets('a plain admin does not', (tester) async {
-    await pumpDashboard(tester, 'admin');
     expect(find.text('Bu oygi tushum'), findsNothing);
-    // The rest of the dashboard is unchanged — this is one card removed, not
-    // a different screen.
+    // The overdue-payments alert used to route to /admin/finance. Offering
+    // someone an alert they cannot open is worse than not offering it.
+    expect(find.textContaining('to‘lov kechikkan'), findsNothing);
+
+    // Still the same screen otherwise.
     expect(find.text('Faol talabalar'), findsOneWidget);
     expect(find.text('Haftalik darslar'), findsOneWidget);
   });
 
-  testWidgets('an admin is not shown an alert they cannot open',
+  testWidgets('the superadmin screen lists administrators only',
       (tester) async {
-    // The overdue-payments alert routes to /admin/finance. Offering it to
-    // someone the router will bounce is worse than not offering it.
-    await pumpDashboard(tester, 'admin');
-    expect(find.textContaining('to‘lov kechikkan'), findsNothing);
+    await pumpDashboard(tester, const SuperAdminScreen(), 'superadmin');
+
+    expect(find.text('Adminlar'), findsWidgets);
+    expect(find.text('Yangi admin'), findsOneWidget);
+    // The demo roster carries students and teachers too; this screen is about
+    // the accounts that carry rights.
+    expect(find.text('Ofis xodimi'), findsOneWidget);
+    expect(find.text('Asrbek'), findsWidgets);
+    expect(find.text('Aziza Karimova'), findsNothing);
+    expect(find.text('Jasur Karimov'), findsNothing);
   });
 }

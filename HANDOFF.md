@@ -40,14 +40,20 @@ dock:
 | `student` | Asosiy · Jonli · Yozuvlar · Jadval |
 | `teacher` | Asosiy · Darsim · Talabalarim · Baholash · Yozuvlar |
 | `admin` | Boshqaruv · Talabalar · O'qituvchilar · Guruhlar · Jadval |
-| `superadmin` | the admin's sections, **plus Moliya** |
+| `superadmin` | Adminlar · Moliya — **and nothing else** |
 
 The admin tier is split in two, because the two jobs carry different risk.
-An `admin` runs the school day. A `superadmin` runs the business: it is the
-only role that may issue an account carrying administrator rights, and the
-only role that sees money. Both are enforced in the database
-(`ol_is_super()` guards the payments policies and the account RPCs), not
-only in the dock.
+An `admin` runs the school day. A `superadmin` does exactly two things: it
+issues the administrator accounts that run the school day, and it holds the
+money. The two docks **do not overlap** — a superadmin cannot open the
+roster, the groups or the timetable at all.
+
+That last part is the app's job alone, and it is easy to undo by accident.
+The database deliberately lets a superadmin outrank an admin everywhere
+(`ol_is_admin()` includes it), because issuing accounts needs that reach —
+so nothing in SQL would turn a superadmin away from `/admin/students`. The
+router does, in one rule: anything outside `HkNav.isSuperAdminRoute` sends
+the top tier home. `test/superadmin_test.dart` guards it.
 
 ### How the academy is meant to work
 

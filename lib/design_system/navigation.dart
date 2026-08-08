@@ -45,10 +45,12 @@ abstract final class HkNav {
     HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
   ];
 
-  /// Everything the admin has, plus the two things only the owner should
-  /// hold: money, and the right to issue an administrator account.
+  /// Not a superset of the admin's dock — a different job. The top tier does
+  /// two things and nothing else: it issues the administrator accounts that
+  /// run the school day, and it holds the money. Handing it the roster and
+  /// the timetable as well would make the split decorative.
   static const superAdmin = <HkDestination>[
-    ...admin,
+    HkDestination('Adminlar', Icons.admin_panel_settings_rounded, '/super'),
     HkDestination('Moliya', Icons.payments_rounded, '/admin/finance'),
   ];
 
@@ -59,9 +61,11 @@ abstract final class HkNav {
         _ => student,
       };
 
-  /// Routes only the top tier may open.
+  /// Routes only the top tier may open — and, read the other way, the only
+  /// routes it opens at all. A superadmin asking for anything else is sent
+  /// home, the same as a student asking for the admin panel.
   static bool isSuperAdminRoute(String location) =>
-      location.startsWith('/admin/finance');
+      location == '/super' || location.startsWith('/admin/finance');
 
   /// Where a role lands after signing in.
   static String homeFor(String? role) => forRole(role).first.route;

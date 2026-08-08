@@ -15,6 +15,7 @@ import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_dashboard_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_finance_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_teachers_screen.dart';
+import 'package:hanguk_online/features/staff/presentation/super_admin_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/teacher_dashboard_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/teacher_grading_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/teacher_students_screen.dart';
@@ -133,12 +134,14 @@ void main() {
   group('admin panel', () {
     testWidgets('dashboard, with alerts derived from the data',
         (tester) async {
-      await pump(tester, const AdminDashboardScreen(), as: 'superadmin');
+      await pump(tester, const AdminDashboardScreen(), as: 'admin');
 
       expect(find.text('Boshqaruv'), findsWidgets);
-      // One fixture payment is overdue, and one student has not been seen in
-      // over two weeks — both are alerts rather than buried in a table.
-      expect(find.textContaining('to‘lov kechikkan'), findsOneWidget);
+      // A student has not been seen in over two weeks — an alert rather than
+      // something buried in a table. Payments are deliberately absent: this
+      // screen is the administrator's, and money is the tier above's.
+      expect(find.textContaining('nofaol'), findsOneWidget);
+      expect(find.textContaining('to‘lov kechikkan'), findsNothing);
 
       await expectLater(
         find.byType(AdminDashboardScreen),
@@ -156,6 +159,21 @@ void main() {
       await expectLater(
         find.byType(AdminTeachersScreen),
         matchesGoldenFile('goldens/admin_teachers.png'),
+      );
+    });
+
+    testWidgets('the superadmin panel — administrator accounts only',
+        (tester) async {
+      await pump(tester, const SuperAdminScreen(), as: 'superadmin');
+
+      expect(find.text('Yangi admin'), findsOneWidget);
+      // Students and teachers are an administrator's business, not this
+      // screen's.
+      expect(find.text('Aziza Karimova'), findsNothing);
+
+      await expectLater(
+        find.byType(SuperAdminScreen),
+        matchesGoldenFile('goldens/super_admin.png'),
       );
     });
 

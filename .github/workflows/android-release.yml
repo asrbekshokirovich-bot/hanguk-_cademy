@@ -18,6 +18,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # A hang should cost twenty minutes, not the six hours GitHub allows by
+    # default. The first attempt sat in the SDK setup step for half an hour
+    # with nothing to show for it.
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -27,13 +31,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: subosito/flutter-action@v2
-        with:
-          # Pinned, like the Vercel build. A Flutter release that changes
-          # codegen should break a build someone is watching.
-          flutter-version: '3.44.9'
-          channel: stable
-          cache: true
+      # Fetched directly rather than through subosito/flutter-action. That
+      # action's `cache: true` sat for half an hour on a cold cache without
+      # producing a line of output; this is the same download the Vercel
+      # build does, and it either works in three minutes or fails saying so.
+      - name: Install Flutter 3.44.9
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 5 \
+            -o /tmp/flutter.tar.xz \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.9-stable.tar.xz"
+          mkdir -p "$RUNNER_TOOL_CACHE/flutter"
+          tar -xJf /tmp/flutter.tar.xz -C "$RUNNER_TOOL_CACHE/flutter" --strip-components=1
+          echo "$RUNNER_TOOL_CACHE/flutter/bin" >> "$GITHUB_PATH"
+          git config --global --add safe.directory "$RUNNER_TOOL_CACHE/flutter"
+
+      - run: flutter --version
 
       - name: Restore the signing key
         env:

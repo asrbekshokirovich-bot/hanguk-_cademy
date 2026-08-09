@@ -110,6 +110,32 @@ class LessonsRepository {
         .update({'auto_record': enabled}).eq('id', lessonId);
   }
 
+  /// Moves a lesson between scheduled, live and finished.
+  ///
+  /// Nothing did this before, so a lesson could never become live: the live
+  /// room selects on status = 'live' and no code ever wrote that value. The
+  /// schedule was a list of intentions with no way to act on one.
+  ///
+  /// Starting a lesson also names its room, derived from the lesson id rather
+  /// than generated, so a reconnect — or a second device — lands in the room
+  /// that is already running instead of an empty one of its own.
+  ///
+  /// Staff only, enforced by RLS on ol_lessons. Hiding the button is the
+  /// courtesy; the database is the rule.
+  Future<void> setLessonStatus(String lessonId, LessonStatus status) async {
+    if (isDemo) return;
+    await _db.from('ol_lessons').update({
+      'status': switch (status) {
+        LessonStatus.scheduled => 'scheduled',
+        LessonStatus.live => 'live',
+        LessonStatus.ended => 'ended',
+        LessonStatus.cancelled => 'cancelled',
+      },
+      if (status == LessonStatus.live) 'live_room': 'lesson-$lessonId',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', lessonId);
+  }
+
   Future<void> enrol(String lessonId) async {
     if (isDemo) return;
     final userId = _db.auth.currentUser?.id;

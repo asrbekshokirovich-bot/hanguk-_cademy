@@ -1,0 +1,64 @@
+name: Windows desktop build
+
+# Produces the Windows version as a ready-to-run folder, zipped.
+#
+# It runs here rather than on the owner's machine because a Windows Flutter
+# build needs Visual Studio with the "Desktop development with C++" workload —
+# several gigabytes of installer, and `flutter doctor` on his laptop currently
+# reports it missing. The runner already has it.
+#
+# Start it from the Actions tab ("Run workflow"), then download the zip from
+# the run's Artifacts section.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same direct download as the Android and Vercel builds, for the same
+      # reason: it either works in three minutes or fails saying why.
+      - name: Install Flutter 3.44.9
+        shell: pwsh
+        run: |
+          $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.44.9-stable.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\flutter.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\flutter.zip" -DestinationPath "$env:RUNNER_TOOL_CACHE" -Force
+          "$env:RUNNER_TOOL_CACHE\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          git config --global --add safe.directory "$env:RUNNER_TOOL_CACHE\flutter"
+
+      - run: flutter --version
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+
+      # The same checks that guard every push.
+      - run: flutter analyze
+      - run: flutter test
+
+      - run: flutter build windows --release
+
+      # The .exe alone does not run: it needs the Flutter DLL and the data
+      # folder beside it. Shipping the whole Release directory is what makes
+      # the zip double-clickable on a machine that has never seen Flutter.
+      - name: Package the build
+        shell: pwsh
+        run: |
+          $out = "build\windows\x64\runner\Release"
+          if (-not (Test-Path "$out\hanguk_online.exe")) {
+            Write-Error "hanguk_online.exe is missing — the build did not produce a runnable folder."
+            exit 1
+          }
+          Compress-Archive -Path "$out\*" -DestinationPath "hanguk-academy-windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hanguk-academy-windows
+          path: hanguk-academy-windows.zip
+          retention-days: 30

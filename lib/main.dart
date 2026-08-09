@@ -22,9 +22,17 @@ Future<void> main() async {
     await windowManager.ensureInitialized();
     await windowManager.waitUntilReadyToShow(
       const WindowOptions(
-        // The design's window. minimumSize is the point below which the
-        // expanded layout stops fitting and the medium one takes over.
-        size: Size(1440, 920),
+        // The restore-down size, deliberately smaller than the 1440x920 the
+        // design was drawn at. WindowOptions.size is in logical pixels, and
+        // a 1920x1080 screen at Windows' 125% scaling is only 1536x864 of
+        // those: a 920-tall window does not fit on it. Centred, it hung off
+        // both edges, and the title bar ended up above the top of the
+        // display — which is why the minimise and maximise buttons were
+        // missing and only a stripe carrying the close button showed.
+        //
+        // 1280x800 fits every laptop the academy is likely to use, 125%
+        // scaling included, and the expanded layout still has room.
+        size: Size(1280, 800),
         minimumSize: Size(880, 620),
         center: true,
         title: "Hanguk Academy — Onlayn ta'lim platformasi",
@@ -32,22 +40,15 @@ Future<void> main() async {
         titleBarStyle: TitleBarStyle.normal,
       ),
       () async {
-        // Maximised, not the 1440x920 above: on a 1920-wide monitor the
-        // design window leaves a band of desktop around it, which reads as
-        // the app failing to open properly rather than as a deliberate
-        // size. The size above still governs what the user gets back when
-        // they restore the window down.
-        //
-        // After show(), not before. Maximising a window that has not been
-        // shown yet leaves it sized to the screen but positioned as if it
-        // were still the design window — the title bar ends up above the
-        // top of the display, taking the minimise and maximise buttons
-        // with it and leaving a single stripe with only the close button.
         await windowManager.show();
         await windowManager.focus();
-        await windowManager.maximize();
       },
     );
+
+    // Outside waitUntilReadyToShow on purpose. Inside that callback the
+    // window is mid-way through being presented, and a maximise issued
+    // there is silently dropped — twice now.
+    await windowManager.maximize();
   }
 
   if (HkEnv.hasSupabase) {

@@ -32,6 +32,12 @@ Future<void> main() async {
         titleBarStyle: TitleBarStyle.normal,
       ),
       () async {
+        // Maximised, not the 1440x920 above: on a 1920-wide monitor the
+        // design window leaves a band of desktop around it, which reads as
+        // the app failing to open properly rather than as a deliberate
+        // size. The size above still governs what the user gets back when
+        // they restore the window down.
+        await windowManager.maximize();
         await windowManager.show();
         await windowManager.focus();
       },

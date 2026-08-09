@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # versionName+versionCode. Play refuses an upload whose versionCode it has
 # seen before, so the build number goes up on every release, never down.
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.11.0

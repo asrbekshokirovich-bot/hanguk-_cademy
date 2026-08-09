@@ -27,6 +27,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  msix: ^3.18.0
 
 flutter:
   uses-material-design: true
@@ -64,3 +65,30 @@ flutter:
           weight: 500
         - asset: assets/fonts/NotoSansKR-700.ttf
           weight: 700
+
+# Microsoft Store packaging. `dart run msix:create` turns the Windows build
+# into an .msix — the Store accepts nothing else.
+#
+# Three of these values are issued by Partner Center once the app name is
+# reserved, and the package is rejected if they do not match the account
+# byte for byte:
+#
+#   identity_name          Partner Center → Product identity → Package/Identity/Name
+#   publisher              …→ Package/Identity/Publisher (the whole CN=… string)
+#   publisher_display_name …→ Package/Properties/PublisherDisplayName
+#
+# They are left as the placeholders below until the account exists. Building
+# with these produces an .msix that installs locally for testing but cannot
+# be submitted.
+msix_config:
+  display_name: Hanguk Academy
+  identity_name: HangukAcademy.OnlaynTalim
+  publisher: CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID
+  publisher_display_name: Hanguk Academy
+  msix_version: 1.0.1.0
+  logo_path: docs/play/icon-512.png
+  # No capabilities beyond the network: the app talks to Supabase and does
+  # nothing else with the machine. Asking for more would slow certification
+  # and alarm anyone who reads the install prompt.
+  capabilities: internetClient
+  store: true

@@ -451,12 +451,23 @@ class UserProfile {
   /// issuing accounts that carry administrator rights, and money.
   bool get isSuperAdmin => role == 'superadmin';
 
-  String get subtitle => switch (role) {
+  /// The role's name in Uzbek. Every screen that prints a role reads it from
+  /// here — the profile menu used to carry its own copy of this switch, and
+  /// when 'superadmin' was added the copy was missed, so the super admin's
+  /// own menu called them a student.
+  String get roleLabel => switch (role) {
         'superadmin' => 'Super admin',
         'admin' => 'Administrator',
         'teacher' => "O'qituvchi",
-        _ => level == null ? 'Talaba' : 'Daraja $level',
+        _ => 'Talaba',
       };
+
+  /// The line under the name in the header. Same as [roleLabel], except a
+  /// student with a level gets the level instead — it is the more useful
+  /// fact about them, and "Talaba" is already obvious from the screen.
+  String get subtitle => roleLabel == 'Talaba' && level != null
+      ? 'Daraja $level'
+      : roleLabel;
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     final name = (map['full_name'] as String?) ?? 'Talaba';

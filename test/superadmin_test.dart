@@ -135,4 +135,30 @@ void main() {
     expect(find.text('Aziza Karimova'), findsNothing);
     expect(find.text('Jasur Karimov'), findsNothing);
   });
+
+  test('every role prints its own name', () {
+    // The profile menu once kept its own copy of this mapping and had never
+    // heard of 'superadmin', so it introduced the owner as a student.
+    UserProfile at(String role) =>
+        UserProfile(id: 'u', fullName: 'X', initials: 'X', role: role);
+
+    expect(at('superadmin').roleLabel, 'Super admin');
+    expect(at('admin').roleLabel, 'Administrator');
+    expect(at('teacher').roleLabel, "O'qituvchi");
+    expect(at('student').roleLabel, 'Talaba');
+
+    // The header still prefers the level for a student who has one, and
+    // never for anyone else.
+    expect(
+      UserProfile(
+        id: 'u',
+        fullName: 'X',
+        initials: 'X',
+        role: 'student',
+        level: 3,
+      ).subtitle,
+      'Daraja 3',
+    );
+    expect(at('superadmin').subtitle, 'Super admin');
+  });
 }

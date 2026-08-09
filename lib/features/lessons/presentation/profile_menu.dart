@@ -68,11 +68,7 @@ class _ProfileDialog extends ConsumerWidget {
               const SizedBox(height: 16),
               _InfoRow(
                 label: 'Rol',
-                value: switch (profile?.role) {
-                  'admin' => 'Administrator',
-                  'teacher' => "O'qituvchi",
-                  _ => 'Talaba',
-                },
+                value: profile?.roleLabel ?? 'Talaba',
               ),
               if (profile?.level != null)
                 _InfoRow(label: 'Daraja', value: '${profile!.level}'),

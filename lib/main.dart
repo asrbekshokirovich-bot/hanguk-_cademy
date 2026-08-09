@@ -37,9 +37,15 @@ Future<void> main() async {
         // the app failing to open properly rather than as a deliberate
         // size. The size above still governs what the user gets back when
         // they restore the window down.
-        await windowManager.maximize();
+        //
+        // After show(), not before. Maximising a window that has not been
+        // shown yet leaves it sized to the screen but positioned as if it
+        // were still the design window — the title bar ends up above the
+        // top of the display, taking the minimise and maximise buttons
+        // with it and leaving a single stripe with only the close button.
         await windowManager.show();
         await windowManager.focus();
+        await windowManager.maximize();
       },
     );
   }

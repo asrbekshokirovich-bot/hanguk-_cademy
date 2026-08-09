@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hanguk_online/features/auth/data/auth_repository.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
-import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/presentation/profile_menu.dart';
 
 /// Not demo mode — the sign-out button only exists outside it — and signing

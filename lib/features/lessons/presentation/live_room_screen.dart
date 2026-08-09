@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:livekit_client/livekit_client.dart' as lk;
 
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
@@ -13,17 +14,18 @@ import '../data/demo_data.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/clock.dart';
+import '../../live/data/live_session.dart';
 
 /// "Jonli dars" — the live lesson room.
 ///
 /// The room chrome is complete and driven by real lesson data: who is
 /// teaching, how long it has been running, whether it is being recorded.
 ///
-/// The *media* is not connected. There is no camera, microphone or remote
-/// track anywhere in this file, and the participant list and chat are seeded
-/// from `DemoData` rather than a backend. That is the agreed shape of this
-/// milestone — LiveKit lands next — so the room says so on screen rather than
-/// presenting mute buttons that quietly do nothing.
+/// Audio and video are real: joining publishes to a LiveKit room whose token
+/// is minted by the `livekit-token` Edge Function. The chat and the captions
+/// strip are still seeded from `DemoData` — they are the next milestone, and
+/// the room says which parts are live rather than presenting controls that
+/// quietly do nothing.
 class LiveRoomScreen extends ConsumerStatefulWidget {
   const LiveRoomScreen({super.key});
 
@@ -32,8 +34,6 @@ class LiveRoomScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
-  bool _micOn = false;
-  bool _cameraOn = false;
   bool _handRaised = false;
   bool _showChat = true;
   bool _showCaptions = true;
@@ -42,6 +42,16 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   Widget build(BuildContext context) {
     final layout = HkLayout.of(context);
     final lesson = ref.watch(liveLessonProvider).value;
+    final session = ref.watch(liveSessionProvider);
+
+    // Join as soon as there is a lesson to join. Not in initState: the lesson
+    // arrives asynchronously, and on a phone the user often lands here before
+    // the query returns.
+    if (lesson != null && session.stage == LiveStage.idle) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(liveSessionProvider.notifier).connect(lesson.id);
+      });
+    }
 
     return AppShell(
       title: 'Jonli dars',
@@ -52,7 +62,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _MediaPendingNotice(),
+                _ConnectionNotice(session: session, lessonId: lesson.id),
                 const SizedBox(height: 14),
                 if (layout.isExpanded)
                   // Expanded, not the design's literal 620: the shell gives
@@ -80,26 +90,30 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                 else ...[
                   SizedBox(
                     height: 360,
-                    child: _Stage(
-                      lesson: lesson,
-                      showCaptions: _showCaptions,
-                    ),
+                    child: _Stage(lesson: lesson, showCaptions: _showCaptions),
                   ),
                   const SizedBox(height: HkSpace.gridGap),
-                  SizedBox(
-                    height: 420,
-                    child: _RightRail(showChat: _showChat),
-                  ),
+                  SizedBox(height: 420, child: _RightRail(showChat: _showChat)),
                 ],
                 const SizedBox(height: HkSpace.gridGap),
                 _ControlBar(
-                  micOn: _micOn,
-                  cameraOn: _cameraOn,
+                  micOn: session.micOn,
+                  cameraOn: session.cameraOn,
                   handRaised: _handRaised,
                   chatOn: _showChat,
                   captionsOn: _showCaptions,
-                  onMic: () => setState(() => _micOn = !_micOn),
-                  onCamera: () => setState(() => _cameraOn = !_cameraOn),
+                  // Disabled until the room is joined, rather than toggling a
+                  // local boolean that publishes nothing.
+                  onMic: session.isConnected
+                      ? () => ref
+                            .read(liveSessionProvider.notifier)
+                            .setMicrophone(!session.micOn)
+                      : null,
+                  onCamera: session.isConnected
+                      ? () => ref
+                            .read(liveSessionProvider.notifier)
+                            .setCamera(!session.cameraOn)
+                      : null,
                   onHand: () => setState(() => _handRaised = !_handRaised),
                   onChat: () => setState(() => _showChat = !_showChat),
                   onCaptions: () =>
@@ -149,50 +163,83 @@ class _NoLiveLesson extends StatelessWidget {
   }
 }
 
-/// States plainly that audio/video is not live yet. Without it, a student
-/// pressing an inert mic button would reasonably conclude the app is broken.
-class _MediaPendingNotice extends StatelessWidget {
-  const _MediaPendingNotice();
+/// One line on why the room looks the way it does: joining, joined, or a
+/// reason it could not join. A student staring at a still avatar needs to
+/// know whether to wait or to call the office.
+class _ConnectionNotice extends ConsumerWidget {
+  const _ConnectionNotice({required this.session, required this.lessonId});
+
+  final LiveState session;
+  final String lessonId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (tint, border, colour, icon, message) = switch (session.stage) {
+      LiveStage.connecting => (
+        const Color(0x1A6EA0E0),
+        const Color(0x336EA0E0),
+        HkColors.infoText,
+        Icons.wifi_tethering_rounded,
+        'Darsga ulanmoqda…',
+      ),
+      LiveStage.connected => (
+        const Color(0x1A15A05A),
+        const Color(0x3315A05A),
+        HkColors.successBright,
+        Icons.check_circle_outline_rounded,
+        'Ulandi. Mikrofon va kamerani pastdagi tugmalardan yoqasiz.',
+      ),
+      LiveStage.failed => (
+        const Color(0x1ADC2626),
+        const Color(0x33DC2626),
+        HkColors.dangerBright,
+        Icons.error_outline_rounded,
+        session.error ?? 'Ulanib bo‘lmadi',
+      ),
+      LiveStage.idle => (
+        const Color(0x1AE08600),
+        const Color(0x33E08600),
+        HkColors.warningBright,
+        Icons.info_outline_rounded,
+        'Ulanish kutilmoqda',
+      ),
+    };
+
     return GlassPanel(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       radius: HkRadius.cardSmall,
-      tint: const Color(0x1AE08600),
-      borderColor: const Color(0x33E08600),
+      tint: tint,
+      borderColor: border,
       child: Row(
         children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 18,
-            color: HkColors.warningBright,
-          ),
+          Icon(icon, size: 18, color: colour),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              "Video va audio ulanishi keyingi bosqichda qo'shiladi. "
-              "Quyidagi boshqaruvlar hozircha faqat ko'rinishni o'zgartiradi.",
-              style: HkType.body.copyWith(fontSize: 12.5),
-            ),
+            child: Text(message, style: HkType.body.copyWith(fontSize: 12.5)),
           ),
+          if (session.stage == LiveStage.failed)
+            TextButton(
+              onPressed: () =>
+                  ref.read(liveSessionProvider.notifier).connect(lessonId),
+              child: const Text('Qayta urinish'),
+            ),
         ],
       ),
     );
   }
 }
 
-class _Stage extends StatefulWidget {
+class _Stage extends ConsumerStatefulWidget {
   const _Stage({required this.lesson, required this.showCaptions});
 
   final Lesson lesson;
   final bool showCaptions;
 
   @override
-  State<_Stage> createState() => _StageState();
+  ConsumerState<_Stage> createState() => _StageState();
 }
 
-class _StageState extends State<_Stage> {
+class _StageState extends ConsumerState<_Stage> {
   late Timer _tick;
   Duration _elapsed = Duration.zero;
 
@@ -218,10 +265,31 @@ class _StageState extends State<_Stage> {
     return _elapsed.inHours > 0 ? '${_elapsed.inHours}:$m:$s' : '$m:$s';
   }
 
+  /// The track the stage shows: the first remote camera in the room, and the
+  /// local one only if nobody else is publishing. A teacher alone in the room
+  /// still sees themselves; a student sees the teacher, not their own face.
+  lk.VideoTrack? _stageTrack(lk.Room? room) {
+    if (room == null) return null;
+
+    for (final participant in room.remoteParticipants.values) {
+      for (final publication in participant.videoTrackPublications) {
+        final track = publication.track;
+        if (track != null && !publication.muted) return track;
+      }
+    }
+    for (final publication
+        in room.localParticipant?.videoTrackPublications ?? const []) {
+      final track = publication.track;
+      if (track != null && !publication.muted) return track;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final teacher = widget.lesson.teacher;
     final compact = HkLayout.of(context).isCompact;
+    final track = _stageTrack(ref.watch(liveSessionProvider).room);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(HkRadius.cardLarge),
@@ -235,19 +303,29 @@ class _StageState extends State<_Stage> {
         ),
         child: Stack(
           children: [
-            // Speaker
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _SpeakingAvatar(
-                    initials: teacher?.initials ?? '?',
-                    gradient: teacher?.gradient,
-                    size: compact ? 104 : 144,
-                  ),
-                ],
+            // Whoever is on camera. Falls back to the initials disc while
+            // nobody is publishing video — an audio-only lesson is normal
+            // here, and a black rectangle would read as a failure.
+            if (track != null)
+              Positioned.fill(
+                child: lk.VideoTrackRenderer(
+                  track,
+                  fit: lk.VideoViewFit.contain,
+                ),
+              )
+            else
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _SpeakingAvatar(
+                      initials: teacher?.initials ?? '?',
+                      gradient: teacher?.gradient,
+                      size: compact ? 104 : 144,
+                    ),
+                  ],
+                ),
               ),
-            ),
             // Top bar
             Positioned(
               left: 16,
@@ -607,11 +685,7 @@ class _ChatComposer extends StatelessWidget {
             gradient: kLimeGradient,
             shape: BoxShape.circle,
           ),
-          child: const Icon(
-            Icons.send_rounded,
-            size: 17,
-            color: HkColors.ink,
-          ),
+          child: const Icon(Icons.send_rounded, size: 17, color: HkColors.ink),
         ),
       ],
     );
@@ -638,8 +712,8 @@ class _ControlBar extends StatelessWidget {
   final bool handRaised;
   final bool chatOn;
   final bool captionsOn;
-  final VoidCallback onMic;
-  final VoidCallback onCamera;
+  final VoidCallback? onMic;
+  final VoidCallback? onCamera;
   final VoidCallback onHand;
   final VoidCallback onChat;
   final VoidCallback onCaptions;
@@ -736,7 +810,10 @@ class _ControlButton extends StatefulWidget {
   });
 
   final IconData icon;
-  final VoidCallback onTap;
+
+  /// Null disables the button — the room is not joined yet, so publishing
+  /// would have nowhere to go.
+  final VoidCallback? onTap;
   final String tooltip;
   final bool active;
 
@@ -749,29 +826,37 @@ class _ControlButtonState extends State<_ControlButton> {
 
   @override
   Widget build(BuildContext context) {
+    final disabled = widget.onTap == null;
     return Tooltip(
       message: widget.tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: widget.active ? kLimeGradient : null,
-              color: widget.active
-                  ? null
-                  : (_hovered ? HkGlass.hoverFill : const Color(0x0FFFFFFF)),
-              borderRadius: BorderRadius.circular(HkRadius.control),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 20,
-              color: widget.active ? HkColors.ink : HkColors.textPrimary,
+      child: Opacity(
+        // Dimmed rather than hidden: the control bar keeps its shape while the
+        // room is still connecting, so nothing jumps under the finger.
+        opacity: disabled ? 0.4 : 1,
+        child: MouseRegion(
+          cursor: disabled
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: widget.active ? kLimeGradient : null,
+                color: widget.active
+                    ? null
+                    : (_hovered ? HkGlass.hoverFill : const Color(0x0FFFFFFF)),
+                borderRadius: BorderRadius.circular(HkRadius.control),
+              ),
+              child: Icon(
+                widget.icon,
+                size: 20,
+                color: widget.active ? HkColors.ink : HkColors.textPrimary,
+              ),
             ),
           ),
         ),

@@ -136,6 +136,35 @@ class LessonsRepository {
     }).eq('id', lessonId);
   }
 
+  /// Asks the Edge Function for a LiveKit token for this lesson.
+  ///
+  /// Null in demo mode, and null when the function reports that LiveKit is
+  /// not configured — the room then says so instead of spinning. Anything
+  /// else (lesson not live, not signed in) throws with the function's own
+  /// Uzbek message, which is more use on screen than a status code.
+  Future<LiveKitCredentials?> liveKitToken(String lessonId) async {
+    if (isDemo) return null;
+
+    final response = await _db.functions.invoke(
+      'livekit-token',
+      body: {'lesson_id': lessonId},
+    );
+
+    final data = response.data;
+    if (data is Map && data['token'] is String && data['url'] is String) {
+      return LiveKitCredentials(
+        token: data['token'] as String,
+        url: data['url'] as String,
+        room: data['room'] as String? ?? 'lesson-$lessonId',
+      );
+    }
+    if (data is Map && data['error'] is String) {
+      if ((data['error'] as String).contains('sozlanmagan')) return null;
+      throw StateError(data['error'] as String);
+    }
+    throw StateError('Video xizmatiga ulanib bo‘lmadi');
+  }
+
   Future<void> enrol(String lessonId) async {
     if (isDemo) return;
     final userId = _db.auth.currentUser?.id;

@@ -22,6 +22,7 @@ dependencies:
   # Desktop: size/centre/title the window before the first frame so the
   # 1440x920 shell from the design isn't at the mercy of the WM default.
   window_manager: ^0.4.3
+  livekit_client: ^2.10.0
 
 dev_dependencies:
   flutter_test:

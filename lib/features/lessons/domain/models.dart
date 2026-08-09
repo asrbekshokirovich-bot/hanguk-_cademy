@@ -559,3 +559,17 @@ class SearchResults {
   bool get isEmpty => lessons.isEmpty && recordings.isEmpty;
   int get total => lessons.length + recordings.length;
 }
+
+/// What the app needs to join a LiveKit room: a token scoped to one room and
+/// one identity, and the server to present it to.
+class LiveKitCredentials {
+  const LiveKitCredentials({
+    required this.token,
+    required this.url,
+    required this.room,
+  });
+
+  final String token;
+  final String url;
+  final String room;
+}

@@ -23,6 +23,7 @@ dependencies:
   # 1440x920 shell from the design isn't at the mercy of the WM default.
   window_manager: ^0.4.3
   livekit_client: ^2.10.0
+  video_player: ^2.13.0
 
 dev_dependencies:
   flutter_test:

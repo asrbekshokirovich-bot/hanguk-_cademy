@@ -10,6 +10,7 @@ import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/stat_card.dart';
 import '../../../design_system/widgets/states.dart';
+import '../../lessons/data/lessons_repository.dart';
 import '../../lessons/data/providers.dart';
 import '../../lessons/domain/models.dart';
 import '../data/staff_providers.dart';
@@ -129,13 +130,13 @@ class _TodayLessonsCard extends ConsumerWidget {
   }
 }
 
-class _LessonRow extends StatelessWidget {
+class _LessonRow extends ConsumerWidget {
   const _LessonRow({required this.lesson});
 
   final Lesson lesson;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final live = lesson.status == LessonStatus.live;
 
     return Container(
@@ -194,11 +195,36 @@ class _LessonRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+          // Two different jobs behind one label before this: on a live
+          // lesson it opened the room, and on a scheduled one there was no
+          // button at all — the teacher had to know to go to Jadval. Now the
+          // row starts the lesson as well as joining it.
           if (live)
+            LimeButton(
+              label: 'Darsga kirish',
+              height: 38,
+              onPressed: () => context.go('/live'),
+            )
+          else if (lesson.status == LessonStatus.scheduled)
             LimeButton(
               label: 'Darsni boshlash',
               height: 38,
-              onPressed: () => context.go('/live'),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final router = GoRouter.of(context);
+                try {
+                  await ref
+                      .read(lessonsRepositoryProvider)
+                      .setLessonStatus(lesson.id, LessonStatus.live);
+                  ref.invalidate(todaysLessonsProvider);
+                  ref.invalidate(liveLessonProvider);
+                  router.go('/live');
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Boshlanmadi: \$e')),
+                  );
+                }
+              },
             )
           else
             HkPill(

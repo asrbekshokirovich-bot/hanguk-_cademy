@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
+import '../data/lessons_repository.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 
@@ -231,33 +233,132 @@ class _Tab extends StatelessWidget {
   }
 }
 
-class _VideoSurface extends StatelessWidget {
+class _VideoSurface extends ConsumerStatefulWidget {
   const _VideoSurface({required this.recording});
 
   final Recording recording;
 
   @override
-  Widget build(BuildContext context) {
-    // Scrubber position follows the student's saved watch progress rather than
-    // the design's fixed 19%, so reopening a half-watched lesson looks right.
-    final position = Duration(
-      seconds: (recording.durationSeconds * recording.progress).round(),
-    );
+  ConsumerState<_VideoSurface> createState() => _VideoSurfaceState();
+}
 
-    String fmt(Duration d) {
-      final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-      final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-      return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
+class _VideoSurfaceState extends ConsumerState<_VideoSurface> {
+  VideoPlayerController? _controller;
+  bool _initialising = false;
+  String? _error;
+  Duration _lastSaved = Duration.zero;
+
+  Recording get _recording => widget.recording;
+
+  bool get _hasVideo => (_recording.videoUrl ?? '').isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_hasVideo) _open();
+  }
+
+  Future<void> _open() async {
+    setState(() => _initialising = true);
+    final controller =
+        VideoPlayerController.networkUrl(Uri.parse(_recording.videoUrl!));
+    try {
+      await controller.initialize();
+      // Resume where the student stopped, which is the whole point of storing
+      // progress. Within a few seconds of the end, start again from zero
+      // rather than dropping them on the credits.
+      final resume = Duration(
+        seconds: (_recording.durationSeconds * _recording.progress).round(),
+      );
+      if (resume > Duration.zero &&
+          resume < controller.value.duration - const Duration(seconds: 5)) {
+        await controller.seekTo(resume);
+      }
+      controller.addListener(_onTick);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _initialising = false;
+      });
+    } catch (e) {
+      await controller.dispose();
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _initialising = false;
+      });
     }
+  }
+
+  /// Saves the position every ten seconds of playback, not every frame: the
+  /// listener fires several times a second and each save is a round trip.
+  void _onTick() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    final position = c.value.position;
+    if ((position - _lastSaved).abs() < const Duration(seconds: 10)) {
+      setState(() {}); // keep the scrubber moving
+      return;
+    }
+    _lastSaved = position;
+    ref.read(lessonsRepositoryProvider).saveProgress(
+          _recording.id,
+          position.inSeconds,
+          c.value.duration.inSeconds,
+        );
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    final c = _controller;
+    if (c != null) {
+      c.removeListener(_onTick);
+      // One last save on the way out, so closing the screen mid-lesson does
+      // not lose up to ten seconds of progress.
+      if (c.value.isInitialized) {
+        ref.read(lessonsRepositoryProvider).saveProgress(
+              _recording.id,
+              c.value.position.inSeconds,
+              c.value.duration.inSeconds,
+            );
+      }
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _controller;
+    final ready = c != null && c.value.isInitialized;
+    final duration = ready
+        ? c.value.duration
+        : Duration(seconds: _recording.durationSeconds);
+    final position = ready
+        ? c.value.position
+        : Duration(
+            seconds: (_recording.durationSeconds * _recording.progress).round(),
+          );
 
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(HkRadius.card),
         child: DecoratedBox(
-          decoration: BoxDecoration(gradient: recording.thumbnailGradient),
+          decoration: BoxDecoration(gradient: _recording.thumbnailGradient),
           child: Stack(
             children: [
+              if (ready) Positioned.fill(child: VideoPlayer(c)),
               Positioned(
                 right: 14,
                 top: 14,
@@ -267,21 +368,7 @@ class _VideoSurface extends StatelessWidget {
                   foreground: HkColors.textPrimary,
                 ),
               ),
-              Center(
-                child: Container(
-                  width: 74,
-                  height: 74,
-                  decoration: const BoxDecoration(
-                    color: HkColors.lime,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    size: 40,
-                    color: HkColors.ink,
-                  ),
-                ),
-              ),
+              Center(child: _centrepiece(ready)),
               Positioned(
                 left: 18,
                 right: 18,
@@ -289,19 +376,43 @@ class _VideoSurface extends StatelessWidget {
                 child: Row(
                   children: [
                     Text(
-                      fmt(position),
+                      _fmt(position),
                       style: HkType.monoTime.copyWith(fontSize: 12),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: HkProgressBar(
-                        value: recording.progress,
-                        height: 5,
-                      ),
+                      child: ready
+                          ? SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 5,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 7,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 14,
+                                ),
+                                activeTrackColor: HkColors.lime,
+                                inactiveTrackColor: const Color(0x33FFFFFF),
+                                thumbColor: HkColors.lime,
+                              ),
+                              child: Slider(
+                                value: position.inMilliseconds
+                                    .clamp(0, duration.inMilliseconds)
+                                    .toDouble(),
+                                max: duration.inMilliseconds.toDouble(),
+                                onChanged: (v) => c.seekTo(
+                                  Duration(milliseconds: v.round()),
+                                ),
+                              ),
+                            )
+                          : HkProgressBar(
+                              value: _recording.progress,
+                              height: 5,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      fmt(Duration(seconds: recording.durationSeconds)),
+                      _fmt(duration),
                       style: HkType.monoTime.copyWith(
                         fontSize: 12,
                         color: HkColors.textSecondary,
@@ -312,6 +423,52 @@ class _VideoSurface extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _centrepiece(bool ready) {
+    if (_initialising) {
+      return const SizedBox(
+        width: 32,
+        height: 32,
+        child: CircularProgressIndicator(strokeWidth: 2.4),
+      );
+    }
+    if (!_hasVideo || _error != null) {
+      // Says which of the two it is. Most recordings in this system have no
+      // file yet, and "yuklanmadi" for those would send the owner hunting for
+      // a fault that is not there.
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Text(
+          _hasVideo ? 'Video yuklanmadi' : 'Bu darsning yozuvi hali yo‘q',
+          textAlign: TextAlign.center,
+          style: HkType.body.copyWith(fontSize: 13),
+        ),
+      );
+    }
+
+    final playing = ready && _controller!.value.isPlaying;
+    return GestureDetector(
+      onTap: () {
+        final c = _controller;
+        if (c == null) return;
+        playing ? c.pause() : c.play();
+        setState(() {});
+      },
+      child: Container(
+        width: 74,
+        height: 74,
+        decoration: const BoxDecoration(
+          color: HkColors.lime,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          size: 40,
+          color: HkColors.ink,
         ),
       ),
     );

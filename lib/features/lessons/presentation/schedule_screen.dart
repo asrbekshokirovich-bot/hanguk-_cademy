@@ -114,13 +114,6 @@ class _WeekHeader extends ConsumerWidget {
             ],
           ),
         ),
-        const HkPill(
-          label: 'Avto-yozuv yoniq',
-          background: Color(0x26D4E94C),
-          foreground: HkColors.lime,
-          icon: Icons.fiber_manual_record_rounded,
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        ),
         if (isAdmin)
           SizedBox(
             height: 44,

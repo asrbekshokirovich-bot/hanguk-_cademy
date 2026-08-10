@@ -165,6 +165,43 @@ class LessonsRepository {
     throw StateError('Video xizmatiga ulanib bo‘lmadi');
   }
 
+  // -------------------------------------------------------- lesson chat ---
+
+  /// Everything said in this lesson so far, oldest first.
+  ///
+  /// Read on joining the room, so somebody who arrives ten minutes late sees
+  /// what has been asked instead of an empty panel.
+  Future<List<LessonMessage>> lessonMessages(String lessonId) async {
+    if (isDemo) return const [];
+    final rows = await _db
+        .from('ol_lesson_messages')
+        .select()
+        .eq('lesson_id', lessonId)
+        .order('sent_at')
+        // A lesson does not produce more than this, and a runaway loop should
+        // not be able to drag the whole history into a phone's memory.
+        .limit(500);
+    return rows.map((r) => LessonMessage.fromMap(r)).toList();
+  }
+
+  /// Writes one line. Delivery to the people already in the room happens over
+  /// LiveKit's data channel; this is what makes it survive the lesson.
+  Future<void> sendLessonMessage({
+    required String lessonId,
+    required String authorName,
+    required String body,
+  }) async {
+    if (isDemo) return;
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return;
+    await _db.from('ol_lesson_messages').insert({
+      'lesson_id': lessonId,
+      'author_id': userId,
+      'author_name': authorName,
+      'body': body,
+    });
+  }
+
   Future<void> enrol(String lessonId) async {
     if (isDemo) return;
     final userId = _db.auth.currentUser?.id;

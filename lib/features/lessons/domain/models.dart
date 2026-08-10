@@ -584,6 +584,28 @@ class SearchResults {
       lessons.length + recordings.length + students.length + groups.length;
 }
 
+/// One stored line of a lesson's chat.
+class LessonMessage {
+  const LessonMessage({
+    required this.authorId,
+    required this.authorName,
+    required this.body,
+    required this.sentAt,
+  });
+
+  final String authorId;
+  final String authorName;
+  final String body;
+  final DateTime sentAt;
+
+  factory LessonMessage.fromMap(Map<String, dynamic> map) => LessonMessage(
+        authorId: map['author_id'] as String,
+        authorName: (map['author_name'] as String?) ?? 'Ishtirokchi',
+        body: (map['body'] as String?) ?? '',
+        sentAt: DateTime.parse(map['sent_at'] as String).toLocal(),
+      );
+}
+
 /// What the app needs to join a LiveKit room: a token scoped to one room and
 /// one identity, and the server to present it to.
 class LiveKitCredentials {

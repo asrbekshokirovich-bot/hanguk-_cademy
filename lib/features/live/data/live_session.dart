@@ -11,11 +11,11 @@ import '../../lessons/data/lessons_repository.dart';
 /// Where a device is in the process of joining the room.
 enum LiveStage { idle, connecting, connected, failed }
 
-/// One line of the in-lesson chat.
+/// One line of the in-lesson chat, on screen.
 ///
-/// Carried over LiveKit's data channel, not stored anywhere: a lesson's chat
-/// is worth reading while the lesson is running and clutter afterwards, and
-/// keeping it out of the database means it cannot leak between lessons.
+/// Delivery is over LiveKit's data channel because it is instant; durability
+/// is a row in `ol_lesson_messages`, written alongside. The history is read
+/// back on join, so arriving late does not mean arriving to an empty panel.
 @immutable
 class LiveMessage {
   const LiveMessage({
@@ -97,6 +97,9 @@ class LiveSessionController extends Notifier<LiveState> {
   Room? _room;
   EventsListener<RoomEvent>? _events;
 
+  /// Which lesson the open room belongs to. Chat rows are keyed on it.
+  String? _lessonId;
+
   @override
   LiveState build() {
     ref.onDispose(_teardown);
@@ -107,6 +110,7 @@ class LiveSessionController extends Notifier<LiveState> {
     if (state.stage == LiveStage.connecting || state.isConnected) return;
 
     state = state.copyWith(stage: LiveStage.connecting);
+    _lessonId = lessonId;
 
     try {
       final credentials =
@@ -154,6 +158,30 @@ class LiveSessionController extends Notifier<LiveState> {
       _room = room;
 
       state = LiveState(stage: LiveStage.connected, room: room);
+
+      // The lesson's chat so far. Somebody joining ten minutes late should
+      // see what has been asked, not an empty panel. A failure here is not
+      // worth failing the whole join over — the room still works, the
+      // history is simply missing.
+      try {
+        final history =
+            await ref.read(lessonsRepositoryProvider).lessonMessages(lessonId);
+        final me = room.localParticipant?.identity;
+        if (state.isConnected) {
+          state = state.copyWith(
+            messages: [
+              for (final m in history)
+                LiveMessage(
+                  author: m.authorName,
+                  text: m.body,
+                  sentAt: m.sentAt,
+                  mine: m.authorId == me,
+                ),
+              ...state.messages,
+            ],
+          );
+        }
+      } catch (_) {}
     } catch (e) {
       await _teardown();
       state = LiveState(stage: LiveStage.failed, error: '$e');
@@ -228,6 +256,21 @@ class LiveSessionController extends Notifier<LiveState> {
       ],
     );
     await _publish({'t': 'chat', 'n': name, 'm': trimmed});
+
+    // Stored after it is on screen and on the wire: a slow insert should not
+    // hold up the message, and a failed one should not swallow it.
+    final lessonId = _lessonId;
+    if (lessonId != null) {
+      try {
+        await ref.read(lessonsRepositoryProvider).sendLessonMessage(
+              lessonId: lessonId,
+              authorName: name,
+              body: trimmed,
+            );
+      } catch (e) {
+        state = state.copyWith(error: 'Xabar saqlanmadi: \$e');
+      }
+    }
   }
 
   Future<void> setHandRaised(bool up) async {
@@ -287,6 +330,7 @@ class LiveSessionController extends Notifier<LiveState> {
   }
 
   Future<void> _teardown() async {
+    _lessonId = null;
     await _events?.dispose();
     _events = null;
     await _room?.disconnect();

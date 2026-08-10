@@ -10,7 +10,6 @@ import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
-import '../data/demo_data.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/clock.dart';
@@ -21,11 +20,14 @@ import '../../live/data/live_session.dart';
 /// The room chrome is complete and driven by real lesson data: who is
 /// teaching, how long it has been running, whether it is being recorded.
 ///
-/// Audio and video are real: joining publishes to a LiveKit room whose token
-/// is minted by the `livekit-token` Edge Function. The chat and the captions
-/// strip are still seeded from `DemoData` — they are the next milestone, and
-/// the room says which parts are live rather than presenting controls that
-/// quietly do nothing.
+/// Everything on this screen is real: audio, video and screen share go
+/// through a LiveKit room whose token is minted by the `livekit-token` Edge
+/// Function, and the chat and raised hands ride the same room's data channel.
+/// Nothing here is a fixture.
+///
+/// There are no captions. The strip that used to sit over the video printed
+/// one hardcoded Korean sentence no matter who was speaking, and a subtitle
+/// that is always the same subtitle is worse than none.
 class LiveRoomScreen extends ConsumerStatefulWidget {
   const LiveRoomScreen({super.key});
 
@@ -34,9 +36,7 @@ class LiveRoomScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
-  bool _handRaised = false;
   bool _showChat = true;
-  bool _showCaptions = true;
 
   @override
   Widget build(BuildContext context) {
@@ -74,15 +74,15 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
-                          child: _Stage(
-                            lesson: lesson,
-                            showCaptions: _showCaptions,
-                          ),
+                          child: _Stage(lesson: lesson),
                         ),
                         const SizedBox(width: HkSpace.gridGap),
                         SizedBox(
                           width: 330,
-                          child: _RightRail(showChat: _showChat),
+                          child: _RightRail(
+                            showChat: _showChat,
+                            enrolledCount: lesson.enrolledCount,
+                          ),
                         ),
                       ],
                     ),
@@ -90,18 +90,23 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                 else ...[
                   SizedBox(
                     height: 360,
-                    child: _Stage(lesson: lesson, showCaptions: _showCaptions),
+                    child: _Stage(lesson: lesson),
                   ),
                   const SizedBox(height: HkSpace.gridGap),
-                  SizedBox(height: 420, child: _RightRail(showChat: _showChat)),
+                  SizedBox(
+                    height: 420,
+                    child: _RightRail(
+                      showChat: _showChat,
+                      enrolledCount: lesson.enrolledCount,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: HkSpace.gridGap),
                 _ControlBar(
                   micOn: session.micOn,
                   cameraOn: session.cameraOn,
-                  handRaised: _handRaised,
+                  handRaised: session.handRaised,
                   chatOn: _showChat,
-                  captionsOn: _showCaptions,
                   // Disabled until the room is joined, rather than toggling a
                   // local boolean that publishes nothing.
                   onMic: session.isConnected
@@ -114,11 +119,25 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                             .read(liveSessionProvider.notifier)
                             .setCamera(!session.cameraOn)
                       : null,
-                  onHand: () => setState(() => _handRaised = !_handRaised),
+                  onHand: session.isConnected
+                      ? () => ref
+                            .read(liveSessionProvider.notifier)
+                            .setHandRaised(!session.handRaised)
+                      : null,
+                  screenOn: session.screenOn,
+                  onScreen: session.isConnected
+                      ? () => ref
+                            .read(liveSessionProvider.notifier)
+                            .setScreenShare(!session.screenOn)
+                      : null,
                   onChat: () => setState(() => _showChat = !_showChat),
-                  onCaptions: () =>
-                      setState(() => _showCaptions = !_showCaptions),
-                  onLeave: () => context.go('/'),
+                  onLeave: () {
+                    // Hang up before navigating. Leaving the screen alone kept
+                    // the microphone published, so a teacher who walked away
+                    // was still in the room.
+                    ref.read(liveSessionProvider.notifier).disconnect();
+                    context.go('/');
+                  },
                 ),
               ],
             ),
@@ -230,10 +249,9 @@ class _ConnectionNotice extends ConsumerWidget {
 }
 
 class _Stage extends ConsumerStatefulWidget {
-  const _Stage({required this.lesson, required this.showCaptions});
+  const _Stage({required this.lesson});
 
   final Lesson lesson;
-  final bool showCaptions;
 
   @override
   ConsumerState<_Stage> createState() => _StageState();
@@ -371,35 +389,6 @@ class _StageState extends ConsumerState<_Stage> {
                   ),
                 ),
               ),
-            // Captions
-            if (widget.showCaptions)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: compact ? 66 : 78,
-                child: Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0x99000000),
-                      borderRadius: BorderRadius.circular(HkRadius.chip),
-                    ),
-                    child: Text(
-                      '오늘은 자기소개를 연습하겠습니다 — Bugun o‘zini tanishtirishni mashq qilamiz.',
-                      textAlign: TextAlign.center,
-                      style: HkType.body.copyWith(
-                        fontSize: 13,
-                        color: HkColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             // Self PiP
             if (!compact)
               Positioned(
@@ -503,14 +492,34 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
   }
 }
 
-class _RightRail extends StatelessWidget {
-  const _RightRail({required this.showChat});
+class _RightRail extends ConsumerWidget {
+  const _RightRail({required this.showChat, required this.enrolledCount});
 
   final bool showChat;
 
+  /// How many students the lesson has on the register. The attendance pill
+  /// compares the room against it; it used to read a hardcoded 100%.
+  final int enrolledCount;
+
   @override
-  Widget build(BuildContext context) {
-    final participants = DemoData.participants();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(liveSessionProvider);
+    final room = session.room;
+
+    final people = <_Attendee>[
+      if (room?.localParticipant != null)
+        _Attendee.of(room!.localParticipant!, session.handsUp, isMe: true),
+      for (final p in room?.remoteParticipants.values ??
+          const <lk.RemoteParticipant>[])
+        _Attendee.of(p, session.handsUp),
+    ];
+
+    // Everyone in the room minus the teacher, over everyone expected. Above
+    // 100% would mean guests, so it is clamped rather than printed.
+    final present = people.length > 1 ? people.length - 1 : 0;
+    final attendance = enrolledCount == 0
+        ? null
+        : ((present / enrolledCount) * 100).clamp(0, 100).round();
 
     return GlassPanel(
       radius: HkRadius.cardLarge,
@@ -522,36 +531,45 @@ class _RightRail extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Ishtirokchilar · ${participants.length}',
+                  'Ishtirokchilar · ${people.length}',
                   style: HkType.sectionTitle.copyWith(fontSize: 14),
                 ),
               ),
-              const HkPill(
-                label: 'Davomat 100%',
-                background: Color(0x2634C77B),
-                foreground: HkColors.successBright,
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              ),
+              if (attendance != null)
+                HkPill(
+                  label: 'Davomat $attendance%',
+                  background: const Color(0x2634C77B),
+                  foreground: HkColors.successBright,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                ),
             ],
           ),
           const SizedBox(height: 12),
           Expanded(
             flex: showChat ? 3 : 1,
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: participants.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, i) =>
-                  _ParticipantRow(participant: participants[i]),
-            ),
+            child: people.isEmpty
+                ? Center(
+                    child: Text(
+                      'Hali hech kim qo‘shilmagan',
+                      style: HkType.muted,
+                    ),
+                  )
+                : ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: people.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) =>
+                        _ParticipantRow(attendee: people[i]),
+                  ),
           ),
           if (showChat) ...[
             const Divider(color: HkGlass.border, height: 24),
             const Text('Suhbat', style: HkType.sectionTitle),
             const SizedBox(height: 10),
-            Expanded(flex: 2, child: _ChatList()),
+            Expanded(flex: 2, child: _ChatList(messages: session.messages)),
             const SizedBox(height: 10),
-            const _ChatComposer(),
+            _ChatComposer(enabled: session.isConnected),
           ],
         ],
       ),
@@ -559,14 +577,56 @@ class _RightRail extends StatelessWidget {
   }
 }
 
-class _ParticipantRow extends StatelessWidget {
-  const _ParticipantRow({required this.participant});
+/// One row of the participant rail, read off the LiveKit room rather than a
+/// fixture.
+class _Attendee {
+  const _Attendee({
+    required this.name,
+    required this.initials,
+    required this.micOn,
+    required this.handRaised,
+    required this.isMe,
+  });
 
-  final Participant participant;
+  factory _Attendee.of(
+    lk.Participant participant,
+    Set<String> handsUp, {
+    bool isMe = false,
+  }) {
+    final name = participant.name.isNotEmpty
+        ? participant.name
+        : (isMe ? 'Men' : 'Ishtirokchi');
+    return _Attendee(
+      name: name,
+      initials: _initialsOf(name),
+      micOn: participant.isMicrophoneEnabled(),
+      handRaised: handsUp.contains(participant.identity),
+      isMe: isMe,
+    );
+  }
+
+  final String name;
+  final String initials;
+  final bool micOn;
+  final bool handRaised;
+  final bool isMe;
+
+  static String _initialsOf(String name) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    return parts.take(2).map((p) => p[0].toUpperCase()).join();
+  }
+}
+
+class _ParticipantRow extends StatelessWidget {
+  const _ParticipantRow({required this.attendee});
+
+  final _Attendee attendee;
 
   @override
   Widget build(BuildContext context) {
-    final p = participant;
+    final p = attendee;
     return Row(
       children: [
         HkAvatar(initials: p.initials, size: 32),
@@ -582,9 +642,9 @@ class _ParticipantRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (p.roleLabel != null) ...[
+              if (p.isMe) ...[
                 const SizedBox(width: 6),
-                Text(p.roleLabel!, style: HkType.muted.copyWith(fontSize: 11)),
+                Text('siz', style: HkType.muted.copyWith(fontSize: 11)),
               ],
             ],
           ),
@@ -608,15 +668,26 @@ class _ParticipantRow extends StatelessWidget {
 }
 
 class _ChatList extends StatelessWidget {
+  const _ChatList({required this.messages});
+
+  final List<LiveMessage> messages;
+
   @override
   Widget build(BuildContext context) {
-    final messages = DemoData.chat();
+    if (messages.isEmpty) {
+      return Center(
+        child: Text('Xabarlar yo‘q', style: HkType.muted),
+      );
+    }
     return ListView.separated(
       padding: EdgeInsets.zero,
+      // Newest at the bottom, and the view starts there — a chat that opens
+      // at the top of an hour-old conversation is read backwards.
+      reverse: true,
       itemCount: messages.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, i) {
-        final m = messages[i];
+        final m = messages[messages.length - 1 - i];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -624,7 +695,7 @@ class _ChatList extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    m.author,
+                    m.mine ? 'Siz' : m.author,
                     style: HkType.chip.copyWith(color: HkColors.textPrimary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -646,8 +717,30 @@ class _ChatList extends StatelessWidget {
   }
 }
 
-class _ChatComposer extends StatelessWidget {
-  const _ChatComposer();
+class _ChatComposer extends ConsumerStatefulWidget {
+  const _ChatComposer({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  ConsumerState<_ChatComposer> createState() => _ChatComposerState();
+}
+
+class _ChatComposerState extends ConsumerState<_ChatComposer> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    final text = _controller.text;
+    if (text.trim().isEmpty) return;
+    ref.read(liveSessionProvider.notifier).sendMessage(text);
+    _controller.clear();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -664,28 +757,39 @@ class _ChatComposer extends StatelessWidget {
             ),
             alignment: Alignment.centerLeft,
             child: TextField(
-              // Sending is part of the media milestone; the field is left
-              // enabled so the layout is real, but nothing is delivered yet.
-              enabled: false,
+              controller: _controller,
+              enabled: widget.enabled,
+              onSubmitted: (_) => _send(),
+              textInputAction: TextInputAction.send,
               style: HkType.body.copyWith(fontSize: 13),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                hintText: 'Xabar yozing…',
+                hintText: widget.enabled ? 'Xabar yozing…' : 'Ulanmagan',
                 hintStyle: HkType.muted.copyWith(fontSize: 12.5),
               ),
             ),
           ),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            gradient: kLimeGradient,
-            shape: BoxShape.circle,
+        GestureDetector(
+          onTap: widget.enabled ? _send : null,
+          child: Opacity(
+            opacity: widget.enabled ? 1 : 0.4,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                gradient: kLimeGradient,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.send_rounded,
+                size: 17,
+                color: HkColors.ink,
+              ),
+            ),
           ),
-          child: const Icon(Icons.send_rounded, size: 17, color: HkColors.ink),
         ),
       ],
     );
@@ -697,26 +801,26 @@ class _ControlBar extends StatelessWidget {
     required this.micOn,
     required this.cameraOn,
     required this.handRaised,
+    required this.screenOn,
     required this.chatOn,
-    required this.captionsOn,
     required this.onMic,
     required this.onCamera,
     required this.onHand,
+    required this.onScreen,
     required this.onChat,
-    required this.onCaptions,
     required this.onLeave,
   });
 
   final bool micOn;
   final bool cameraOn;
   final bool handRaised;
+  final bool screenOn;
   final bool chatOn;
-  final bool captionsOn;
   final VoidCallback? onMic;
   final VoidCallback? onCamera;
-  final VoidCallback onHand;
+  final VoidCallback? onHand;
+  final VoidCallback? onScreen;
   final VoidCallback onChat;
-  final VoidCallback onCaptions;
   final VoidCallback onLeave;
 
   @override
@@ -745,9 +849,14 @@ class _ControlBar extends StatelessWidget {
               onTap: onCamera,
             ),
             _ControlButton(
-              icon: Icons.screen_share_outlined,
-              tooltip: 'Ekranni ulashish',
-              onTap: () {},
+              icon: screenOn
+                  ? Icons.stop_screen_share_outlined
+                  : Icons.screen_share_outlined,
+              active: screenOn,
+              tooltip: screenOn
+                  ? 'Ekranni ulashishni to‘xtatish'
+                  : 'Ekranni ulashish',
+              onTap: onScreen,
             ),
             _ControlButton(
               icon: Icons.pan_tool_alt_outlined,
@@ -760,12 +869,6 @@ class _ControlBar extends StatelessWidget {
               active: chatOn,
               tooltip: 'Suhbat',
               onTap: onChat,
-            ),
-            _ControlButton(
-              icon: Icons.closed_caption_outlined,
-              active: captionsOn,
-              tooltip: 'Subtitrlar',
-              onTap: onCaptions,
             ),
             Container(
               width: 1,

@@ -1,13 +1,35 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart';
 
+import '../../../core/clock.dart';
 import '../../lessons/data/lessons_repository.dart';
 
 /// Where a device is in the process of joining the room.
 enum LiveStage { idle, connecting, connected, failed }
+
+/// One line of the in-lesson chat.
+///
+/// Carried over LiveKit's data channel, not stored anywhere: a lesson's chat
+/// is worth reading while the lesson is running and clutter afterwards, and
+/// keeping it out of the database means it cannot leak between lessons.
+@immutable
+class LiveMessage {
+  const LiveMessage({
+    required this.author,
+    required this.text,
+    required this.sentAt,
+    this.mine = false,
+  });
+
+  final String author;
+  final String text;
+  final DateTime sentAt;
+  final bool mine;
+}
 
 @immutable
 class LiveState {
@@ -17,6 +39,10 @@ class LiveState {
     this.error,
     this.micOn = false,
     this.cameraOn = false,
+    this.screenOn = false,
+    this.handRaised = false,
+    this.messages = const [],
+    this.handsUp = const {},
   });
 
   final LiveStage stage;
@@ -24,6 +50,12 @@ class LiveState {
   final String? error;
   final bool micOn;
   final bool cameraOn;
+  final bool screenOn;
+  final bool handRaised;
+  final List<LiveMessage> messages;
+
+  /// Identities of everyone currently with a hand up, this device included.
+  final Set<String> handsUp;
 
   bool get isConnected => stage == LiveStage.connected;
 
@@ -33,6 +65,10 @@ class LiveState {
     String? error,
     bool? micOn,
     bool? cameraOn,
+    bool? screenOn,
+    bool? handRaised,
+    List<LiveMessage>? messages,
+    Set<String>? handsUp,
   }) {
     return LiveState(
       stage: stage ?? this.stage,
@@ -42,6 +78,10 @@ class LiveState {
       error: stage == null ? error : null,
       micOn: micOn ?? this.micOn,
       cameraOn: cameraOn ?? this.cameraOn,
+      screenOn: screenOn ?? this.screenOn,
+      handRaised: handRaised ?? this.handRaised,
+      messages: messages ?? this.messages,
+      handsUp: handsUp ?? this.handsUp,
     );
   }
 }
@@ -96,10 +136,19 @@ class LiveSessionController extends Notifier<LiveState> {
           state = state.copyWith(stage: LiveStage.idle);
         })
         ..on<ParticipantConnectedEvent>((_) => _bump())
-        ..on<ParticipantDisconnectedEvent>((_) => _bump())
+        ..on<ParticipantDisconnectedEvent>((e) {
+          // A hand goes down when its owner leaves; otherwise the rail keeps
+          // showing a raised hand for somebody who is no longer here.
+          final hands = {...state.handsUp}..remove(e.participant.identity);
+          state = state.copyWith(handsUp: hands);
+          _bump();
+        })
         ..on<TrackSubscribedEvent>((_) => _bump())
         ..on<TrackUnsubscribedEvent>((_) => _bump())
-        ..on<ActiveSpeakersChangedEvent>((_) => _bump());
+        ..on<TrackMutedEvent>((_) => _bump())
+        ..on<TrackUnmutedEvent>((_) => _bump())
+        ..on<ActiveSpeakersChangedEvent>((_) => _bump())
+        ..on<DataReceivedEvent>(_onData);
 
       await room.connect(credentials.url, credentials.token);
       _room = room;
@@ -116,13 +165,83 @@ class LiveSessionController extends Notifier<LiveState> {
   /// listeners need a new object to rebuild on.
   void _bump() {
     if (!state.isConnected) return;
-    state = LiveState(
-      stage: LiveStage.connected,
-      room: _room,
-      micOn: state.micOn,
-      cameraOn: state.cameraOn,
+    state = state.copyWith(room: _room, stage: LiveStage.connected);
+  }
+
+  // ------------------------------------------------------------- data ---
+
+  void _onData(DataReceivedEvent event) {
+    final Map<String, dynamic> payload;
+    try {
+      payload = jsonDecode(utf8.decode(event.data)) as Map<String, dynamic>;
+    } catch (_) {
+      return; // Not ours. Ignore rather than crash the room.
+    }
+
+    final from = event.participant?.identity ?? '';
+    switch (payload['t']) {
+      case 'chat':
+        state = state.copyWith(
+          messages: [
+            ...state.messages,
+            LiveMessage(
+              author: (payload['n'] as String?) ?? 'Ishtirokchi',
+              text: (payload['m'] as String?) ?? '',
+              sentAt: hkNow(),
+            ),
+          ],
+        );
+      case 'hand':
+        final up = payload['u'] == true;
+        final hands = {...state.handsUp};
+        if (up) {
+          hands.add(from);
+        } else {
+          hands.remove(from);
+        }
+        state = state.copyWith(handsUp: hands);
+    }
+  }
+
+  Future<void> _publish(Map<String, dynamic> payload) async {
+    final local = _room?.localParticipant;
+    if (local == null) return;
+    await local.publishData(
+      utf8.encode(jsonEncode(payload)),
+      reliable: true,
     );
   }
+
+  Future<void> sendMessage(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty || !state.isConnected) return;
+
+    final me = _room?.localParticipant;
+    final name = (me?.name.isNotEmpty ?? false) ? me!.name : 'Men';
+
+    // Shown immediately. LiveKit does not echo your own data back, so without
+    // this the sender would watch their message disappear.
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        LiveMessage(author: name, text: trimmed, sentAt: hkNow(), mine: true),
+      ],
+    );
+    await _publish({'t': 'chat', 'n': name, 'm': trimmed});
+  }
+
+  Future<void> setHandRaised(bool up) async {
+    if (!state.isConnected) return;
+    final me = _room?.localParticipant?.identity;
+    final hands = {...state.handsUp};
+    if (me != null) {
+      up ? hands.add(me) : hands.remove(me);
+    }
+    state = state.copyWith(handRaised: up, handsUp: hands);
+    await _publish({'t': 'hand', 'u': up});
+  }
+
+  // ------------------------------------------------------------ tracks ---
 
   Future<void> setMicrophone(bool on) async {
     final room = _room;
@@ -148,6 +267,20 @@ class LiveSessionController extends Notifier<LiveState> {
     }
   }
 
+  Future<void> setScreenShare(bool on) async {
+    final room = _room;
+    if (room == null) return;
+    state = state.copyWith(screenOn: on);
+    try {
+      await room.localParticipant?.setScreenShareEnabled(on);
+    } catch (e) {
+      // Android needs the foreground-service consent dialog and the user can
+      // dismiss it; iOS needs a broadcast extension the app does not ship.
+      // Either way the button goes back rather than lying.
+      state = state.copyWith(screenOn: !on, error: '$e');
+    }
+  }
+
   Future<void> disconnect() async {
     await _teardown();
     state = const LiveState();
@@ -162,5 +295,6 @@ class LiveSessionController extends Notifier<LiveState> {
   }
 }
 
-final liveSessionProvider =
-    NotifierProvider<LiveSessionController, LiveState>(LiveSessionController.new);
+final liveSessionProvider = NotifierProvider<LiveSessionController, LiveState>(
+  LiveSessionController.new,
+);

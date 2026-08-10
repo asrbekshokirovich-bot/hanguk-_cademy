@@ -161,6 +161,33 @@ class StaffRepository {
     return rows.map((r) => Payment.fromMap(r)).toList();
   }
 
+  /// Adds a tariff, or renames/reprices an existing one.
+  ///
+  /// The code is the primary key and is derived from the name once, on
+  /// create: a tariff whose code changed would orphan every payment that
+  /// referenced it.
+  Future<void> savePlan({
+    required String code,
+    required String name,
+    required int monthlyAmount,
+    int sortOrder = 0,
+  }) async {
+    if (isDemo) throw StateError('Demo rejimda tarif saqlab bo‘lmaydi');
+    await _db.from('ol_plans').upsert({
+      'code': code,
+      'name': name,
+      'monthly_amount': monthlyAmount,
+      'sort_order': sortOrder,
+    });
+  }
+
+  /// Payments keep their amount: `plan_code` is `on delete set null`, so a
+  /// removed tariff does not take the money it was charged for with it.
+  Future<void> deletePlan(String code) async {
+    if (isDemo) throw StateError('Demo rejimda o‘chirib bo‘lmaydi');
+    await _db.from('ol_plans').delete().eq('code', code);
+  }
+
   Future<List<PaymentPlan>> plans() async {
     if (isDemo) return StaffDemoData.plans;
     final rows = await _db.from('ol_plans').select().order('sort_order');

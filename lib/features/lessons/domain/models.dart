@@ -548,16 +548,40 @@ class AppNotification {
 
 /// What the search sheet found. Kept as one object so the sheet can show
 /// "nothing matched" once rather than per section.
+/// A student or a class in the search results. Both are a name and, for a
+/// student, the class they are in — enough to tell two Azizas apart.
+class SearchPerson {
+  const SearchPerson({required this.id, required this.name, this.subtitle});
+
+  final String id;
+  final String name;
+  final String? subtitle;
+}
+
 class SearchResults {
-  const SearchResults({required this.lessons, required this.recordings});
+  const SearchResults({
+    required this.lessons,
+    required this.recordings,
+    this.students = const [],
+    this.groups = const [],
+  });
 
   final List<Lesson> lessons;
   final List<Recording> recordings;
 
+  /// Empty for a student: the queries run for everyone and RLS returns
+  /// nothing to anyone who is not staff.
+  final List<SearchPerson> students;
+  final List<SearchPerson> groups;
+
   static const empty = SearchResults(lessons: [], recordings: []);
 
-  bool get isEmpty => lessons.isEmpty && recordings.isEmpty;
-  int get total => lessons.length + recordings.length;
+  bool get isEmpty =>
+      lessons.isEmpty && recordings.isEmpty && students.isEmpty &&
+      groups.isEmpty;
+
+  int get total =>
+      lessons.length + recordings.length + students.length + groups.length;
 }
 
 /// What the app needs to join a LiveKit room: a token scoped to one room and

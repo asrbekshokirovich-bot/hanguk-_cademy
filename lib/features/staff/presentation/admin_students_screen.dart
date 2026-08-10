@@ -141,6 +141,9 @@ class AdminStudentsScreen extends ConsumerWidget {
                           expanded: layout.isExpanded,
                           now: now,
                           onAssign: () => _assignGroup(context, ref, s),
+                          onResetPassword: () =>
+                              _resetPassword(context, ref, s),
+                          onDelete: () => _deleteStudent(context, ref, s),
                         ),
                     ],
                   ),
@@ -168,6 +171,74 @@ class AdminStudentsScreen extends ConsumerWidget {
     }
   }
 
+  /// Issues a new password and shows it once. The account is flagged
+  /// must_change_password by the RPC, so the office never keeps a password
+  /// the student is still using.
+  Future<void> _resetPassword(
+    BuildContext context,
+    WidgetRef ref,
+    AdminStudent student,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final password = await ref
+          .read(adminRepositoryProvider)
+          .resetPassword(student.studentId);
+      if (!context.mounted) return;
+      await showPasswordResultDialog(
+        context,
+        title: 'Yangi parol',
+        username: student.username ?? '',
+        fullName: student.fullName,
+        password: password,
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Tiklanmadi: \$e')));
+    }
+  }
+
+  Future<void> _deleteStudent(
+    BuildContext context,
+    WidgetRef ref,
+    AdminStudent student,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: HkColors.canvasTop,
+        title: const Text('Hisobni o‘chirish', style: HkType.sectionTitle),
+        content: Text(
+          '\${student.fullName} hisobi butunlay o‘chiriladi. '
+          'Davomat va baholari ham yo‘qoladi. Buni qaytarib bo‘lmaydi.',
+          style: HkType.body.copyWith(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Bekor qilish'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: HkColors.dangerBright,
+            ),
+            child: const Text('O‘chirish'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(adminRepositoryProvider).deleteUser(student.studentId);
+      ref.invalidate(adminStudentsProvider);
+      ref.invalidate(managedUsersProvider);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('O‘chirilmadi: \$e')));
+    }
+  }
+
   Future<void> _createStudent(BuildContext context, WidgetRef ref) async {
     final created = await showCreateUserDialog(context);
     if (created == null || !context.mounted) return;
@@ -191,12 +262,16 @@ class _StudentRow extends StatelessWidget {
     required this.expanded,
     required this.now,
     required this.onAssign,
+    required this.onResetPassword,
+    required this.onDelete,
   });
 
   final AdminStudent student;
   final bool expanded;
   final DateTime now;
   final VoidCallback onAssign;
+  final VoidCallback onResetPassword;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -235,14 +310,11 @@ class _StudentRow extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    IconButton(
-                      tooltip: 'Guruhga biriktirish',
-                      onPressed: onAssign,
-                      icon: const Icon(
-                        Icons.group_add_outlined,
-                        size: 18,
-                        color: HkColors.textTertiary,
-                      ),
+                    _RowActions(
+                      onAssign: onAssign,
+                      onResetPassword: onResetPassword,
+                      onDelete: onDelete,
+                      size: 18,
                     ),
                   ],
                 ),
@@ -311,14 +383,66 @@ class _StudentRow extends StatelessWidget {
         ),
         Expanded(
           flex: 1,
-          child: IconButton(
-            tooltip: 'Guruhga biriktirish',
-            onPressed: onAssign,
-            icon: const Icon(
-              Icons.group_add_outlined,
-              size: 17,
-              color: HkColors.textTertiary,
-            ),
+          child: _RowActions(
+            onAssign: onAssign,
+            onResetPassword: onResetPassword,
+            onDelete: onDelete,
+            size: 17,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The three things an office does to a student account, in one place.
+///
+/// A menu rather than three icons: the row already carries five columns on a
+/// laptop and a phone card is narrower still, and deleting an account is not
+/// something that should sit one stray tap away from assigning a group.
+class _RowActions extends StatelessWidget {
+  const _RowActions({
+    required this.onAssign,
+    required this.onResetPassword,
+    required this.onDelete,
+    required this.size,
+  });
+
+  final VoidCallback onAssign;
+  final VoidCallback onResetPassword;
+  final VoidCallback onDelete;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Amallar',
+      color: const Color(0xFF101A33),
+      icon: Icon(
+        Icons.more_horiz_rounded,
+        size: size,
+        color: HkColors.textTertiary,
+      ),
+      onSelected: (value) => switch (value) {
+        'assign' => onAssign(),
+        'password' => onResetPassword(),
+        'delete' => onDelete(),
+        _ => null,
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'assign',
+          child: Text('Guruhga biriktirish', style: HkType.label),
+        ),
+        const PopupMenuItem(
+          value: 'password',
+          child: Text('Parolni tiklash', style: HkType.label),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text(
+            'O‘chirish',
+            style: HkType.label.copyWith(color: HkColors.dangerBright),
           ),
         ),
       ],

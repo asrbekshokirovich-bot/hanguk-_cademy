@@ -15,6 +15,7 @@ import '../../../design_system/widgets/states.dart';
 import '../data/staff_providers.dart';
 import '../data/staff_repository.dart';
 import '../domain/staff_models.dart';
+import 'plan_dialog.dart';
 
 final financeFilterProvider = StateProvider<PaymentStatus?>((ref) => null);
 
@@ -161,21 +162,40 @@ class _PlansStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final plans = ref.watch(plansProvider).value ?? const <PaymentPlan>[];
-    if (plans.isEmpty) return const SizedBox.shrink();
 
     return GlassPanel(
       radius: HkRadius.cardLarge,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Tariflar', style: HkType.sectionTitle),
+          Row(
+            children: [
+              const Expanded(
+                child: Text('Tariflar', style: HkType.sectionTitle),
+              ),
+              TextButton.icon(
+                onPressed: () => showPlanDialog(context),
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('Yangi tarif'),
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
+          if (plans.isEmpty)
+            Text(
+              'Tarif yo‘q. To‘lov qabul qilishda summani qo‘lda kiritishga '
+              'to‘g‘ri keladi.',
+              style: HkType.muted,
+            ),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
               for (final p in plans)
-                Container(
+                InkWell(
+                  onTap: () => showPlanDialog(context, plan: p),
+                  borderRadius: BorderRadius.circular(HkRadius.cardSmall),
+                  child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 18,
                     vertical: 14,
@@ -197,6 +217,7 @@ class _PlansStrip extends ConsumerWidget {
                       ),
                     ],
                   ),
+                ),
                 ),
             ],
           ),

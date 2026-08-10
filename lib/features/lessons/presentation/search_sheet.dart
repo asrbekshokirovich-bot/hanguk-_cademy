@@ -203,6 +203,31 @@ class _SearchResultsView extends ConsumerWidget {
                 onTap: () => onOpen('/recordings/${r.id}'),
               ),
           ],
+          // Staff only in practice: RLS returns no students and no groups to
+          // anyone else, so these two sections simply do not appear for a
+          // student rather than being hidden by a role check here.
+          if (results.students.isNotEmpty) ...[
+            const _SectionLabel('Talabalar'),
+            for (final p in results.students)
+              _ResultRow(
+                icon: Icons.person_outline_rounded,
+                accent: HkColors.royalBlue,
+                title: p.name,
+                subtitle: p.subtitle ?? 'Guruhsiz',
+                onTap: () => onOpen('/admin/students'),
+              ),
+          ],
+          if (results.groups.isNotEmpty) ...[
+            const _SectionLabel('Guruhlar'),
+            for (final g in results.groups)
+              _ResultRow(
+                icon: Icons.groups_outlined,
+                accent: HkColors.lime,
+                title: g.name,
+                subtitle: 'Guruh',
+                onTap: () => onOpen('/admin/groups'),
+              ),
+          ],
         ],
       ),
     );

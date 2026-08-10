@@ -321,11 +321,37 @@ class LessonsRepository {
           .or(filter)
           .order('recorded_at', ascending: false)
           .limit(20),
+      // People and classes, for staff. RLS returns nothing to a student, so
+      // this costs a wasted round trip on their side and nothing more — no
+      // role check here that the database would not enforce anyway.
+      _db
+          .from('ol_v_admin_students')
+          .select('student_id, full_name, group_name')
+          .ilike('full_name', '%\$safe%')
+          .limit(10),
+      _db
+          .from('ol_groups')
+          .select('id, name')
+          .ilike('name', '%\$safe%')
+          .limit(10),
     ]);
 
     return SearchResults(
       lessons: results[0].map((r) => Lesson.fromMap(r)).toList(),
       recordings: results[1].map((r) => Recording.fromMap(r)).toList(),
+      students: results[2]
+          .map((r) => SearchPerson(
+                id: r['student_id'] as String,
+                name: (r['full_name'] as String?) ?? '—',
+                subtitle: r['group_name'] as String?,
+              ))
+          .toList(),
+      groups: results[3]
+          .map((r) => SearchPerson(
+                id: r['id'] as String,
+                name: (r['name'] as String?) ?? '—',
+              ))
+          .toList(),
     );
   }
 

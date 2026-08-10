@@ -91,6 +91,7 @@ class AppShell extends ConsumerWidget {
                     title: title,
                     subtitle: subtitle,
                     unread: unread,
+                    initials: profile?.initials ?? '?',
                   ),
                   Expanded(child: scroller),
                 ],
@@ -177,11 +178,18 @@ class _CompactHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.unread,
+    required this.initials,
   });
 
   final String title;
   final String subtitle;
   final int unread;
+
+  /// The avatar doubles as the way into the profile menu, which is the only
+  /// way to sign out. On desktop that lives in [UserCluster]; when the
+  /// compact header was rewritten it was left out, and a phone user had no
+  /// way out of their account at all.
+  final String initials;
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +247,11 @@ class _CompactHeader extends StatelessWidget {
                         ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Profil',
+                  onPressed: () => showHkProfileMenu(context),
+                  icon: HkAvatar(initials: initials, size: 30),
                 ),
               ],
             ),

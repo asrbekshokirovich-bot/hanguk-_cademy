@@ -10,6 +10,7 @@ import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../data/lessons_repository.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/clock.dart';
@@ -43,6 +44,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     final layout = HkLayout.of(context);
     final lesson = ref.watch(liveLessonProvider).value;
     final session = ref.watch(liveSessionProvider);
+    final isStaff = ref.watch(profileProvider).value?.isStaff ?? false;
 
     // Join as soon as there is a lesson to join. Not in initState: the lesson
     // arrives asynchronously, and on a phone the user often lands here before
@@ -131,6 +133,9 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                             .setScreenShare(!session.screenOn)
                       : null,
                   onChat: () => setState(() => _showChat = !_showChat),
+                  onEndLesson: isStaff
+                      ? () => _endLesson(context, lesson.id)
+                      : null,
                   onLeave: () {
                     // Hang up before navigating. Leaving the screen alone kept
                     // the microphone published, so a teacher who walked away
@@ -142,6 +147,53 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
               ],
             ),
     );
+  }
+}
+
+extension on _LiveRoomScreenState {
+  /// Takes the lesson off the air for everybody, after asking. Leaving is
+  /// reversible in a tap; this is not.
+  Future<void> _endLesson(BuildContext context, String lessonId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: HkColors.canvasTop,
+        title: const Text('Darsni tugatish', style: HkType.sectionTitle),
+        content: Text(
+          'Dars hamma uchun tugaydi va jonli xona yopiladi.',
+          style: HkType.body.copyWith(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Bekor qilish'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: HkColors.dangerBright,
+            ),
+            child: const Text('Tugatish'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    try {
+      await ref
+          .read(lessonsRepositoryProvider)
+          .setLessonStatus(lessonId, LessonStatus.ended);
+      await ref.read(liveSessionProvider.notifier).disconnect();
+      ref.invalidate(liveLessonProvider);
+      ref.invalidate(weekLessonsProvider);
+      ref.invalidate(todaysLessonsProvider);
+      router.go('/');
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Tugatilmadi: \$e')));
+    }
   }
 }
 
@@ -809,6 +861,7 @@ class _ControlBar extends StatelessWidget {
     required this.onScreen,
     required this.onChat,
     required this.onLeave,
+    required this.onEndLesson,
   });
 
   final bool micOn;
@@ -822,6 +875,11 @@ class _ControlBar extends StatelessWidget {
   final VoidCallback? onScreen;
   final VoidCallback onChat;
   final VoidCallback onLeave;
+
+  /// Staff only. Leaving takes you out of the room; ending takes the lesson
+  /// off the air for everybody, and there was nowhere to do it from here —
+  /// the teacher had to walk back to Jadval to close their own lesson.
+  final VoidCallback? onEndLesson;
 
   @override
   Widget build(BuildContext context) {
@@ -876,6 +934,29 @@ class _ControlBar extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 6),
               color: HkGlass.border,
             ),
+            if (onEndLesson != null)
+              SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: onEndLesson,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0x33DC2626)),
+                    foregroundColor: HkColors.dangerBright,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(HkRadius.pill),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                  ),
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: const Text(
+                    'Darsni tugatish',
+                    style: TextStyle(
+                      fontFamily: HkType.family,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
             SizedBox(
               height: 50,
               child: FilledButton.icon(

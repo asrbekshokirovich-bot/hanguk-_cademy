@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../design_system/layout.dart';
@@ -113,13 +114,6 @@ class _WeekHeader extends ConsumerWidget {
             ],
           ),
         ),
-        const HkPill(
-          label: 'Avto-yozuv yoniq',
-          background: Color(0x26D4E94C),
-          foreground: HkColors.lime,
-          icon: Icons.fiber_manual_record_rounded,
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        ),
         if (isAdmin)
           SizedBox(
             height: 44,
@@ -219,6 +213,35 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
     }
   }
 
+  /// Put the lesson on air, or take it off.
+  ///
+  /// The live room shows whichever lesson carries status 'live'. Nothing ever
+  /// wrote that value, so the room was unreachable and the schedule was a
+  /// list of intentions with no way to act on one.
+  Future<void> _toggleLive() async {
+    final l = widget.lesson;
+    final next =
+        l.status == LessonStatus.live ? LessonStatus.ended : LessonStatus.live;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(lessonsRepositoryProvider).setLessonStatus(l.id, next);
+      if (!mounted) return;
+      // The row's own pill and the live room both read the lesson, and the
+      // teacher is about to open the second one.
+      ref.invalidate(weekLessonsProvider);
+      ref.invalidate(liveLessonProvider);
+      if (next == LessonStatus.live) context.go('/live');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bajarilmadi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final layout = HkLayout.of(context);
@@ -266,6 +289,16 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
               enabled: widget.isStaff && !_saving,
               onChanged: _toggleAutoRecord,
             ),
+            if (widget.isStaff && l.status != LessonStatus.cancelled) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: _LiveButton(
+                  live: live,
+                  onPressed: _saving ? null : _toggleLive,
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -372,6 +405,14 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
               ),
             ),
           ),
+          if (widget.isStaff && l.status != LessonStatus.cancelled)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _LiveButton(
+                live: live,
+                onPressed: _saving ? null : _toggleLive,
+              ),
+            ),
           SizedBox(
             width: 40,
             child: widget.isAdmin
@@ -393,6 +434,46 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
         ],
       ),
     );
+  }
+}
+
+/// "Darsni boshlash" / "Darsni tugatish".
+class _LiveButton extends StatelessWidget {
+  const _LiveButton({required this.live, required this.onPressed});
+
+  final bool live;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    // Ending a lesson is destructive-ish and starting one is the happy path,
+    // so they do not look alike: filled lime to go on air, outlined red to
+    // come off it.
+    return live
+        ? OutlinedButton.icon(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0x33DC2626)),
+              foregroundColor: HkColors.dangerBright,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(HkRadius.control),
+              ),
+            ),
+            icon: const Icon(Icons.stop_circle_outlined, size: 17),
+            label: const Text('Tugatish'),
+          )
+        : FilledButton.icon(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: HkColors.lime,
+              foregroundColor: HkColors.ink,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(HkRadius.control),
+              ),
+            ),
+            icon: const Icon(Icons.play_circle_outline, size: 17),
+            label: const Text('Boshlash'),
+          );
   }
 }
 

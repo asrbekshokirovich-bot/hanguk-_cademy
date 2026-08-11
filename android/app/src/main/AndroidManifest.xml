@@ -5,6 +5,22 @@
          connection refused, on a device nobody was watching. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- The live lesson room. Camera and microphone are asked for at the
+         moment the student presses the button, not at install; these lines
+         only make the request legal. BLUETOOTH_CONNECT is what lets the audio
+         follow a headset — without it the call stays on the earpiece the
+         moment someone connects one. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
+        android:usesPermissionFlags="neverForLocation"/>
+
+    <!-- Optional on purpose. A tablet without a camera can still attend a
+         lesson, and Play would otherwise hide the app from those devices. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+
     <application
         android:label="Hanguk Academy"
         android:name="${applicationName}"

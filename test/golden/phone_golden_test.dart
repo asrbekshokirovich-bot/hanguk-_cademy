@@ -97,6 +97,28 @@ void main() {
     );
   });
 
+  testWidgets('a phone can reach the profile menu, and so sign out',
+      (tester) async {
+    // The compact header was rewritten to stop it covering the page, and the
+    // avatar did not survive the rewrite. Sign-out lives behind it, so on a
+    // phone there was no way out of an account.
+    await pump(tester, const AdminStudentsScreen(), 'admin');
+
+    final avatar = find.byTooltip('Profil');
+    expect(avatar, findsOneWidget);
+
+    await tester.tap(avatar);
+    // Not pumpAndSettle: the shell keeps a pulsing dot animating forever, so
+    // the frame queue never drains.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    // The menu itself, not the sign-out button: these tests run without a
+    // Supabase client, and the menu hides sign-out in demo mode because there
+    // is no session to end. Reaching the menu is the thing that was broken.
+    expect(find.text('Rol'), findsOneWidget);
+    expect(find.text("Ma'lumot manbai"), findsOneWidget);
+  });
+
   testWidgets('the student roster on a phone', (tester) async {
     await pump(tester, const AdminStudentsScreen(), 'admin');
 

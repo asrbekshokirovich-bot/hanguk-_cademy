@@ -280,11 +280,36 @@ that added it.
 `seed/003_remove_starter_data.sql` — the demo fixtures are gone from the real
 database. Do not re-run `001_starter_data.sql`.
 
+### Which project, and why it changed
+
+The backend is **`iohchwogpzhqmtqyjrrz`** — the owner's own `hanguk-academy`
+project, Southeast Asia (Singapore).
+
+It was moved there on 9 Aug 2026. Until then the app pointed at
+`dfduzrzqzghsiblpztdm`, which is in nobody's reachable account: the owner's
+CLI is refused ("your account does not have the necessary privileges"), and it
+appears in no organization either he or an assistant can list. A database the
+owner cannot pause, back up or recover from is not a database you build a
+business on, so it was replaced before it held anything worth losing.
+
+The move cost almost nothing because the old project held only test data: six
+accounts, two teachers, one group, one lesson, zero payments. All of it was
+recreated.
+
+Two things to know about the destination project:
+
+- It was **restored from pause**, and Supabase's free tier allows two active
+  projects per account, so **Orbit was paused** to make room. If Orbit is
+  wanted back, something has to give — pause this one, or go Pro.
+- It carried a leftover schema from an abandoned attempt: four empty tables
+  (`cohorts`, `enrollments`, `profiles`, `schedules`) and a trigger
+  `on_auth_user_created` that made **every account creation fail with a 500**.
+  The trigger is dropped. The tables are still there, empty and unused.
+
 ### Live data as of this handoff
 
-3 accounts, all created by the owner: `admin` (Asrbek, role admin), `demo`
-(student), `demo.o` (teacher). Zero lessons, groups, payments, recordings and
-notifications. The system is empty and ready for real data.
+Six accounts (§6), two teachers, one group, one lesson. Zero payments,
+recordings and notifications.
 
 ### RLS lessons already learned
 
@@ -302,13 +327,15 @@ notifications. The system is empty and ready for real data.
 
 ### How to check the database from here
 
-There is no working Supabase MCP access (it is bound to a different
-organization — "permission denied"). Verify over the REST API instead. This
-works and is how every claim in §5 was confirmed:
+Supabase MCP now reaches this project, and so does the Management API with a
+personal access token from
+https://supabase.com/dashboard/account/tokens — that is how the migrations
+above were applied and both Edge Functions deployed. REST also works and is
+how most claims in §5 were confirmed:
 
 ```bash
-U=https://dfduzrzqzghsiblpztdm.supabase.co
-K=sb_publishable_3B5-KHohbmx-cysPPo4e7Q_uou0x2o1
+U=https://iohchwogpzhqmtqyjrrz.supabase.co
+K=sb_publishable_zkcqpOhM_thc6J0pfwsnTg_eqgXqfcW
 T=$(curl -s -X POST "$U/auth/v1/token?grant_type=password" \
      -H "apikey: $K" -H 'content-type: application/json' \
      -d '{"email":"admin@users.hanguk-academy.uz","password":"<parol>"}' \
@@ -320,14 +347,17 @@ Distinguishing an empty result from a broken one: `[]` means the object exists
 and RLS filtered it; `42P01` means the relation is missing; `42883` means the
 function is missing.
 
-**Migrations are applied by the owner, by hand.** Give him a raw GitHub link
-to paste into the Supabase SQL Editor:
+Migrations can now be applied from here, with a personal access token:
 
-```
-https://raw.githubusercontent.com/asrbekshokirovich-bot/hanguk-_cademy/main/supabase/migrations/<file>.sql
+```bash
+curl -X POST -H "Authorization: Bearer $SUPABASE_PAT" \
+  -H 'Content-Type: application/json' \
+  https://api.supabase.com/v1/projects/iohchwogpzhqmtqyjrrz/database/query \
+  -d "$(python3 -c 'import json,sys;print(json.dumps({"query":open(sys.argv[1]).read()}))' <file>.sql)"
 ```
 
-Then verify the result yourself over REST. Do not assume it took.
+`20260807200000_superadmin_role.sql` adds an enum value and must run alone.
+Verify the result over REST afterwards either way — do not assume it took.
 
 ---
 
@@ -343,6 +373,22 @@ password. `showPasswordResultDialog` shows it once and **cannot be dismissed
 by tapping the barrier** — that is the only moment it is readable. The account
 is flagged `must_change_password`; the router refuses to route anywhere except
 `/change-password` until it is cleared.
+
+### The accounts that exist
+
+Passwords were reissued when the backend moved; the old ones are dead.
+
+| Username | Role | Password |
+|---|---|---|
+| `admin` | superadmin (Asrbek) | `Asrbek2026!` |
+| `demo_admin` | admin | `DemoAdmin2026!` |
+| `demo.o` | teacher | `DemoTeach2026!` |
+| `www` | teacher | `WwwTeach2026!` |
+| `demo` | student | `DemoStud2026!` |
+| `play.review` | student — Play's reviewer | `RCtYP58mMAWx` |
+
+None of them is flagged `must_change_password`: the reviewer account must not
+hit that gate, and the owner asked not to be made to change his own.
 
 Accounts are issued from **one place**: Talabalar → "Yangi talaba" → the role
 picker in the dialog. The teachers screen used to have its own button; it was

@@ -451,12 +451,23 @@ class UserProfile {
   /// issuing accounts that carry administrator rights, and money.
   bool get isSuperAdmin => role == 'superadmin';
 
-  String get subtitle => switch (role) {
+  /// The role's name in Uzbek. Every screen that prints a role reads it from
+  /// here — the profile menu used to carry its own copy of this switch, and
+  /// when 'superadmin' was added the copy was missed, so the super admin's
+  /// own menu called them a student.
+  String get roleLabel => switch (role) {
         'superadmin' => 'Super admin',
         'admin' => 'Administrator',
         'teacher' => "O'qituvchi",
-        _ => level == null ? 'Talaba' : 'Daraja $level',
+        _ => 'Talaba',
       };
+
+  /// The line under the name in the header. Same as [roleLabel], except a
+  /// student with a level gets the level instead — it is the more useful
+  /// fact about them, and "Talaba" is already obvious from the screen.
+  String get subtitle => roleLabel == 'Talaba' && level != null
+      ? 'Daraja $level'
+      : roleLabel;
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     final name = (map['full_name'] as String?) ?? 'Talaba';
@@ -537,14 +548,74 @@ class AppNotification {
 
 /// What the search sheet found. Kept as one object so the sheet can show
 /// "nothing matched" once rather than per section.
+/// A student or a class in the search results. Both are a name and, for a
+/// student, the class they are in — enough to tell two Azizas apart.
+class SearchPerson {
+  const SearchPerson({required this.id, required this.name, this.subtitle});
+
+  final String id;
+  final String name;
+  final String? subtitle;
+}
+
 class SearchResults {
-  const SearchResults({required this.lessons, required this.recordings});
+  const SearchResults({
+    required this.lessons,
+    required this.recordings,
+    this.students = const [],
+    this.groups = const [],
+  });
 
   final List<Lesson> lessons;
   final List<Recording> recordings;
 
+  /// Empty for a student: the queries run for everyone and RLS returns
+  /// nothing to anyone who is not staff.
+  final List<SearchPerson> students;
+  final List<SearchPerson> groups;
+
   static const empty = SearchResults(lessons: [], recordings: []);
 
-  bool get isEmpty => lessons.isEmpty && recordings.isEmpty;
-  int get total => lessons.length + recordings.length;
+  bool get isEmpty =>
+      lessons.isEmpty && recordings.isEmpty && students.isEmpty &&
+      groups.isEmpty;
+
+  int get total =>
+      lessons.length + recordings.length + students.length + groups.length;
+}
+
+/// One stored line of a lesson's chat.
+class LessonMessage {
+  const LessonMessage({
+    required this.authorId,
+    required this.authorName,
+    required this.body,
+    required this.sentAt,
+  });
+
+  final String authorId;
+  final String authorName;
+  final String body;
+  final DateTime sentAt;
+
+  factory LessonMessage.fromMap(Map<String, dynamic> map) => LessonMessage(
+        authorId: map['author_id'] as String,
+        authorName: (map['author_name'] as String?) ?? 'Ishtirokchi',
+        body: (map['body'] as String?) ?? '',
+        sentAt: DateTime.parse(map['sent_at'] as String).toLocal(),
+      );
+}
+
+/// What the app needs to join a LiveKit room: a token scoped to one room and
+/// one identity, and the server to present it to.
+class LiveKitCredentials {
+  const LiveKitCredentials({
+    required this.token,
+    required this.url,
+    required this.room,
+  });
+
+  final String token;
+  final String url;
+  final String room;
 }

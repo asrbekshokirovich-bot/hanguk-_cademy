@@ -110,6 +110,98 @@ class LessonsRepository {
         .update({'auto_record': enabled}).eq('id', lessonId);
   }
 
+  /// Moves a lesson between scheduled, live and finished.
+  ///
+  /// Nothing did this before, so a lesson could never become live: the live
+  /// room selects on status = 'live' and no code ever wrote that value. The
+  /// schedule was a list of intentions with no way to act on one.
+  ///
+  /// Starting a lesson also names its room, derived from the lesson id rather
+  /// than generated, so a reconnect — or a second device — lands in the room
+  /// that is already running instead of an empty one of its own.
+  ///
+  /// Staff only, enforced by RLS on ol_lessons. Hiding the button is the
+  /// courtesy; the database is the rule.
+  Future<void> setLessonStatus(String lessonId, LessonStatus status) async {
+    if (isDemo) return;
+    await _db.from('ol_lessons').update({
+      'status': switch (status) {
+        LessonStatus.scheduled => 'scheduled',
+        LessonStatus.live => 'live',
+        LessonStatus.ended => 'ended',
+        LessonStatus.cancelled => 'cancelled',
+      },
+      if (status == LessonStatus.live) 'live_room': 'lesson-$lessonId',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', lessonId);
+  }
+
+  /// Asks the Edge Function for a LiveKit token for this lesson.
+  ///
+  /// Null in demo mode, and null when the function reports that LiveKit is
+  /// not configured — the room then says so instead of spinning. Anything
+  /// else (lesson not live, not signed in) throws with the function's own
+  /// Uzbek message, which is more use on screen than a status code.
+  Future<LiveKitCredentials?> liveKitToken(String lessonId) async {
+    if (isDemo) return null;
+
+    final response = await _db.functions.invoke(
+      'livekit-token',
+      body: {'lesson_id': lessonId},
+    );
+
+    final data = response.data;
+    if (data is Map && data['token'] is String && data['url'] is String) {
+      return LiveKitCredentials(
+        token: data['token'] as String,
+        url: data['url'] as String,
+        room: data['room'] as String? ?? 'lesson-$lessonId',
+      );
+    }
+    if (data is Map && data['error'] is String) {
+      if ((data['error'] as String).contains('sozlanmagan')) return null;
+      throw StateError(data['error'] as String);
+    }
+    throw StateError('Video xizmatiga ulanib bo‘lmadi');
+  }
+
+  // -------------------------------------------------------- lesson chat ---
+
+  /// Everything said in this lesson so far, oldest first.
+  ///
+  /// Read on joining the room, so somebody who arrives ten minutes late sees
+  /// what has been asked instead of an empty panel.
+  Future<List<LessonMessage>> lessonMessages(String lessonId) async {
+    if (isDemo) return const [];
+    final rows = await _db
+        .from('ol_lesson_messages')
+        .select()
+        .eq('lesson_id', lessonId)
+        .order('sent_at')
+        // A lesson does not produce more than this, and a runaway loop should
+        // not be able to drag the whole history into a phone's memory.
+        .limit(500);
+    return rows.map((r) => LessonMessage.fromMap(r)).toList();
+  }
+
+  /// Writes one line. Delivery to the people already in the room happens over
+  /// LiveKit's data channel; this is what makes it survive the lesson.
+  Future<void> sendLessonMessage({
+    required String lessonId,
+    required String authorName,
+    required String body,
+  }) async {
+    if (isDemo) return;
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return;
+    await _db.from('ol_lesson_messages').insert({
+      'lesson_id': lessonId,
+      'author_id': userId,
+      'author_name': authorName,
+      'body': body,
+    });
+  }
+
   Future<void> enrol(String lessonId) async {
     if (isDemo) return;
     final userId = _db.auth.currentUser?.id;
@@ -266,11 +358,37 @@ class LessonsRepository {
           .or(filter)
           .order('recorded_at', ascending: false)
           .limit(20),
+      // People and classes, for staff. RLS returns nothing to a student, so
+      // this costs a wasted round trip on their side and nothing more — no
+      // role check here that the database would not enforce anyway.
+      _db
+          .from('ol_v_admin_students')
+          .select('student_id, full_name, group_name')
+          .ilike('full_name', '%\$safe%')
+          .limit(10),
+      _db
+          .from('ol_groups')
+          .select('id, name')
+          .ilike('name', '%\$safe%')
+          .limit(10),
     ]);
 
     return SearchResults(
       lessons: results[0].map((r) => Lesson.fromMap(r)).toList(),
       recordings: results[1].map((r) => Recording.fromMap(r)).toList(),
+      students: results[2]
+          .map((r) => SearchPerson(
+                id: r['student_id'] as String,
+                name: (r['full_name'] as String?) ?? '—',
+                subtitle: r['group_name'] as String?,
+              ))
+          .toList(),
+      groups: results[3]
+          .map((r) => SearchPerson(
+                id: r['id'] as String,
+                name: (r['name'] as String?) ?? '—',
+              ))
+          .toList(),
     );
   }
 

@@ -68,11 +68,7 @@ class _ProfileDialog extends ConsumerWidget {
               const SizedBox(height: 16),
               _InfoRow(
                 label: 'Rol',
-                value: switch (profile?.role) {
-                  'admin' => 'Administrator',
-                  'teacher' => "O'qituvchi",
-                  _ => 'Talaba',
-                },
+                value: profile?.roleLabel ?? 'Talaba',
               ),
               if (profile?.level != null)
                 _InfoRow(label: 'Daraja', value: '${profile!.level}'),
@@ -94,14 +90,16 @@ class _ProfileDialog extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     final messenger = ScaffoldMessenger.of(context);
-                    final navigator = Navigator.of(context);
+                    final auth = ref.read(authRepositoryProvider);
+                    // Close the menu first. Signing out fires an auth event,
+                    // the router redirects to /login, and that rebuild takes
+                    // the dialog with it — so a pop() issued afterwards found
+                    // the dialog already gone and removed the login page
+                    // instead, leaving an empty navigator and a black window.
+                    Navigator.of(context).pop();
                     try {
-                      await ref.read(authRepositoryProvider).signOut();
-                      // The router's redirect sends us to /login on the auth
-                      // event; this only closes the menu on top of it.
-                      navigator.pop();
+                      await auth.signOut();
                     } catch (e) {
-                      navigator.pop();
                       messenger.showSnackBar(
                         SnackBar(content: Text('Chiqib bo‘lmadi: $e')),
                       );

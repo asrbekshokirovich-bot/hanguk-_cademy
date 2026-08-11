@@ -24,14 +24,14 @@
 abstract final class HkEnv {
   static const supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://dfduzrzqzghsiblpztdm.supabase.co',
+    defaultValue: 'https://iohchwogpzhqmtqyjrrz.supabase.co',
   );
 
   /// Supabase's current key format (`sb_publishable_…`), which replaced the
   /// legacy `anon` JWT. Sent as the `apikey` header exactly the same way.
   static const supabasePublishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
-    defaultValue: 'sb_publishable_3B5-KHohbmx-cysPPo4e7Q_uou0x2o1',
+    defaultValue: 'sb_publishable_zkcqpOhM_thc6J0pfwsnTg_eqgXqfcW',
   );
 
   static bool get hasSupabase =>

@@ -22,7 +22,33 @@ on:
     paths: ['.github/workflows/windows-release.yml']
 
 jobs:
+  # The goldens run here, on Linux, because that is the platform they were
+  # rendered on. Keeping them off the Windows job is not a gap — this is
+  # where they mean something.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter 3.44.9
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 5 \
+            -o /tmp/flutter.tar.xz \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.9-stable.tar.xz"
+          mkdir -p "$RUNNER_TOOL_CACHE/flutter"
+          tar -xJf /tmp/flutter.tar.xz -C "$RUNNER_TOOL_CACHE/flutter" --strip-components=1
+          echo "$RUNNER_TOOL_CACHE/flutter/bin" >> "$GITHUB_PATH"
+          git config --global --add safe.directory "$RUNNER_TOOL_CACHE/flutter"
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
   build:
+    needs: checks
     runs-on: windows-latest
     # A hang should cost half an hour, not the six hours GitHub allows by
     # default.
@@ -50,10 +76,18 @@ jobs:
 
       - run: flutter pub get
 
-      # The same checks that guard every push. A release is the worst moment
-      # to find out a golden was left failing.
-      - run: flutter analyze
-      - run: flutter test
+      # Not a plain `flutter test`. A golden is a PNG of how one machine
+      # rasterised text, and these were rendered on Linux — on a Windows
+      # runner every one of them "fails" by a percent or two of pixel
+      # difference while the app is perfectly fine. That is a comparison
+      # between two platforms, neither of which is wrong, and it blocked the
+      # first Windows build with 36 red tests.
+      #
+      # The behavioural tests carry no such baggage, so they still run here,
+      # against the toolchain that is about to produce the binary. The
+      # goldens ran on Linux in `checks`, which this job depends on.
+      - name: Behavioural tests (goldens ran on Linux, see checks)
+        run: flutter test --exclude-tags golden
 
       - run: flutter build windows --release
 

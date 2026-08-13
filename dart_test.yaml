@@ -1,0 +1,19 @@
+# Declares the tags the suite uses, so `dart test` does not warn about each
+# one as an unrecognised name.
+#
+# Nothing is excluded by default: a plain `flutter test` still runs
+# everything, which is what the verification section of HANDOFF.md tells the
+# next person to do.
+#
+# The tags exist so a run can *opt out*. `--exclude-tags golden` is what the
+# Windows job in .github/workflows/windows-release.yml uses: a golden is a
+# PNG of how one machine rasterised text, these were rendered on Linux, and
+# comparing them on a Windows runner measures the difference between two
+# platforms rather than a defect.
+tags:
+  golden:
+    # Every test under test/golden/, plus the store screenshots — anything
+    # that asserts against a checked-in PNG.
+  store:
+    # Play Store screenshots. Written to docs/play/screenshots/ with
+    # --update-goldens; also golden-tagged, since that is what they are.

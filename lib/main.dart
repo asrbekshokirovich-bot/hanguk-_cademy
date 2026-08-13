@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'core/env.dart';
 import 'core/router.dart';
 import 'design_system/tokens.dart';
+import 'design_system/widgets/window_chrome.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +31,10 @@ Future<void> main() async {
         center: true,
         title: "Hanguk Academy — Onlayn ta'lim platformasi",
         backgroundColor: HkColors.canvasBottom,
-        titleBarStyle: TitleBarStyle.normal,
+        // The app draws its own title bar (HkWindowChrome). Windows' grey
+        // strip above a window built entirely of dark glass looked like a
+        // piece of another program bolted to the top of the design.
+        titleBarStyle: TitleBarStyle.hidden,
       ),
       () async {
         await windowManager.show();
@@ -75,6 +79,11 @@ class HangukOnlineApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: ref.watch(appRouterProvider),
       theme: hangukTheme,
+      // Wrapped here rather than inside AppShell: the login and
+      // change-password screens do not use the shell, and a window that loses
+      // its close button on the one screen you reach before signing in is a
+      // window you cannot close. On web and mobile this adds nothing.
+      builder: (context, child) => HkWindowChrome(child: child!),
     );
   }
 }

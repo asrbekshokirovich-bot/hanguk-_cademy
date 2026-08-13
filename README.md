@@ -228,6 +228,17 @@ Desktopda oyna **to'liq ekranda ochiladi** (`main.dart` da `maximize()`).
 1920×1080 monitorda u ekran o'rtasida suzib turgan oynaga aylanardi.
 Kichraytirish tugmasi baribir 1440×920 ga qaytaradi.
 
+**Sarlavha satri ilovaning o'zi tomonidan chiziladi**
+(`design_system/widgets/window_chrome.dart`, Chrome shu yo'lni tanlaganidek).
+Windows'ning kulrang satri butunlay to'q shishadan iborat dizayn tepasiga
+boshqa dasturdan qirqib olib yopishtirilgandek ko'rinardi. Tizim satri bilan
+birga yo'qoladigan narsalar shu yerda qayta yozilgan: oynani sudrab ko'chirish,
+ikki marta bosib kattalashtirish va uchta tugma. Chekkalardan cho'zish va
+`Win`+strelka bilan snap ishlayveradi — oyna oddiy oyna bo'lib qoladi, faqat
+bezagi o'ziniki.
+
+Web va telefonda `HkWindowChrome` hech nima qo'shmaydi.
+
 ## Testlar
 
 ```bash

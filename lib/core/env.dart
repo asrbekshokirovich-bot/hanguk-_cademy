@@ -36,4 +36,22 @@ abstract final class HkEnv {
 
   static bool get hasSupabase =>
       supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
+
+  /// Which build this binary is, printed under the login card.
+  ///
+  /// It exists because of one specific afternoon: three fixes were merged and
+  /// built within twenty minutes of each other, the owner re-ran an .exe he
+  /// had downloaded before the first of them, and nothing on screen could
+  /// tell either of us which build he was looking at. "Is this fixed?" was
+  /// unanswerable — the app looks identical either way.
+  ///
+  /// The Windows workflow passes the short commit sha and the build date:
+  ///
+  ///   flutter build windows --release --dart-define=BUILD_STAMP=52f293b·13.08
+  ///
+  /// A local build says `dev`, which is the honest answer for one.
+  static const buildStamp = String.fromEnvironment(
+    'BUILD_STAMP',
+    defaultValue: 'dev',
+  );
 }

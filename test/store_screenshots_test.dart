@@ -1,4 +1,4 @@
-@Tags(['store'])
+@Tags(['store', 'golden'])
 library;
 
 import 'dart:io';

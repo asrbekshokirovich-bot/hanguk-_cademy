@@ -208,9 +208,17 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 67 tests
+flutter test             # 77 tests
 flutter build linux --release
 ```
+
+**Goldens are Linux PNGs.** They are tagged `golden` (`dart_test.yaml`
+declares the tag; nothing is excluded by default, so the command above still
+runs everything). The tag exists so a run on another platform can opt out:
+the Windows job uses `flutter test --exclude-tags golden`, because a golden
+compares how one machine rasterised text and on a Windows runner all of them
+differ by a percent or two while the app is fine. If you ever regenerate
+goldens, do it on Linux, or every other machine will disagree with you.
 
 To review a screen you changed, regenerate and *look at the PNG*:
 

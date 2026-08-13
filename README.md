@@ -223,6 +223,11 @@ chiqadi. `lib/design_system/layout.dart` uchta darajani belgilaydi:
 - `medium` (<1180px) — dok bor, panjaralar ikki ustunga tushadi.
 - `expanded` — dizayndagi ko'rinish.
 
+Desktopda oyna **to'liq ekranda ochiladi** (`main.dart` da `maximize()`).
+1440×920 — dizayn chizilgan o'lcham, ilovani ushlab turadigan o'lcham emas:
+1920×1080 monitorda u ekran o'rtasida suzib turgan oynaga aylanardi.
+Kichraytirish tugmasi baribir 1440×920 ga qaytaradi.
+
 ## Testlar
 
 ```bash

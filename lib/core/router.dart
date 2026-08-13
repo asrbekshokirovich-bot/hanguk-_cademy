@@ -113,7 +113,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/live',
+        // Bare `/live` is "whatever is on air" — the student's door, and the
+        // dock's. `/live/:id` names one lesson, which is how a teacher
+        // reaches their own: with two lessons running at once the bare route
+        // can only guess, and it guessed the other teacher's room.
         pageBuilder: (context, state) => _fade(state, const LiveRoomScreen()),
+        routes: [
+          GoRoute(
+            path: ':id',
+            pageBuilder: (context, state) => _fade(
+              state,
+              LiveRoomScreen(lessonId: state.pathParameters['id']),
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/recordings',

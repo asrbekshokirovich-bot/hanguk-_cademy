@@ -100,6 +100,19 @@ class TeacherDashboardScreen extends ConsumerWidget {
 class _TodayLessonsCard extends ConsumerWidget {
   const _TodayLessonsCard();
 
+  /// The panel is headed "Bugungi darslarim", so it shows the lessons this
+  /// teacher is actually teaching — `todaysLessons()` returns the whole
+  /// school's day, and the card used to print all of it.
+  ///
+  /// An admin has no teacher row, and for them the unfiltered day is the
+  /// right answer rather than an empty card: they are looking at the school,
+  /// not at their own timetable.
+  List<Lesson> _mine(WidgetRef ref, List<Lesson> lessons) {
+    final mine = ref.watch(myTeacherIdProvider).value;
+    if (mine == null) return lessons;
+    return lessons.where((l) => l.teacher?.id == mine).toList();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GlassPanel(
@@ -112,16 +125,19 @@ class _TodayLessonsCard extends ConsumerWidget {
           AsyncSection(
             value: ref.watch(todaysLessonsProvider),
             onRetry: () => ref.invalidate(todaysLessonsProvider),
-            isEmpty: (l) => l.isEmpty,
+            isEmpty: (l) => _mine(ref, l).isEmpty,
             emptyMessage: 'Bugun darsingiz yo‘q',
-            builder: (lessons) => Column(
-              children: [
-                for (final lesson in lessons) ...[
-                  _LessonRow(lesson: lesson),
-                  if (lesson != lessons.last) const SizedBox(height: 10),
+            builder: (all) {
+              final lessons = _mine(ref, all);
+              return Column(
+                children: [
+                  for (final lesson in lessons) ...[
+                    _LessonRow(lesson: lesson),
+                    if (lesson != lessons.last) const SizedBox(height: 10),
+                  ],
                 ],
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -129,14 +145,46 @@ class _TodayLessonsCard extends ConsumerWidget {
   }
 }
 
-class _LessonRow extends StatelessWidget {
+class _LessonRow extends ConsumerStatefulWidget {
   const _LessonRow({required this.lesson});
 
   final Lesson lesson;
 
   @override
+  ConsumerState<_LessonRow> createState() => _LessonRowState();
+}
+
+class _LessonRowState extends ConsumerState<_LessonRow> {
+  bool _busy = false;
+
+  /// Puts this lesson on air and walks the teacher into the room.
+  ///
+  /// The navigation only happens once the write has come back. Going first
+  /// would land on "Hozir jonli dars yo'q" — the room reads the same row that
+  /// is still mid-flight — and the teacher would reasonably press the button
+  /// again.
+  Future<void> _start() async {
+    setState(() => _busy = true);
+    try {
+      await setLessonStatus(ref, widget.lesson.id, LessonStatus.live);
+      if (!mounted) return;
+      // By id, not `/live`: that route opens whatever is on air, which on a
+      // day with two lessons running is as likely to be the other teacher's.
+      context.go('/live/${widget.lesson.id}');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Darsni boshlab bo‘lmadi: $e')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final lesson = widget.lesson;
     final live = lesson.status == LessonStatus.live;
+    final scheduled = lesson.status == LessonStatus.scheduled;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -196,9 +244,15 @@ class _LessonRow extends StatelessWidget {
           const SizedBox(width: 10),
           if (live)
             LimeButton(
-              label: 'Darsni boshlash',
+              label: 'Darsga kirish',
               height: 38,
-              onPressed: () => context.go('/live'),
+              onPressed: () => context.go('/live/${lesson.id}'),
+            )
+          else if (scheduled)
+            LimeButton(
+              label: _busy ? 'Boshlanmoqda…' : 'Darsni boshlash',
+              height: 38,
+              onPressed: _busy ? null : _start,
             )
           else
             HkPill(

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../lessons/data/lessons_repository.dart';
+import '../../lessons/domain/models.dart';
 import '../domain/staff_models.dart';
 import 'staff_demo_data.dart';
 
@@ -22,6 +23,34 @@ class StaffRepository {
   SupabaseClient get _db => _client!;
 
   // ------------------------------------------------------------- teacher ---
+
+  /// This account's row in `ol_teachers`, or null if it does not have one.
+  ///
+  /// Two different ids are in play and conflating them is the whole reason
+  /// this exists: `ol_lessons.teacher_id` points at `ol_teachers.id`, not at
+  /// `auth.users.id`. A teacher is also allowed to exist on the timetable
+  /// before they have an account at all, so the mapping is a lookup and not
+  /// an assumption.
+  ///
+  /// Null for an admin — by design, since `20260807190000_admins_are_not_
+  /// teachers.sql`. Callers read that as "not tied to any one teacher's day"
+  /// rather than "teaches nothing".
+  Future<String?> myTeacherId() async {
+    // The demo build has no session to look up, so it answers as the teacher
+    // the fixtures are written around — the one teaching the live lesson.
+    // Answering null instead would empty the teacher panel in the demo, which
+    // is the one place the panel is ever looked at without a backend.
+    if (isDemo) return StaffDemoData.demoTeacherId;
+
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return null;
+    final row = await _db
+        .from('ol_teachers')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+    return row?['id'] as String?;
+  }
 
   Future<TeacherStats> teacherStats() async {
     if (isDemo) return StaffDemoData.teacherStats;
@@ -247,7 +276,6 @@ class StaffRepository {
     String? groupId,
     String? description,
     bool? autoRecord,
-    String? status,
   }) async {
     if (isDemo) throw StateError('Demo rejimda mavjud emas');
     await _db.from('ol_lessons').update({
@@ -256,13 +284,29 @@ class StaffRepository {
       'starts_at': ?startsAt?.toUtc().toIso8601String(),
       'duration_minutes': ?durationMinutes,
       'auto_record': ?autoRecord,
-      'status': ?status,
       // Null is meaningful for these two — "no teacher yet", "not tied to a
       // group" — so they are always written rather than only when non-null.
       'teacher_id': teacherId,
       'group_id': groupId,
       if (description != null) 'description': description.trim(),
     }).eq('id', lessonId);
+  }
+
+  /// Moves a lesson through its life cycle: `scheduled` → `live` → `ended`.
+  ///
+  /// Deliberately *not* a `status:` argument on [updateLesson]. That method
+  /// always writes `teacher_id` and `group_id` because null is meaningful
+  /// there, so flipping a status through it from a screen that never loaded
+  /// the edit form would clear both — the lesson would go on air with no
+  /// teacher attached.
+  ///
+  /// Who may call it is decided by the `ol_lessons_write` policy, not here:
+  /// the button is hidden from students, but hiding is not the check.
+  Future<void> setLessonStatus(String lessonId, LessonStatus status) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db
+        .from('ol_lessons')
+        .update({'status': status.wire}).eq('id', lessonId);
   }
 
   Future<void> deleteLesson(String lessonId) async {

@@ -94,7 +94,11 @@ abstract final class DemoData {
           status: LessonStatus.scheduled,
           autoRecord: true,
           enrolledCount: 22,
-          teacher: _teachers['ms'],
+          // Jasur's as well, so the demo's teacher panel shows a day rather
+          // than a single row: that panel now lists only the signed-in
+          // teacher's lessons, and in the demo that is whoever is teaching
+          // the live one.
+          teacher: _teachers['jk'],
         ),
       ];
 

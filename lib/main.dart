@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core/env.dart';
@@ -38,29 +39,10 @@ Future<void> main() async {
       ),
       () async {
         await windowManager.show();
-        // Opens filling the screen. 1440x920 is the size the design was drawn
-        // at, not a size to hold the app to: on a 1920x1080 monitor it left a
-        // window floating in the middle of the desktop with wallpaper down
-        // both sides, which reads as a half-finished app rather than a
-        // deliberate layout. The shell is responsive in both directions, so
-        // there is nothing being protected by keeping it small.
-        //
-        // The restore button still goes back to the size above, and
-        // minimumSize still keeps the expanded layout out of a shape it was
-        // never drawn for.
-        await windowManager.maximize();
+        await _fillTheScreen();
         await windowManager.focus();
       },
     );
-    // Asked for twice on purpose. `waitUntilReadyToShow` applies the size and
-    // centring from WindowOptions around the callback, and on Windows that
-    // has been seen to land *after* the maximise inside it — the window then
-    // opens at 1440x920 in the middle of the screen, which is exactly the
-    // thing this is meant to stop. Checking afterwards costs one call and is
-    // a no-op when the first one worked.
-    if (!await windowManager.isMaximized()) {
-      await windowManager.maximize();
-    }
   }
 
   if (HkEnv.hasSupabase) {
@@ -71,6 +53,31 @@ Future<void> main() async {
   }
 
   runApp(const ProviderScope(child: HangukOnlineApp()));
+}
+
+/// Opens the window over the whole work area — the screen minus the taskbar.
+///
+/// Sized rather than maximised, and that is the entire point. A window that
+/// hides the system title bar has no system frame either, and Windows
+/// maximises such a window to the monitor rectangle *plus* the invisible
+/// resize border it would normally have had. Those few pixels a side hang off
+/// every edge of the screen, and what hangs off the right edge is the close
+/// button. The app looked correct and could not be closed.
+///
+/// Asking the display how big it actually is avoids the whole question: the
+/// window is an ordinary sized window that happens to cover the desktop, so
+/// nothing is off-screen. `visiblePosition` is not always (0,0) — a taskbar
+/// docked left or top moves it, as does a second monitor.
+///
+/// Maximising still works afterwards; it is the user's to do, from the title
+/// bar button or `Win`+`Up`.
+Future<void> _fillTheScreen() async {
+  final display = await screenRetriever.getPrimaryDisplay();
+  final origin = display.visiblePosition ?? Offset.zero;
+  final size = display.visibleSize ?? display.size;
+  await windowManager.setBounds(
+    Rect.fromLTWH(origin.dx, origin.dy, size.width, size.height),
+  );
 }
 
 /// `Platform` is unavailable on web, so the check has to be guarded by

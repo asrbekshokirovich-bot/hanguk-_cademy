@@ -22,7 +22,8 @@ Future<void> main() async {
     await windowManager.ensureInitialized();
     await windowManager.waitUntilReadyToShow(
       const WindowOptions(
-        // The design's window. minimumSize is the point below which the
+        // The size the window restores to when un-maximised. The design is
+        // drawn at 1440x920; minimumSize is the point below which the
         // expanded layout stops fitting and the medium one takes over.
         size: Size(1440, 920),
         minimumSize: Size(880, 620),
@@ -33,6 +34,17 @@ Future<void> main() async {
       ),
       () async {
         await windowManager.show();
+        // Opens filling the screen. 1440x920 is the size the design was drawn
+        // at, not a size to hold the app to: on a 1920x1080 monitor it left a
+        // window floating in the middle of the desktop with wallpaper down
+        // both sides, which reads as a half-finished app rather than a
+        // deliberate layout. The shell is responsive in both directions, so
+        // there is nothing being protected by keeping it small.
+        //
+        // The restore button still goes back to the size above, and
+        // minimumSize still keeps the expanded layout out of a shape it was
+        // never drawn for.
+        await windowManager.maximize();
         await windowManager.focus();
       },
     );

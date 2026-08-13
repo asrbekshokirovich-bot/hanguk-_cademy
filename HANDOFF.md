@@ -110,6 +110,13 @@ makes the screens reviewable without a backend.
 The owner does not have it; he has been running the web build. Do not
 recommend `-d windows` to him without that caveat.
 
+For a Windows build *he* can get, use the Actions tab instead:
+`.github/workflows/windows-release.yml` builds the .exe on a runner that
+already has the C++ workload and uploads `hanguk-academy-windows.zip`. He
+unzips it and runs `hanguk_online.exe` — nothing to install on his machine.
+The whole Release folder is zipped, not just the .exe: on its own the .exe
+opens a dialog about a missing `flutter_windows.dll`.
+
 ### Shipping the Android app
 
 `docs/play-store.md` is the whole Play procedure, written for the owner.

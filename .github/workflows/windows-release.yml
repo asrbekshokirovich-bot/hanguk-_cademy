@@ -1,0 +1,79 @@
+name: Windows desktop build
+
+# Builds the Windows .exe and packages it as a zip anyone can download from
+# the run's Artifacts section.
+#
+# It runs here rather than on the owner's machine for one specific reason:
+# `flutter build windows` needs Visual Studio with the "Desktop development
+# with C++" workload — several gigabytes of installer for a machine that is
+# otherwise only used to run the app. The runner already has it. The owner
+# downloads a zip.
+#
+# Start it from the Actions tab ("Run workflow"), then download
+# `hanguk-academy-windows` from the finished run.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+  # Also on any change to this file, so a broken build surfaces on the pull
+  # request that broke it rather than the next time someone needs a build.
+  pull_request:
+    paths: ['.github/workflows/windows-release.yml']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    # A hang should cost half an hour, not the six hours GitHub allows by
+    # default.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fetched directly rather than through an action, matching
+      # android-release.yml: the same pinned 3.44.9 the web build and the
+      # local toolchain use, and a plain download that either works or fails
+      # saying so.
+      - name: Install Flutter 3.44.9
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.44.9-stable.zip'
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\flutter.zip"
+          Expand-Archive "$env:RUNNER_TEMP\flutter.zip" -DestinationPath "$env:RUNNER_TOOL_CACHE\flutter"
+          "$env:RUNNER_TOOL_CACHE\flutter\flutter\bin" |
+            Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          git config --global --add safe.directory "$env:RUNNER_TOOL_CACHE\flutter\flutter"
+
+      - run: flutter --version
+
+      - run: flutter pub get
+
+      # The same checks that guard every push. A release is the worst moment
+      # to find out a golden was left failing.
+      - run: flutter analyze
+      - run: flutter test
+
+      - run: flutter build windows --release
+
+      # The .exe alone does not run: it needs the Flutter DLL, the ICU data
+      # and the bundled assets sitting beside it. Zipping the whole Release
+      # folder is the difference between an app and an error dialog about a
+      # missing flutter_windows.dll.
+      - name: Package the build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = 'build\windows\x64\runner\Release'
+          if (-not (Test-Path "$release\hanguk_online.exe")) {
+            Write-Error "hanguk_online.exe is missing from $release"
+          }
+          Compress-Archive -Path "$release\*" `
+            -DestinationPath "$env:RUNNER_TEMP\hanguk-academy-windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hanguk-academy-windows
+          path: ${{ runner.temp }}\hanguk-academy-windows.zip
+          retention-days: 30

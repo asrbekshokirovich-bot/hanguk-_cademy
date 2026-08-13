@@ -147,12 +147,32 @@ Bular ataylab qoldirilgan, keyingi bosqich:
 - **Parolni o'zi tiklash** — talaba parolni unutsa, adminga murojaat qiladi.
   Emailsiz hisobga avtomatik tiklash yuborib bo'lmaydi.
 
-## Ishga tushirish
+## Windows'ga o'rnatish
+
+Flutter va Visual Studio o'rnatmasdan:
+
+1. GitHub'da **Actions** → **Windows desktop build** → **Run workflow**.
+2. Yugurish tugagach, pastdagi **Artifacts** bo'limidan
+   `hanguk-academy-windows` ni yuklab oling.
+3. Zipni oching va `hanguk_online.exe` ni ishga tushiring.
+
+Zipdagi hamma fayl kerak — `.exe` ni yolg'iz ko'chirsangiz,
+`flutter_windows.dll` topilmagani haqida oyna chiqadi. Papkani butunligicha
+qo'ying (masalan `C:\Hanguk Academy\`) va `.exe` dan ish stoliga yorliq
+yasang.
+
+Imzolanmagani uchun birinchi ishga tushirishda Windows SmartScreen
+ogohlantiradi: **More info** → **Run anyway**.
+
+## Ishga tushirish (ishlab chiqish uchun)
 
 ```bash
 flutter pub get
 flutter run -d windows
 ```
+
+`-d windows` uchun Visual Studio va uning "Desktop development with C++"
+to'plami kerak. U bo'lmasa `flutter run -d chrome` ishlaydi.
 
 Bayroqsiz ishlaydi — `lib/core/env.dart` loyihaning o'z Supabase manzilini va
 publishable kalitini ichida saqlaydi. Bu kalit binarda yuborilishi uchun

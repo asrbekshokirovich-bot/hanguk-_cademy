@@ -129,14 +129,44 @@ class _TodayLessonsCard extends ConsumerWidget {
   }
 }
 
-class _LessonRow extends StatelessWidget {
+class _LessonRow extends ConsumerStatefulWidget {
   const _LessonRow({required this.lesson});
 
   final Lesson lesson;
 
   @override
+  ConsumerState<_LessonRow> createState() => _LessonRowState();
+}
+
+class _LessonRowState extends ConsumerState<_LessonRow> {
+  bool _busy = false;
+
+  /// Puts this lesson on air and walks the teacher into the room.
+  ///
+  /// The navigation only happens once the write has come back. Going first
+  /// would land on "Hozir jonli dars yo'q" — the room reads the same row that
+  /// is still mid-flight — and the teacher would reasonably press the button
+  /// again.
+  Future<void> _start() async {
+    setState(() => _busy = true);
+    try {
+      await setLessonStatus(ref, widget.lesson.id, LessonStatus.live);
+      if (!mounted) return;
+      context.go('/live');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Darsni boshlab bo‘lmadi: $e')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final lesson = widget.lesson;
     final live = lesson.status == LessonStatus.live;
+    final scheduled = lesson.status == LessonStatus.scheduled;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -196,9 +226,15 @@ class _LessonRow extends StatelessWidget {
           const SizedBox(width: 10),
           if (live)
             LimeButton(
-              label: 'Darsni boshlash',
+              label: 'Darsga kirish',
               height: 38,
               onPressed: () => context.go('/live'),
+            )
+          else if (scheduled)
+            LimeButton(
+              label: _busy ? 'Boshlanmoqda…' : 'Darsni boshlash',
+              height: 38,
+              onPressed: _busy ? null : _start,
             )
           else
             HkPill(

@@ -9,6 +9,7 @@ import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../staff/data/staff_providers.dart';
 import '../data/demo_data.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
@@ -37,11 +38,63 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   bool _handRaised = false;
   bool _showChat = true;
   bool _showCaptions = true;
+  bool _ending = false;
+
+  /// Takes the lesson off air, after asking. Ending is visible to everyone in
+  /// the room and there is no undo button next to it, so the confirmation is
+  /// not ceremony — "Chiqish" sits one button away and does something very
+  /// different.
+  Future<void> _end(Lesson lesson) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0xB3000000),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xF00C1430),
+        title: const Text('Darsni tugatish', style: HkType.cardTitle),
+        content: Text(
+          '“${lesson.title}” yakunlanadi. Dars efirdan olinadi va barcha '
+          'ishtirokchilar uchun tugaydi.',
+          style: HkType.body.copyWith(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Bekor qilish'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Tugatish',
+              style: TextStyle(color: HkColors.dangerBright),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _ending = true);
+    try {
+      await setLessonStatus(ref, lesson.id, LessonStatus.ended);
+      if (!mounted) return;
+      context.go('/');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _ending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Darsni tugatib bo‘lmadi: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final layout = HkLayout.of(context);
     final lesson = ref.watch(liveLessonProvider).value;
+    // Students leave the room; staff end the lesson for everyone. The router
+    // does not gate `/live` by role — every role belongs here — so this is the
+    // one place the distinction is drawn, and the RLS policy draws it again.
+    final isStaff = ref.watch(profileProvider).value?.isStaff ?? false;
 
     return AppShell(
       title: 'Jonli dars',
@@ -93,6 +146,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                 ],
                 const SizedBox(height: HkSpace.gridGap),
                 _ControlBar(
+                  onEnd: isStaff ? () => _end(lesson) : null,
+                  ending: _ending,
                   micOn: _micOn,
                   cameraOn: _cameraOn,
                   handRaised: _handRaised,
@@ -631,6 +686,8 @@ class _ControlBar extends StatelessWidget {
     required this.onChat,
     required this.onCaptions,
     required this.onLeave,
+    required this.onEnd,
+    required this.ending,
   });
 
   final bool micOn;
@@ -644,6 +701,11 @@ class _ControlBar extends StatelessWidget {
   final VoidCallback onChat;
   final VoidCallback onCaptions;
   final VoidCallback onLeave;
+
+  /// Null for a student: they can leave the room, but only staff take the
+  /// lesson off air for everyone.
+  final VoidCallback? onEnd;
+  final bool ending;
 
   @override
   Widget build(BuildContext context) {
@@ -699,27 +761,77 @@ class _ControlBar extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 6),
               color: HkGlass.border,
             ),
+            // Leaving is the red button only when it is the only way out of
+            // the room. For staff the red belongs on "Darsni tugatish" — that
+            // is the one that ends the lesson for sixty other people — and
+            // leaving steps back to a quiet outline so the two are not two
+            // identical red buttons side by side.
             SizedBox(
               height: 50,
-              child: FilledButton.icon(
-                onPressed: onLeave,
-                style: FilledButton.styleFrom(
-                  backgroundColor: HkColors.danger,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(HkRadius.pill),
+              child: onEnd == null
+                  ? FilledButton.icon(
+                      onPressed: onLeave,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: HkColors.danger,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(HkRadius.pill),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                      ),
+                      icon: const Icon(Icons.call_end_rounded, size: 18),
+                      label: const Text(
+                        'Chiqish',
+                        style: TextStyle(
+                          fontFamily: HkType.family,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: onLeave,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: HkColors.textSecondary,
+                        side: const BorderSide(color: HkGlass.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(HkRadius.pill),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text(
+                        'Chiqish',
+                        style: TextStyle(
+                          fontFamily: HkType.family,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+            ),
+            if (onEnd != null)
+              SizedBox(
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: ending ? null : onEnd,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: HkColors.danger,
+                    disabledBackgroundColor: HkColors.danger.withValues(
+                      alpha: 0.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(HkRadius.pill),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                ),
-                icon: const Icon(Icons.call_end_rounded, size: 18),
-                label: const Text(
-                  'Chiqish',
-                  style: TextStyle(
-                    fontFamily: HkType.family,
-                    fontWeight: FontWeight.w700,
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: Text(
+                    ending ? 'Tugatilmoqda…' : 'Darsni tugatish',
+                    style: const TextStyle(
+                      fontFamily: HkType.family,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

@@ -33,6 +33,26 @@ yolg'on bo'lardi (talaba admin bo'la olmaydi), yo teshik (agar ishlaganda).
 
 Yopiq marshrutlar routerda ham tekshiriladi — dokdan yashirish himoya emas.
 
+### Darsning holati
+
+`scheduled` → `live` → `ended`. Ikkala o'tishni ham xodim ilova ichidan
+bajaradi:
+
+- **Darsni boshlash** — o'qituvchi panelidagi "Bugungi darslarim" ro'yxatida,
+  rejalashtirilgan dars yonida. Yozuv qaytgach jonli xonaga o'tkazadi, oldin
+  emas — aks holda xona hali yangilanmagan qatorni o'qib "jonli dars yo'q"
+  deb turardi.
+- **Darsni tugatish** — jonli xonaning boshqaruv panelida, faqat xodimda.
+  Tasdiq so'raydi: yonidagi "Chiqish" butunlay boshqa ish qiladi, va
+  tugatishning orqaga qaytarish tugmasi yo'q.
+
+Kim o'zgartira olishini `ol_lessons_write` siyosati hal qiladi; tugmani
+yashirish tekshiruv emas.
+
+Holat ko'rinmas joylarga ham ta'sir qiladi — dokdagi jonli nuqta, talabaning
+asosiy sahifasidagi banner, va 30 kunlik o'rtacha davomat: u faqat `ended`
+darslarni sanaydi, shuning uchun tugatilmagan dars hisobga umuman kirmaydi.
+
 ### Pul
 
 Summalar **butun so'mda, `bigint`** saqlanadi. Kasrli tiyin amalda yo'q, va

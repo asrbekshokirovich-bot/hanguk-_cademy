@@ -22,6 +22,11 @@ dependencies:
   # Desktop: size/centre/title the window before the first frame so the
   # 1440x920 shell from the design isn't at the mercy of the WM default.
   window_manager: ^0.4.3
+  # Already arrives under window_manager; declared because main.dart imports
+  # it directly. It answers what the *work area* is — the screen minus the
+  # taskbar — which is what "opens filling the screen" has to mean for a
+  # window that draws its own title bar. See the note in main.dart.
+  screen_retriever: ^0.2.2
 
 dev_dependencies:
   flutter_test:

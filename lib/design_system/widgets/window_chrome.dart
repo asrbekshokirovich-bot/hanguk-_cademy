@@ -32,7 +32,9 @@ class HkWindowChrome extends StatefulWidget {
 }
 
 class _HkWindowChromeState extends State<HkWindowChrome> with WindowListener {
-  bool _maximized = true;
+  // The window opens sized to the work area, not maximised — so the button
+  // starts as "maximise", and onWindowMaximize corrects it if that changes.
+  bool _maximized = false;
 
   static bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
@@ -42,9 +44,9 @@ class _HkWindowChromeState extends State<HkWindowChrome> with WindowListener {
     super.initState();
     if (!_isDesktop) return;
     windowManager.addListener(this);
-    // The window opens maximised, but the user may have restored it before
-    // this widget was ever built (a resize during startup), so the initial
-    // state is asked for rather than assumed.
+    // Asked rather than assumed: the window is sized to the work area at
+    // startup, but the user can have maximised it with Win+Up before this
+    // widget first built.
     unawaited(_syncMaximized());
   }
 
@@ -80,54 +82,71 @@ class _HkWindowChromeState extends State<HkWindowChrome> with WindowListener {
 
     return Column(
       children: [
-        SizedBox(
-          height: _barHeight,
-          child: DragToMoveArea(
-            child: Row(
-              children: [
-                const SizedBox(width: 14),
-                const Icon(
-                  Icons.school_rounded,
-                  size: 15,
-                  color: HkColors.textTertiary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Hanguk Academy',
-                  style: HkType.muted.copyWith(fontSize: 12),
-                ),
-                // The empty middle is the drag handle, and double-clicking it
-                // maximises — both are what the system bar did, and losing
-                // either is what makes a custom title bar feel broken.
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onDoubleTap: _toggleMaximize,
-                    child: const SizedBox.expand(),
+        // Material, transparent, wrapping the bar: this sits *above* the
+        // Navigator in the tree, and up here there is no Material and no
+        // DefaultTextStyle. Flutter's fallback for text in that position is
+        // its "you have no styling" warning — yellow, double-underlined — so
+        // "Hanguk Academy" came out with two yellow lines under it. Tooltips
+        // and ink effects want a Material ancestor for the same reason.
+        Material(
+          type: MaterialType.transparency,
+          child: SizedBox(
+            height: _barHeight,
+            child: DragToMoveArea(
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  const Icon(
+                    Icons.school_rounded,
+                    size: 15,
+                    color: HkColors.textTertiary,
                   ),
-                ),
-                _WindowButton(
-                  icon: Icons.remove_rounded,
-                  tooltip: 'Kichraytirish',
-                  onPressed: windowManager.minimize,
-                ),
-                _WindowButton(
-                  icon: _maximized
-                      ? Icons.filter_none_rounded
-                      : Icons.crop_square_rounded,
-                  // Smaller: `filter_none` is two overlapping squares and
-                  // reads heavier than the single square beside it.
-                  iconSize: _maximized ? 13 : 15,
-                  tooltip: _maximized ? 'Tiklash' : 'Kattalashtirish',
-                  onPressed: _toggleMaximize,
-                ),
-                _WindowButton(
-                  icon: Icons.close_rounded,
-                  tooltip: 'Yopish',
-                  hoverColor: HkColors.danger,
-                  onPressed: windowManager.close,
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    'Hanguk Academy',
+                    style: HkType.muted.copyWith(
+                      fontSize: 12,
+                      // Explicit, even inside the Material above: this text
+                      // is one widget away from the tree's root and the
+                      // yellow-underline fallback is what it fell back to
+                      // once already.
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                  // The empty middle is the drag handle, and double-clicking
+                  // it maximises — both are what the system bar did, and
+                  // losing either is what makes a custom title bar feel
+                  // broken.
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onDoubleTap: _toggleMaximize,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  _WindowButton(
+                    icon: Icons.remove_rounded,
+                    tooltip: 'Kichraytirish',
+                    onPressed: windowManager.minimize,
+                  ),
+                  _WindowButton(
+                    icon: _maximized
+                        ? Icons.filter_none_rounded
+                        : Icons.crop_square_rounded,
+                    // Smaller: `filter_none` is two overlapping squares and
+                    // reads heavier than the single square beside it.
+                    iconSize: _maximized ? 13 : 15,
+                    tooltip: _maximized ? 'Tiklash' : 'Kattalashtirish',
+                    onPressed: _toggleMaximize,
+                  ),
+                  _WindowButton(
+                    icon: Icons.close_rounded,
+                    tooltip: 'Yopish',
+                    hoverColor: HkColors.danger,
+                    onPressed: windowManager.close,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

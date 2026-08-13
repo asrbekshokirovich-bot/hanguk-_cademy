@@ -100,6 +100,19 @@ class TeacherDashboardScreen extends ConsumerWidget {
 class _TodayLessonsCard extends ConsumerWidget {
   const _TodayLessonsCard();
 
+  /// The panel is headed "Bugungi darslarim", so it shows the lessons this
+  /// teacher is actually teaching — `todaysLessons()` returns the whole
+  /// school's day, and the card used to print all of it.
+  ///
+  /// An admin has no teacher row, and for them the unfiltered day is the
+  /// right answer rather than an empty card: they are looking at the school,
+  /// not at their own timetable.
+  List<Lesson> _mine(WidgetRef ref, List<Lesson> lessons) {
+    final mine = ref.watch(myTeacherIdProvider).value;
+    if (mine == null) return lessons;
+    return lessons.where((l) => l.teacher?.id == mine).toList();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GlassPanel(
@@ -112,16 +125,19 @@ class _TodayLessonsCard extends ConsumerWidget {
           AsyncSection(
             value: ref.watch(todaysLessonsProvider),
             onRetry: () => ref.invalidate(todaysLessonsProvider),
-            isEmpty: (l) => l.isEmpty,
+            isEmpty: (l) => _mine(ref, l).isEmpty,
             emptyMessage: 'Bugun darsingiz yo‘q',
-            builder: (lessons) => Column(
-              children: [
-                for (final lesson in lessons) ...[
-                  _LessonRow(lesson: lesson),
-                  if (lesson != lessons.last) const SizedBox(height: 10),
+            builder: (all) {
+              final lessons = _mine(ref, all);
+              return Column(
+                children: [
+                  for (final lesson in lessons) ...[
+                    _LessonRow(lesson: lesson),
+                    if (lesson != lessons.last) const SizedBox(height: 10),
+                  ],
                 ],
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -152,7 +168,9 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
     try {
       await setLessonStatus(ref, widget.lesson.id, LessonStatus.live);
       if (!mounted) return;
-      context.go('/live');
+      // By id, not `/live`: that route opens whatever is on air, which on a
+      // day with two lessons running is as likely to be the other teacher's.
+      context.go('/live/${widget.lesson.id}');
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -228,7 +246,7 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
             LimeButton(
               label: 'Darsga kirish',
               height: 38,
-              onPressed: () => context.go('/live'),
+              onPressed: () => context.go('/live/${lesson.id}'),
             )
           else if (scheduled)
             LimeButton(

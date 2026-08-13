@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/data/auth_repository.dart';
 import '../../lessons/data/providers.dart';
 import '../../lessons/domain/models.dart';
 import '../domain/staff_models.dart';
@@ -25,6 +26,28 @@ Future<void> setLessonStatus(
   ref.invalidate(dashboardStatsProvider);
   ref.invalidate(teacherStatsProvider);
   ref.invalidate(adminKpisProvider);
+}
+
+/// This account's `ol_teachers.id`, or null when it has no teacher row —
+/// an admin, or a student who somehow reached a staff screen.
+final myTeacherIdProvider = FutureProvider<String?>((ref) {
+  // Rebound when the session changes: signing out and back in as somebody
+  // else must not leave the previous teacher's id cached, or a lesson row
+  // would still say "mine".
+  ref.watch(authStateProvider);
+  return ref.watch(staffRepositoryProvider).myTeacherId();
+});
+
+/// Whether this account is the one teaching [lesson] — the test for the
+/// controls that belong to whoever is running the lesson, not to staff at
+/// large. An admin passes it for any lesson: they run the school day, and a
+/// room left on air by a teacher who closed their laptop is theirs to clear.
+bool ownsLesson(WidgetRef ref, Lesson lesson) {
+  final profile = ref.watch(profileProvider).value;
+  if (profile == null || !profile.isStaff) return false;
+  if (profile.isAdmin) return true;
+  final mine = ref.watch(myTeacherIdProvider).value;
+  return mine != null && lesson.teacher?.id == mine;
 }
 
 final teacherStatsProvider = FutureProvider<TeacherStats>((ref) {

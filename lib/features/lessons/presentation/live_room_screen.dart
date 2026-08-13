@@ -26,7 +26,13 @@ import '../../../core/clock.dart';
 /// milestone — LiveKit lands next — so the room says so on screen rather than
 /// presenting mute buttons that quietly do nothing.
 class LiveRoomScreen extends ConsumerStatefulWidget {
-  const LiveRoomScreen({super.key});
+  const LiveRoomScreen({super.key, this.lessonId});
+
+  /// Which lesson's room this is. Null on the dock's `/live` — "whatever is
+  /// on air" — which is the right question for a student, who attends one
+  /// class at a time. A teacher opens their own room by id: on a day when two
+  /// lessons are running, "whatever is on air" is somebody else's.
+  final String? lessonId;
 
   @override
   ConsumerState<LiveRoomScreen> createState() => _LiveRoomScreenState();
@@ -90,11 +96,22 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final layout = HkLayout.of(context);
-    final lesson = ref.watch(liveLessonProvider).value;
-    // Students leave the room; staff end the lesson for everyone. The router
-    // does not gate `/live` by role — every role belongs here — so this is the
-    // one place the distinction is drawn, and the RLS policy draws it again.
-    final isStaff = ref.watch(profileProvider).value?.isStaff ?? false;
+    final id = widget.lessonId;
+    final found = id == null
+        ? ref.watch(liveLessonProvider).value
+        : ref.watch(lessonByIdProvider(id)).value;
+
+    // A named room that is no longer on air is the same screen as no room at
+    // all. Leaving the chrome up around an ended lesson is how a teacher ends
+    // up talking into a room everyone else has left.
+    final lesson =
+        found?.status == LessonStatus.live ? found : null;
+
+    // Students leave; whoever is running the lesson ends it. The router does
+    // not gate `/live` by role — every role belongs in a lesson — so this is
+    // the one place the distinction is drawn, and `ol_lessons_write` draws it
+    // again on the way to the database.
+    final canEnd = lesson != null && ownsLesson(ref, lesson);
 
     return AppShell(
       title: 'Jonli dars',
@@ -146,7 +163,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                 ],
                 const SizedBox(height: HkSpace.gridGap),
                 _ControlBar(
-                  onEnd: isStaff ? () => _end(lesson) : null,
+                  onEnd: canEnd ? () => _end(lesson) : null,
                   ending: _ending,
                   micOn: _micOn,
                   cameraOn: _cameraOn,

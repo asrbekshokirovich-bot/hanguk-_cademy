@@ -8,6 +8,7 @@ import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/features/lessons/presentation/live_room_screen.dart';
+import 'package:hanguk_online/features/staff/data/staff_providers.dart';
 import 'package:hanguk_online/features/staff/presentation/teacher_dashboard_screen.dart';
 import 'package:hanguk_online/main.dart';
 
@@ -21,7 +22,10 @@ import 'package:hanguk_online/main.dart';
 /// `ended` lessons, stayed at zero no matter how many were taught.
 ///
 /// These tests hold the two ends of that life cycle in place — who is offered
-/// them, and who is not.
+/// them, and who is not. The second half is the answer to "whose lesson is
+/// this?": the teacher panel and the live room both used to work off "whatever
+/// is on air", which on a day with two lessons running is a coin toss, and one
+/// side of that coin is a teacher ending a colleague's class.
 UserProfile _profile(String role) => UserProfile(
       id: 'u-$role',
       fullName: role == 'student' ? 'Aziza Karimova' : 'Jasur Karimov',
@@ -32,7 +36,12 @@ UserProfile _profile(String role) => UserProfile(
 void main() {
   setUpAll(() => initializeDateFormatting('uz'));
 
-  Future<void> pump(WidgetTester tester, Widget screen, String role) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget screen,
+    String role, {
+    String? teacherId,
+  }) async {
     tester.view.physicalSize = const Size(1440, 920);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -42,6 +51,11 @@ void main() {
         overrides: [
           supabaseClientProvider.overrideWithValue(null),
           profileProvider.overrideWith((ref) async => _profile(role)),
+          // Left alone, the demo answers 'jk' — the teacher of the live
+          // lesson. Overriding it is how a *different* teacher is put in
+          // front of somebody else's room.
+          if (teacherId != null)
+            myTeacherIdProvider.overrideWith((ref) async => teacherId),
         ],
         child: MaterialApp.router(
           theme: hangukTheme,
@@ -67,6 +81,20 @@ void main() {
   });
 
   group('the teacher’s dashboard', () {
+    testWidgets('lists the signed-in teacher’s day, not the school’s',
+        (tester) async {
+      await pump(tester, const TeacherDashboardScreen(), 'teacher');
+
+      // The demo teacher is Jasur Karimov; the fixtures give him two of the
+      // day's four lessons. The card is headed "Bugungi darslarim" and used
+      // to print all four — including two taught by other people, each with a
+      // button offering to start them.
+      expect(find.text('Koreys tili · Suhbat amaliyoti'), findsOneWidget);
+      expect(find.text('Tinglab tushunish'), findsOneWidget);
+      expect(find.text('TOPIK tayyorgarlik'), findsNothing);
+      expect(find.text('Grammatika · Daraja 2'), findsNothing);
+    });
+
     testWidgets('offers to start a scheduled lesson, and to enter a live one',
         (tester) async {
       await pump(tester, const TeacherDashboardScreen(), 'teacher');
@@ -103,11 +131,54 @@ void main() {
       expect(find.text('Bekor qilish'), findsOneWidget);
 
       await tester.tap(find.text('Bekor qilish'));
-      // pump, not pumpAndSettle: the room's ambient background and its
-      // "davom etmoqda" clock never stop ticking, so nothing here ever settles.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Bekor qilish'), findsNothing);
+    });
+
+    testWidgets('does not let another teacher end someone else’s lesson',
+        (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'teacher', teacherId: 'ar');
+
+      // Aziz teaches the 16:00 TOPIK lesson, not the one on air. The room is
+      // still his to watch — staff attend each other's lessons — but ending
+      // it is not his call.
+      expect(find.text('Darsni tugatish'), findsNothing);
+      expect(find.text('Chiqish'), findsOneWidget);
+    });
+
+    testWidgets('an admin may end any lesson', (tester) async {
+      // No teacher row at all, and that is the point: an admin is not a
+      // teacher (20260807190000), but a room left on air by a teacher who
+      // shut their laptop is theirs to clear.
+      await pump(tester, const LiveRoomScreen(), 'admin');
+
+      expect(find.text('Darsni tugatish'), findsOneWidget);
+    });
+
+    testWidgets('opens the lesson it was given, not whatever is on air',
+        (tester) async {
+      await pump(
+        tester,
+        const LiveRoomScreen(lessonId: 'd2'),
+        'teacher',
+      );
+
+      expect(find.text('Darsni tugatish'), findsOneWidget);
+    });
+
+    testWidgets('a named room that has ended is not a room', (tester) async {
+      // d3 is scheduled for 16:00 and has never been on air. Keeping the
+      // chrome up around it would show a stage, a participant list and a
+      // running clock for a lesson nobody is in.
+      await pump(
+        tester,
+        const LiveRoomScreen(lessonId: 'd3'),
+        'teacher',
+      );
+
+      expect(find.text('Hozir jonli dars yo‘q'), findsOneWidget);
+      expect(find.text('Darsni tugatish'), findsNothing);
     });
 
     testWidgets('does not offer it to a student', (tester) async {

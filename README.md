@@ -42,11 +42,25 @@ bajaradi:
   rejalashtirilgan dars yonida. Yozuv qaytgach jonli xonaga o'tkazadi, oldin
   emas — aks holda xona hali yangilanmagan qatorni o'qib "jonli dars yo'q"
   deb turardi.
-- **Darsni tugatish** — jonli xonaning boshqaruv panelida, faqat xodimda.
-  Tasdiq so'raydi: yonidagi "Chiqish" butunlay boshqa ish qiladi, va
-  tugatishning orqaga qaytarish tugmasi yo'q.
+- **Darsni tugatish** — jonli xonaning boshqaruv panelida. Tasdiq so'raydi:
+  yonidagi "Chiqish" butunlay boshqa ish qiladi, va tugatishning orqaga
+  qaytarish tugmasi yo'q.
 
-Kim o'zgartira olishini `ol_lessons_write` siyosati hal qiladi; tugmani
+Ikkalasi ham **o'qituvchining o'ziga bog'langan**:
+
+- `/live` — "hozir efirda nima bor", talabaning va dokning eshigi.
+  `/live/:id` bitta darsni nomlaydi; o'qituvchi o'z xonasiga shu yo'l bilan
+  kiradi. Ikki dars bir vaqtda ketayotganda `/live` faqat taxmin qila oladi,
+  va taxmini boshqa o'qituvchining xonasi bo'lib chiqardi.
+- Tugatish tugmasi darsni **o'zi olib borayotgan** o'qituvchida
+  (`ol_lessons.teacher_id` = mening `ol_teachers.id` im) va adminda
+  ko'rinadi. Admin uchun ochiq qoldirilgan: o'qituvchi noutbukini yopib
+  ketgan xona kimdir tomonidan tozalanishi kerak.
+- "Bugungi darslarim" ham faqat o'z darslarini ko'rsatadi — ilgari butun
+  maktabning kunini chizardi. Adminda o'z darsi yo'q, shuning uchun u to'liq
+  kunni ko'radi.
+
+Kim yoza olishini baribir `ol_lessons_write` siyosati hal qiladi; tugmani
 yashirish tekshiruv emas.
 
 Holat ko'rinmas joylarga ham ta'sir qiladi — dokdagi jonli nuqta, talabaning

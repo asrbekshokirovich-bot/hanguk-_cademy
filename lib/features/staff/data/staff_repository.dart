@@ -24,6 +24,34 @@ class StaffRepository {
 
   // ------------------------------------------------------------- teacher ---
 
+  /// This account's row in `ol_teachers`, or null if it does not have one.
+  ///
+  /// Two different ids are in play and conflating them is the whole reason
+  /// this exists: `ol_lessons.teacher_id` points at `ol_teachers.id`, not at
+  /// `auth.users.id`. A teacher is also allowed to exist on the timetable
+  /// before they have an account at all, so the mapping is a lookup and not
+  /// an assumption.
+  ///
+  /// Null for an admin — by design, since `20260807190000_admins_are_not_
+  /// teachers.sql`. Callers read that as "not tied to any one teacher's day"
+  /// rather than "teaches nothing".
+  Future<String?> myTeacherId() async {
+    // The demo build has no session to look up, so it answers as the teacher
+    // the fixtures are written around — the one teaching the live lesson.
+    // Answering null instead would empty the teacher panel in the demo, which
+    // is the one place the panel is ever looked at without a backend.
+    if (isDemo) return StaffDemoData.demoTeacherId;
+
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return null;
+    final row = await _db
+        .from('ol_teachers')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+    return row?['id'] as String?;
+  }
+
   Future<TeacherStats> teacherStats() async {
     if (isDemo) return StaffDemoData.teacherStats;
     final rows = await _db.rpc('ol_teacher_stats') as List<dynamic>;

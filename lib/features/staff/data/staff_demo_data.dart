@@ -8,6 +8,12 @@ import '../domain/staff_models.dart';
 /// exists so the seven new screens can be reviewed against the design without
 /// a backend, and so the golden tests have something deterministic to render.
 abstract final class StaffDemoData {
+  /// Who the demo build is signed in as when it renders the teacher panel:
+  /// `DemoData._teachers['jk']`, Jasur Karimov, who teaches the live lesson.
+  /// Any other value and the demo's teacher panel would show a day belonging
+  /// to nobody on screen.
+  static const demoTeacherId = 'jk';
+
   static const teacherStats = TeacherStats(
     lessonsToday: 4,
     students: 64,

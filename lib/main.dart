@@ -52,6 +52,15 @@ Future<void> main() async {
         await windowManager.focus();
       },
     );
+    // Asked for twice on purpose. `waitUntilReadyToShow` applies the size and
+    // centring from WindowOptions around the callback, and on Windows that
+    // has been seen to land *after* the maximise inside it — the window then
+    // opens at 1440x920 in the middle of the screen, which is exactly the
+    // thing this is meant to stop. Checking afterwards costs one call and is
+    // a no-op when the first one worked.
+    if (!await windowManager.isMaximized()) {
+      await windowManager.maximize();
+    }
   }
 
   if (HkEnv.hasSupabase) {

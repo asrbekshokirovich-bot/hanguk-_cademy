@@ -89,7 +89,16 @@ jobs:
       - name: Behavioural tests (goldens ran on Linux, see checks)
         run: flutter test --exclude-tags golden
 
-      - run: flutter build windows --release
+      # The commit and the date go into the binary and print under the login
+      # card. Three builds can land within twenty minutes of each other, and
+      # without this nothing on screen says which one is running — "is the fix
+      # in this?" then costs a round trip and a guess. See HkEnv.buildStamp.
+      - name: Build with the commit stamped into it
+        shell: pwsh
+        run: |
+          $stamp = "$($env:GITHUB_SHA.Substring(0,7))·$(Get-Date -Format 'dd.MM HH:mm')"
+          Write-Host "BUILD_STAMP=$stamp"
+          flutter build windows --release --dart-define="BUILD_STAMP=$stamp"
 
       # The .exe alone does not run: it needs the Flutter DLL, the ICU data
       # and the bundled assets sitting beside it. Zipping the whole Release

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/env.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/ambient_background.dart';
 import '../data/auth_repository.dart';
@@ -141,6 +142,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Which build this is. Small and grey — nobody signing in
+                // needs it — but it is the only thing on screen that can
+                // answer "am I running the version with the fix in it?",
+                // and without it that question costs a round trip and a
+                // guess. See HkEnv.buildStamp.
+                Center(
+                  child: Text(
+                    'Build ${HkEnv.buildStamp}',
+                    style: HkType.muted.copyWith(fontSize: 11),
                   ),
                 ),
               ],

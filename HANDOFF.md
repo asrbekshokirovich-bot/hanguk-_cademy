@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 86 tests
+flutter test             # 90 tests
 flutter build linux --release
 ```
 
@@ -420,6 +420,20 @@ office ends up with two lists of the same people.
   rather than watched as a stream, because a `StreamProvider` starts at
   `AsyncLoading` and that first transition would cost a second round trip on
   every screen open.
+- **The same disease in the live room's participant list.**
+  `roomParticipantsProvider` also described a timer it did not have. Presence
+  expires by a 75-second heartbeat cutoff applied where the rows arrive, so
+  in a room that has gone quiet it is never applied again — the last person
+  to shut their laptop stayed listed for good, and whoever walked in next was
+  shown a roomful of people who had left. It asks for a fifteen-second
+  recheck now. Note **how**: `reEmittedEvery` re-sends the rows already in
+  hand so the filter re-reads the clock. Re-running the provider on a timer
+  would be three lines and the wrong three — a Supabase `.stream()` is a
+  realtime channel, and rebuilding it four times a minute for everyone in a
+  sixty-student room buys a timestamp comparison with a channel join and a
+  full table read. `test/room_presence_test.dart` covers the mechanism; that
+  demo mode starts no timer is covered by the live-room tests in
+  `lesson_lifecycle_test.dart`, which would fail on a pending timer.
 
 ---
 

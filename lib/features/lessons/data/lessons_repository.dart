@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -364,16 +367,32 @@ class LessonsRepository {
   /// Anyone whose heartbeat stopped more than a minute ago is dropped here
   /// rather than in SQL: the stream delivers whole rows, and a filter that
   /// depends on `now()` cannot be part of a subscription.
-  Stream<List<Participant>> participantsStream(String lessonId) {
+  ///
+  /// Which is also why [recheckEvery] exists. The filter is applied where the
+  /// rows arrive, so with nobody typing and nobody joining it is never
+  /// applied again — and an expiry is not an event anything pushes. The last
+  /// person to close their laptop would stay in the list for good, and a
+  /// student walking in afterwards would be shown a room full of people who
+  /// had already left. Passing an interval re-runs the mapping over the rows
+  /// already in hand, against the clock as it is then.
+  Stream<List<Participant>> participantsStream(
+    String lessonId, {
+    Duration? recheckEvery,
+  }) {
     if (isDemo) return Stream.value(DemoData.participants());
 
     final me = _db.auth.currentUser?.id;
-    return _db
+    final rows = _db
         .from('ol_room_presence')
         .stream(primaryKey: ['lesson_id', 'user_id'])
-        .eq('lesson_id', lessonId)
+        .eq('lesson_id', lessonId);
+
+    return (recheckEvery == null ? rows : reEmittedEvery(rows, recheckEvery))
         .map((rows) {
-          final cutoff = DateTime.now().toUtc().subtract(
+          // hkNow, not DateTime.now: this decides who is drawn, and the
+          // golden tests pin the clock so that what they rasterise is a
+          // function of the fixtures alone.
+          final cutoff = hkNow().toUtc().subtract(
                 const Duration(seconds: 75),
               );
           final live = rows.where((r) {
@@ -516,6 +535,58 @@ class LessonsRepository {
       // lesson should still get their room.
     }
   }
+}
+
+/// [source], plus its most recent event again every [every].
+///
+/// For a mapping that depends on the wall clock rather than on the data: the
+/// re-sent event is the same one, so what changes between two deliveries is
+/// only the time the mapping reads.
+///
+/// Re-subscribing on a timer would do the same job in three lines, and is
+/// the wrong three lines. A Supabase `.stream()` is a realtime channel:
+/// tearing it down and building it again costs a channel join and a fresh
+/// read of the whole table each time, and at four times a minute for every
+/// person in a sixty-student room that is a great deal of traffic to pay for
+/// a timestamp comparison over rows already in memory.
+///
+/// Public only so `test/status_polling_test.dart` can drive it without a
+/// Supabase client behind it.
+@visibleForTesting
+Stream<T> reEmittedEvery<T>(Stream<T> source, Duration every) {
+  StreamSubscription<T>? subscription;
+  Timer? timer;
+  late T latest;
+  var arrived = false;
+
+  final out = StreamController<T>();
+
+  out.onListen = () {
+    subscription = source.listen(
+      (event) {
+        latest = event;
+        arrived = true;
+        out.add(event);
+      },
+      onError: out.addError,
+      onDone: () {
+        timer?.cancel();
+        out.close();
+      },
+    );
+    // Nothing goes out before the source has spoken once. There is no latest
+    // to re-send, and an empty list would read as an empty room.
+    timer = Timer.periodic(every, (_) {
+      if (arrived) out.add(latest);
+    });
+  };
+
+  out.onCancel = () async {
+    timer?.cancel();
+    await subscription?.cancel();
+  };
+
+  return out.stream;
 }
 
 /// Null in demo mode. Overridden in `main.dart` once Supabase is initialised.

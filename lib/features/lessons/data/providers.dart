@@ -189,13 +189,28 @@ final roomChatProvider =
 
 /// Who is in the live room, as they come and go.
 ///
-/// Rebuilt on a timer as well as on every change: membership expires by a
-/// heartbeat cutoff, and an expiry is not an event anything pushes. Without
-/// the tick, someone who closed their laptop would sit in the list until the
-/// next person happened to type something.
+/// Re-evaluated on a timer as well as on every change, because membership
+/// expires by a 75-second heartbeat cutoff and an expiry is not an event
+/// anything pushes. This comment claimed the timer for a while before there
+/// was one, and the room behaved accordingly: the last person to close their
+/// laptop stayed in the list for good — nobody was left to type and trigger
+/// a re-read — and a student arriving afterwards was shown a room full of
+/// people who had already gone.
+///
+/// Fifteen seconds against a 75-second cutoff: someone who has left shows as
+/// gone within about a quarter of the window they are given, and the recheck
+/// costs nothing over the wire. It re-runs the filter over rows already in
+/// hand rather than re-subscribing — see `reEmittedEvery`.
+///
+/// Demo mode gets no timer at all: `participantsStream` returns a fixture
+/// before the interval is ever looked at, so widget tests are not left
+/// pumping a loop that never ends.
 final roomParticipantsProvider =
     StreamProvider.family<List<Participant>, String>((ref, lessonId) {
-  return ref.watch(lessonsRepositoryProvider).participantsStream(lessonId);
+  return ref.watch(lessonsRepositoryProvider).participantsStream(
+        lessonId,
+        recheckEvery: const Duration(seconds: 15),
+      );
 });
 
 /// What the user has typed into the search sheet.

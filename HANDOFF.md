@@ -40,13 +40,20 @@ dock:
 | `student` | Asosiy · Jonli · Yozuvlar · Jadval |
 | `teacher` | Asosiy · Darsim · Talabalarim · Baholash · Yozuvlar |
 | `admin` | Boshqaruv · Talabalar · O'qituvchilar · Guruhlar · Jadval · To'lovlar |
-| `superadmin` | Adminlar · Moliya — **and nothing else** |
+| `superadmin` | the admin's six, plus Jonli · Moliya · Adminlar |
 
 The admin tier is split in two, because the two jobs carry different risk.
-An `admin` runs the school day. A `superadmin` does exactly two things: it
-issues the administrator accounts that run the school day, and it reads the
-books. The two docks **do not overlap** — a superadmin cannot open the
-roster, the groups or the timetable at all.
+An `admin` runs the school day. A `superadmin` is the school's owner: it
+runs the school day too, and does the two things an admin may not — it
+issues the administrator accounts, and it reads the books.
+
+That is a change from the first cut, which held the top tier to Adminlar and
+Moliya and nothing else so the split could not go decorative. It read well
+and worked badly. The two accounts are one person: he could not open a live
+room to end a lesson a teacher had walked away from, or look at the
+timetable he had just been asked about, without signing out and back in as
+his own administrator. The separation that earns its keep is the money and
+the accounts — the one SQL enforces — not a shorter menu.
 
 The money line is drawn between *a payment* and *the totals*, not around
 payments as a whole. The person a student hands cash to is the one at the
@@ -59,12 +66,22 @@ rest on a screen declining to add a column up. Deleting a payment row is
 superadmin-only too: correcting a mistake is an update, and an update leaves
 the row behind to be looked at.
 
-That last part is the app's job alone, and it is easy to undo by accident.
-The database deliberately lets a superadmin outrank an admin everywhere
-(`ol_is_admin()` includes it), because issuing accounts needs that reach —
-so nothing in SQL would turn a superadmin away from `/admin/students`. The
-router does, in one rule: anything outside `HkNav.isSuperAdminRoute` sends
-the top tier home. `test/superadmin_test.dart` guards it.
+All of that is held in SQL, which is why the dock could be opened up without
+touching it. `ol_is_super()` guards the totals, the ledger and the
+administrator accounts whatever the router lets through; `ol_is_admin()`
+deliberately includes the top tier everywhere else, because issuing accounts
+needs that reach.
+
+The app's own rule is now one-directional: `HkNav.isSuperAdminRoute` sends an
+*admin* home from `/super` and `/admin/finance`. Nothing sends a superadmin
+anywhere. `test/superadmin_test.dart` guards both halves, the second by
+driving the real router.
+
+One layout consequence, in `app_shell.dart`: nine labelled sections is half
+again the width of the admin's six, and at 1440 the dock printed over the
+logo capsule and had "Adminlar" covered by the user cluster. The dock is now
+capped at the width between them and scaled down past it. No other role
+comes close to that width, so no other dock changed.
 
 ### How the academy is meant to work
 
@@ -208,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 77 tests
+flutter test             # 86 tests
 flutter build linux --release
 ```
 
@@ -261,7 +278,11 @@ control, and a bookmarked URL from a demoted account would otherwise open.
 
 ## 5. The database
 
-Supabase project `dfduzrzqzghsiblpztdm`. Every table is prefixed `ol_`.
+Supabase project `iohchwogpzhqmtqyjrrz` — the id `lib/core/env.dart` builds
+against, which is the one to trust. Every table is prefixed `ol_`. The rest
+of this section was written on 2026-08-07 and the migration list below has
+not been re-checked since; read it as history, and confirm anything you are
+about to rely on against the live project by the method at the end.
 
 **The heavy lifting is in SQL.** Attendance and progress percentages, teacher
 load, outstanding balances all come out of views and RPCs. Two reasons: those
@@ -322,8 +343,8 @@ organization — "permission denied"). Verify over the REST API instead. This
 works and is how every claim in §5 was confirmed:
 
 ```bash
-U=https://dfduzrzqzghsiblpztdm.supabase.co
-K=sb_publishable_3B5-KHohbmx-cysPPo4e7Q_uou0x2o1
+U=https://iohchwogpzhqmtqyjrrz.supabase.co
+K=sb_publishable_zkcqpOhM_thc6J0pfwsnTg_eqgXqfcW
 T=$(curl -s -X POST "$U/auth/v1/token?grant_type=password" \
      -H "apikey: $K" -H 'content-type: application/json' \
      -d '{"email":"admin@users.hanguk-academy.uz","password":"<parol>"}' \
@@ -385,6 +406,20 @@ office ends up with two lists of the same people.
   with "Hali talaba qo'shilmagan" — the one moment you certainly need it.
   Keep create buttons **outside** the AsyncSection.
   `test/empty_roster_test.dart` guards this.
+- **A comment that described a poll nothing performed.** `liveLessonProvider`
+  was a `FutureProvider` under a doc comment about a thirty-second poll. A
+  future resolves once, so the app asked what was on air at launch and never
+  again: a student who opened it before their lesson read "Hozir jonli dars
+  yo'q" for the whole hour it then ran, and the timetable called a finished
+  lesson "Rejalashtirilgan" until some other event rebuilt the screen. It is
+  a `StreamProvider` on a twenty-second loop now, with `_statusTick` putting
+  the day and the week on the same cadence. `test/status_polling_test.dart`
+  fails if any of it is reverted. Two things there are load-bearing: the loop
+  **stops after one pass in demo mode**, or every widget test in the suite
+  waits on a timer forever; and the tick is read through a plain `Provider`
+  rather than watched as a stream, because a `StreamProvider` starts at
+  `AsyncLoading` and that first transition would cost a second round trip on
+  every screen open.
 
 ---
 

@@ -17,6 +17,10 @@ dependencies:
   flutter_riverpod: ^3.3.1
   go_router: ^17.1.0
   supabase_flutter: ^2.12.2
+  # Camera, microphone and the SFU connection. Ships flutter_webrtc, which is
+  # what makes this work on Windows as well as the phones — the desktop build
+  # is the one the school actually teaches from.
+  livekit_client: ^2.13.0
   intl: ^0.20.2
   url_launcher: ^6.3.0
   # Desktop: size/centre/title the window before the first frame so the

@@ -103,6 +103,23 @@ final unreadCountProvider = Provider<int>((ref) {
   return list.where((n) => n.isUnread).length;
 });
 
+/// The live room's chat, as it arrives.
+final roomChatProvider =
+    StreamProvider.family<List<ChatMessage>, String>((ref, lessonId) {
+  return ref.watch(lessonsRepositoryProvider).chatStream(lessonId);
+});
+
+/// Who is in the live room, as they come and go.
+///
+/// Rebuilt on a timer as well as on every change: membership expires by a
+/// heartbeat cutoff, and an expiry is not an event anything pushes. Without
+/// the tick, someone who closed their laptop would sit in the list until the
+/// next person happened to type something.
+final roomParticipantsProvider =
+    StreamProvider.family<List<Participant>, String>((ref, lessonId) {
+  return ref.watch(lessonsRepositoryProvider).participantsStream(lessonId);
+});
+
 /// What the user has typed into the search sheet.
 final searchQueryProvider = StateProvider<String>((ref) => '');
 

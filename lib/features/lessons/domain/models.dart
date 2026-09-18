@@ -548,3 +548,19 @@ class SearchResults {
   bool get isEmpty => lessons.isEmpty && recordings.isEmpty;
   int get total => lessons.length + recordings.length;
 }
+
+/// What the database hands back for joining a lesson's media room.
+///
+/// Deliberately not cached anywhere: the token expires, and a stale one fails
+/// at connect time with an error that says nothing useful about why.
+class LiveMediaGrant {
+  const LiveMediaGrant({
+    required this.url,
+    required this.token,
+    required this.room,
+  });
+
+  final String url;
+  final String token;
+  final String room;
+}

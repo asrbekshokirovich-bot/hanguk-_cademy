@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Jonli darsda kamerangizni yoqish uchun.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Jonli darsda gapirish uchun.</string>
 </dict>
 </plist>

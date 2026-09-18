@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:livekit_client/livekit_client.dart'
+    show RTCVideoViewObjectFit, VideoTrack, VideoTrackRenderer;
 
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../staff/data/staff_providers.dart';
-import '../data/demo_data.dart';
+import '../data/live_media.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/clock.dart';
@@ -20,11 +22,16 @@ import '../../../core/clock.dart';
 /// The room chrome is complete and driven by real lesson data: who is
 /// teaching, how long it has been running, whether it is being recorded.
 ///
-/// The *media* is not connected. There is no camera, microphone or remote
-/// track anywhere in this file, and the participant list and chat are seeded
-/// from `DemoData` rather than a backend. That is the agreed shape of this
-/// milestone — LiveKit lands next — so the room says so on screen rather than
-/// presenting mute buttons that quietly do nothing.
+/// The participant list and the chat are real: presence is a heartbeat in
+/// `ol_room_presence`, messages stream out of `ol_chat_messages`, and both
+/// update live for everyone in the room.
+///
+/// Camera and microphone run over LiveKit, joined with a token the database
+/// signs — see `LiveMediaSession` and `20260918140000_livekit_tokens.sql`.
+/// Media is the one part of the room allowed to fail on its own: a project
+/// with no LiveKit credentials, or a network that blocks it, still gets a
+/// working lesson with chat and a participant list, and the notice at the top
+/// says which of the two is happening.
 class LiveRoomScreen extends ConsumerStatefulWidget {
   const LiveRoomScreen({super.key, this.lessonId});
 
@@ -45,6 +52,108 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   bool _showChat = true;
   bool _showCaptions = true;
   bool _ending = false;
+
+  /// Which room this state has announced itself into, so the heartbeat knows
+  /// what to refresh and `dispose` knows what to leave. Held separately from
+  /// `widget.lessonId`, which is null on the dock's bare `/live` — the room
+  /// there is whichever lesson turned out to be on air.
+  String? _joinedLessonId;
+  Timer? _heartbeat;
+
+  /// The camera/microphone connection. Created once and kept across rebuilds:
+  /// a media session torn down by a rebuild would reconnect every time the
+  /// chat received a message.
+  final LiveMediaSession _media = LiveMediaSession();
+
+  @override
+  void initState() {
+    super.initState();
+    _media.addListener(_onMediaChanged);
+    // Ends anything that ran past its slot. Cheap, and it runs here because
+    // opening the room is the moment a stale "live" lesson actually gets in
+    // someone's way: `/live` would otherwise show last Tuesday's class.
+    Future.microtask(
+      () => ref.read(lessonsRepositoryProvider).endStaleLessons(),
+    );
+  }
+
+  void _onMediaChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _media.removeListener(_onMediaChanged);
+    _media.dispose();
+    _heartbeat?.cancel();
+    final left = _joinedLessonId;
+    if (left != null) {
+      // Not awaited: dispose cannot be async, and the heartbeat cutoff covers
+      // this row within the minute even if the request never lands.
+      ref.read(lessonsRepositoryProvider).leaveRoom(left);
+    }
+    super.dispose();
+  }
+
+  /// Joins the room once the live lesson is known, then keeps the heartbeat
+  /// going. Called from `build`, which is where the lesson first becomes
+  /// available — guarded so it happens once per room.
+  void _ensureJoined(Lesson lesson) {
+    if (_joinedLessonId == lesson.id) return;
+
+    final previous = _joinedLessonId;
+    _joinedLessonId = lesson.id;
+    _heartbeat?.cancel();
+
+    final repo = ref.read(lessonsRepositoryProvider);
+    if (previous != null) repo.leaveRoom(previous);
+    repo.enterRoom(lesson.id, micOn: _micOn, handRaised: _handRaised);
+
+    // Media is asked for separately and is allowed to fail. Presence and chat
+    // are what make the room usable; video is what makes it good.
+    unawaited(() async {
+      try {
+        final grant = await repo.liveMediaGrant(lesson.id);
+        if (!mounted || _joinedLessonId != lesson.id) return;
+        await _media.connect(grant);
+      } catch (_) {
+        if (mounted) await _media.connect(null);
+      }
+    }());
+
+    // Half the 75-second cutoff, so one dropped request is not enough to make
+    // someone vanish from the list they are sitting in.
+    _heartbeat = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => repo.enterRoom(lesson.id),
+    );
+  }
+
+  /// Mirrors a control-bar toggle into the room, so the other participants
+  /// see it. Local state changes either way — a failed write should not leave
+  /// the button disagreeing with the finger that pressed it.
+  void _pushPresence() {
+    final id = _joinedLessonId;
+    if (id == null) return;
+    ref
+        .read(lessonsRepositoryProvider)
+        .enterRoom(id, micOn: _micOn, handRaised: _handRaised);
+  }
+
+  /// Leaves deliberately, as opposed to closing the window. Distinct from
+  /// [_end]: this takes *you* out of the room and leaves the lesson running.
+  Future<void> _leave() async {
+    final id = _joinedLessonId;
+    _heartbeat?.cancel();
+    _heartbeat = null;
+    _joinedLessonId = null;
+    await _media.leave();
+    if (id != null) {
+      await ref.read(lessonsRepositoryProvider).leaveRoom(id);
+    }
+    if (!mounted) return;
+    context.go('/');
+  }
 
   /// Takes the lesson off air, after asking. Ending is visible to everyone in
   /// the room and there is no undo button next to it, so the confirmation is
@@ -81,6 +190,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
 
     setState(() => _ending = true);
     try {
+      await _media.leave();
       await setLessonStatus(ref, lesson.id, LessonStatus.ended);
       if (!mounted) return;
       context.go('/');
@@ -113,6 +223,15 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     // again on the way to the database.
     final canEnd = lesson != null && ownsLesson(ref, lesson);
 
+    // Announce ourselves as soon as we know which room this is. Deferred out
+    // of the build phase: joining writes to a provider, and a provider write
+    // during build is the classic Riverpod assertion.
+    if (lesson != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _ensureJoined(lesson);
+      });
+    }
+
     return AppShell(
       title: 'Jonli dars',
       subtitle: lesson?.title ?? 'Hozir efirda dars yo‘q',
@@ -122,7 +241,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _MediaPendingNotice(),
+                _MediaNotice(media: _media),
                 const SizedBox(height: 14),
                 if (layout.isExpanded)
                   // Expanded, not the design's literal 620: the shell gives
@@ -137,12 +256,16 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                           child: _Stage(
                             lesson: lesson,
                             showCaptions: _showCaptions,
+                            media: _media,
                           ),
                         ),
                         const SizedBox(width: HkSpace.gridGap),
                         SizedBox(
                           width: 330,
-                          child: _RightRail(showChat: _showChat),
+                          child: _RightRail(
+                            showChat: _showChat,
+                            lessonId: lesson.id,
+                          ),
                         ),
                       ],
                     ),
@@ -153,12 +276,16 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                     child: _Stage(
                       lesson: lesson,
                       showCaptions: _showCaptions,
+                      media: _media,
                     ),
                   ),
                   const SizedBox(height: HkSpace.gridGap),
                   SizedBox(
                     height: 420,
-                    child: _RightRail(showChat: _showChat),
+                    child: _RightRail(
+                      showChat: _showChat,
+                      lessonId: lesson.id,
+                    ),
                   ),
                 ],
                 const SizedBox(height: HkSpace.gridGap),
@@ -170,13 +297,25 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   handRaised: _handRaised,
                   chatOn: _showChat,
                   captionsOn: _showCaptions,
-                  onMic: () => setState(() => _micOn = !_micOn),
-                  onCamera: () => setState(() => _cameraOn = !_cameraOn),
-                  onHand: () => setState(() => _handRaised = !_handRaised),
+                  onMic: () {
+                    final next = !_micOn;
+                    setState(() => _micOn = next);
+                    _media.setMicrophone(next);
+                    _pushPresence();
+                  },
+                  onCamera: () {
+                    final next = !_cameraOn;
+                    setState(() => _cameraOn = next);
+                    _media.setCamera(next);
+                  },
+                  onHand: () {
+                    setState(() => _handRaised = !_handRaised);
+                    _pushPresence();
+                  },
                   onChat: () => setState(() => _showChat = !_showChat),
                   onCaptions: () =>
                       setState(() => _showCaptions = !_showCaptions),
-                  onLeave: () => context.go('/'),
+                  onLeave: _leave,
                 ),
               ],
             ),
@@ -223,30 +362,64 @@ class _NoLiveLesson extends StatelessWidget {
 
 /// States plainly that audio/video is not live yet. Without it, a student
 /// pressing an inert mic button would reasonably conclude the app is broken.
-class _MediaPendingNotice extends StatelessWidget {
-  const _MediaPendingNotice();
+/// The one line at the top of the room that says what the media is doing.
+///
+/// It exists because the three failure modes look identical on screen and
+/// need completely different responses: nothing configured (an admin task),
+/// a connection that failed (a network or a token), and a room where simply
+/// nobody has switched a camera on (nothing is wrong at all). Shown only when
+/// there is something to say — a connected room gets its screen back.
+class _MediaNotice extends StatelessWidget {
+  const _MediaNotice({required this.media});
+
+  final LiveMediaSession media;
 
   @override
   Widget build(BuildContext context) {
+    final (String? text, Color tint, Color border, Color icon) =
+        switch (media.status) {
+      LiveMediaStatus.connected => (null, Colors.transparent,
+          Colors.transparent, Colors.transparent),
+      LiveMediaStatus.connecting => (
+          'Video ulanmoqda…',
+          const Color(0x1A3B82F6),
+          const Color(0x333B82F6),
+          HkColors.textSecondary,
+        ),
+      LiveMediaStatus.unavailable => (
+          "Video va audio bu loyihada sozlanmagan. Suhbat va ishtirokchilar "
+              "ro'yxati ishlaydi.",
+          const Color(0x1AE08600),
+          const Color(0x33E08600),
+          HkColors.warningBright,
+        ),
+      LiveMediaStatus.failed => (
+          'Videoga ulanib bo‘lmadi: ${media.error ?? "noma’lum xato"}',
+          const Color(0x1ADC2626),
+          const Color(0x33DC2626),
+          HkColors.dangerBright,
+        ),
+      LiveMediaStatus.idle => (
+          'Video tayyorlanmoqda…',
+          const Color(0x1A3B82F6),
+          const Color(0x333B82F6),
+          HkColors.textSecondary,
+        ),
+    };
+
+    if (text == null) return const SizedBox.shrink();
+
     return GlassPanel(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       radius: HkRadius.cardSmall,
-      tint: const Color(0x1AE08600),
-      borderColor: const Color(0x33E08600),
+      tint: tint,
+      borderColor: border,
       child: Row(
         children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 18,
-            color: HkColors.warningBright,
-          ),
+          Icon(Icons.info_outline_rounded, size: 18, color: icon),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              "Video va audio ulanishi keyingi bosqichda qo'shiladi. "
-              "Quyidagi boshqaruvlar hozircha faqat ko'rinishni o'zgartiradi.",
-              style: HkType.body.copyWith(fontSize: 12.5),
-            ),
+            child: Text(text, style: HkType.body.copyWith(fontSize: 12.5)),
           ),
         ],
       ),
@@ -255,10 +428,15 @@ class _MediaPendingNotice extends StatelessWidget {
 }
 
 class _Stage extends StatefulWidget {
-  const _Stage({required this.lesson, required this.showCaptions});
+  const _Stage({
+    required this.lesson,
+    required this.showCaptions,
+    required this.media,
+  });
 
   final Lesson lesson;
   final bool showCaptions;
+  final LiveMediaSession media;
 
   @override
   State<_Stage> createState() => _StageState();
@@ -294,6 +472,7 @@ class _StageState extends State<_Stage> {
   Widget build(BuildContext context) {
     final teacher = widget.lesson.teacher;
     final compact = HkLayout.of(context).isCompact;
+    final VideoTrack? stageTrack = widget.media.stageTrack;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(HkRadius.cardLarge),
@@ -307,19 +486,31 @@ class _StageState extends State<_Stage> {
         ),
         child: Stack(
           children: [
-            // Speaker
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _SpeakingAvatar(
-                    initials: teacher?.initials ?? '?',
-                    gradient: teacher?.gradient,
-                    size: compact ? 104 : 144,
-                  ),
-                ],
+            // Whoever is on camera, or the avatar when nobody is.
+            //
+            // The avatar is not a placeholder to be embarrassed about: most
+            // of a language lesson is audio, and a stage that goes black the
+            // moment the teacher turns their camera off would look broken.
+            if (stageTrack != null)
+              Positioned.fill(
+                child: VideoTrackRenderer(
+                  stageTrack,
+                  fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                ),
+              )
+            else
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _SpeakingAvatar(
+                      initials: teacher?.initials ?? '?',
+                      gradient: teacher?.gradient,
+                      size: compact ? 104 : 144,
+                    ),
+                  ],
+                ),
               ),
-            ),
             // Top bar
             Positioned(
               left: 16,
@@ -497,14 +688,20 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
   }
 }
 
-class _RightRail extends StatelessWidget {
-  const _RightRail({required this.showChat});
+class _RightRail extends ConsumerWidget {
+  const _RightRail({required this.showChat, required this.lessonId});
 
   final bool showChat;
+  final String lessonId;
 
   @override
-  Widget build(BuildContext context) {
-    final participants = DemoData.participants();
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `.value` and not `.when`: presence arrives a moment after the room does,
+    // and a spinner where the participant list goes would flash on every
+    // single open. An empty list for that moment reads as "nobody yet", which
+    // is both true and what it turns into anyway.
+    final participants =
+        ref.watch(roomParticipantsProvider(lessonId)).value ?? const [];
 
     return GlassPanel(
       radius: HkRadius.cardLarge,
@@ -520,32 +717,45 @@ class _RightRail extends StatelessWidget {
                   style: HkType.sectionTitle.copyWith(fontSize: 14),
                 ),
               ),
-              const HkPill(
-                label: 'Davomat 100%',
-                background: Color(0x2634C77B),
+              // Counted, not asserted. The old pill said "Davomat 100%"
+              // unconditionally, which was a fixture talking: it read as a
+              // measurement and was in fact a constant.
+              HkPill(
+                label: participants.isEmpty
+                    ? 'Bo‘sh'
+                    : '${participants.where((p) => p.handRaised).length} qo‘l',
+                background: const Color(0x2634C77B),
                 foreground: HkColors.successBright,
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Expanded(
             flex: showChat ? 3 : 1,
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: participants.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, i) =>
-                  _ParticipantRow(participant: participants[i]),
-            ),
+            child: participants.isEmpty
+                ? Center(
+                    child: Text(
+                      'Hali hech kim qo‘shilmadi',
+                      style: HkType.muted.copyWith(fontSize: 12),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: participants.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) =>
+                        _ParticipantRow(participant: participants[i]),
+                  ),
           ),
           if (showChat) ...[
             const Divider(color: HkGlass.border, height: 24),
             const Text('Suhbat', style: HkType.sectionTitle),
             const SizedBox(height: 10),
-            Expanded(flex: 2, child: _ChatList()),
+            Expanded(flex: 2, child: _ChatList(lessonId: lessonId)),
             const SizedBox(height: 10),
-            const _ChatComposer(),
+            _ChatComposer(lessonId: lessonId),
           ],
         ],
       ),
@@ -601,47 +811,167 @@ class _ParticipantRow extends StatelessWidget {
   }
 }
 
-class _ChatList extends StatelessWidget {
+class _ChatList extends ConsumerStatefulWidget {
+  const _ChatList({required this.lessonId});
+
+  final String lessonId;
+
+  @override
+  ConsumerState<_ChatList> createState() => _ChatListState();
+}
+
+class _ChatListState extends ConsumerState<_ChatList> {
+  final _controller = ScrollController();
+  int _seen = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Keeps the newest message in view, but only when the reader was already
+  /// at the bottom. Yanking the list down while someone is scrolling back
+  /// through what was said is how a chat becomes unreadable during a busy
+  /// moment — which is exactly when people scroll back.
+  void _followTail(int count) {
+    if (count == _seen) return;
+    final grew = count > _seen;
+    _seen = count;
+    if (!grew || !_controller.hasClients) return;
+
+    final position = _controller.position;
+    final atBottom = position.pixels >= position.maxScrollExtent - 80;
+    if (!atBottom) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_controller.hasClients) return;
+      _controller.animateTo(
+        _controller.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final messages = DemoData.chat();
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: messages.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final m = messages[i];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    m.author,
-                    style: HkType.chip.copyWith(color: HkColors.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  DateFormat('HH:mm').format(m.sentAt),
-                  style: HkType.muted.copyWith(fontSize: 10.5),
-                ),
-              ],
+    final async = ref.watch(roomChatProvider(widget.lessonId));
+
+    return async.when(
+      loading: () => const Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      // The error is shown, not swallowed. A chat that silently renders empty
+      // when the policy rejects the read looks identical to a quiet lesson,
+      // and the two need very different responses.
+      error: (e, _) => Center(
+        child: Text(
+          'Suhbatni yuklab bo‘lmadi:\n$e',
+          textAlign: TextAlign.center,
+          style: HkType.muted.copyWith(fontSize: 11.5),
+        ),
+      ),
+      data: (messages) {
+        _followTail(messages.length);
+
+        if (messages.isEmpty) {
+          return Center(
+            child: Text(
+              'Xabarlar yo‘q',
+              style: HkType.muted.copyWith(fontSize: 12),
             ),
-            const SizedBox(height: 3),
-            Text(m.text, style: HkType.body.copyWith(fontSize: 12.5)),
-          ],
+          );
+        }
+
+        return ListView.separated(
+          controller: _controller,
+          padding: EdgeInsets.zero,
+          itemCount: messages.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, i) {
+            final m = messages[i];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        m.isSelf ? 'Siz' : m.author,
+                        style: HkType.chip.copyWith(
+                          color: m.isSelf
+                              ? HkColors.lime
+                              : HkColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      DateFormat('HH:mm').format(m.sentAt),
+                      style: HkType.muted.copyWith(fontSize: 10.5),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(m.text, style: HkType.body.copyWith(fontSize: 12.5)),
+              ],
+            );
+          },
         );
       },
     );
   }
 }
 
-class _ChatComposer extends StatelessWidget {
-  const _ChatComposer();
+class _ChatComposer extends ConsumerStatefulWidget {
+  const _ChatComposer({required this.lessonId});
+
+  final String lessonId;
+
+  @override
+  ConsumerState<_ChatComposer> createState() => _ChatComposerState();
+}
+
+class _ChatComposerState extends ConsumerState<_ChatComposer> {
+  final _field = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _field.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _field.text.trim();
+    if (text.isEmpty || _sending) return;
+
+    // Cleared before the round trip, and restored if the send fails. A field
+    // that stays full until the server answers makes a slow connection look
+    // like a dead button, and the double-tap that follows sends it twice.
+    _field.clear();
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(lessonsRepositoryProvider)
+          .sendChatMessage(widget.lessonId, text);
+    } catch (e) {
+      if (!mounted) return;
+      _field.text = text;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Xabar yuborilmadi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -658,13 +988,15 @@ class _ChatComposer extends StatelessWidget {
             ),
             alignment: Alignment.centerLeft,
             child: TextField(
-              // Sending is part of the media milestone; the field is left
-              // enabled so the layout is real, but nothing is delivered yet.
-              enabled: false,
+              controller: _field,
+              onSubmitted: (_) => _send(),
+              textInputAction: TextInputAction.send,
+              maxLength: 2000,
               style: HkType.body.copyWith(fontSize: 13),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
+                counterText: '',
                 hintText: 'Xabar yozing…',
                 hintStyle: HkType.muted.copyWith(fontSize: 12.5),
               ),
@@ -672,17 +1004,24 @@ class _ChatComposer extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            gradient: kLimeGradient,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.send_rounded,
-            size: 17,
-            color: HkColors.ink,
+        GestureDetector(
+          onTap: _sending ? null : _send,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: kLimeGradient,
+              shape: BoxShape.circle,
+              // Dimmed while in flight rather than swapped for a spinner: the
+              // send is usually faster than the eye, and a control that
+              // changes shape for 80ms just flickers.
+              backgroundBlendMode: _sending ? BlendMode.luminosity : null,
+            ),
+            child: const Icon(
+              Icons.send_rounded,
+              size: 17,
+              color: HkColors.ink,
+            ),
           ),
         ),
       ],

@@ -305,6 +305,209 @@ class LessonsRepository {
     if (rows.isEmpty) return DashboardStats.empty;
     return DashboardStats.fromMap(rows.first as Map<String, dynamic>);
   }
+
+  // ----------------------------------------------------------- live room ---
+
+  /// Messages in a lesson's room, oldest first, pushed as they arrive.
+  ///
+  /// `.stream()` rather than a poll: a chat that refreshes every few seconds
+  /// is a chat nobody uses, because the reply you are waiting for is always
+  /// half a refresh away. The author's name travels on the row itself — see
+  /// the denormalisation note in the migration.
+  Stream<List<ChatMessage>> chatStream(String lessonId) {
+    if (isDemo) return Stream.value(DemoData.chat());
+
+    final me = _db.auth.currentUser?.id;
+    return _db
+        .from('ol_chat_messages')
+        .stream(primaryKey: ['id'])
+        .eq('lesson_id', lessonId)
+        .order('sent_at')
+        .map(
+          (rows) => rows
+              .map(
+                (r) => ChatMessage(
+                  id: r['id'] as String,
+                  author: (r['author_name'] as String?)?.trim().isNotEmpty ==
+                          true
+                      ? r['author_name'] as String
+                      : 'Foydalanuvchi',
+                  sentAt:
+                      DateTime.parse(r['sent_at'] as String).toLocal(),
+                  text: r['body'] as String,
+                  isSelf: me != null && r['author_id'] == me,
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  Future<void> sendChatMessage(String lessonId, String text) async {
+    final body = text.trim();
+    if (body.isEmpty) return;
+    if (isDemo) {
+      throw StateError('Demo rejimda xabar yuborib bo‘lmaydi');
+    }
+    // author_id, author_name and sent_at are all stamped by the trigger; the
+    // values sent here are placeholders that the database overwrites. They
+    // are sent at all because the INSERT policy checks author_id, and a
+    // policy cannot see a column the statement never mentions.
+    await _db.from('ol_chat_messages').insert({
+      'lesson_id': lessonId,
+      'author_id': _db.auth.currentUser?.id,
+      'body': body,
+    });
+  }
+
+  /// Everyone currently in the room, pushed as people come and go.
+  ///
+  /// Anyone whose heartbeat stopped more than a minute ago is dropped here
+  /// rather than in SQL: the stream delivers whole rows, and a filter that
+  /// depends on `now()` cannot be part of a subscription.
+  Stream<List<Participant>> participantsStream(String lessonId) {
+    if (isDemo) return Stream.value(DemoData.participants());
+
+    final me = _db.auth.currentUser?.id;
+    return _db
+        .from('ol_room_presence')
+        .stream(primaryKey: ['lesson_id', 'user_id'])
+        .eq('lesson_id', lessonId)
+        .map((rows) {
+          final cutoff = DateTime.now().toUtc().subtract(
+                const Duration(seconds: 75),
+              );
+          final live = rows.where((r) {
+            final seen = DateTime.tryParse(
+              (r['last_seen_at'] as String?) ?? '',
+            )?.toUtc();
+            return seen != null && seen.isAfter(cutoff);
+          }).toList();
+
+          live.sort((a, b) {
+            // The teacher first, then whoever has their hand up, then by the
+            // order people arrived — which is stable, so the list does not
+            // reshuffle itself under a tap.
+            final host = ((b['is_host'] as bool? ?? false) ? 1 : 0) -
+                ((a['is_host'] as bool? ?? false) ? 1 : 0);
+            if (host != 0) return host;
+            final hand = ((b['hand_raised'] as bool? ?? false) ? 1 : 0) -
+                ((a['hand_raised'] as bool? ?? false) ? 1 : 0);
+            if (hand != 0) return hand;
+            return ((a['joined_at'] as String?) ?? '')
+                .compareTo((b['joined_at'] as String?) ?? '');
+          });
+
+          return live
+              .map(
+                (r) => Participant(
+                  id: r['user_id'] as String,
+                  name: (r['display_name'] as String?)?.trim().isNotEmpty ==
+                          true
+                      ? r['display_name'] as String
+                      : 'Foydalanuvchi',
+                  initials: (r['initials'] as String?) ?? '?',
+                  isHost: r['is_host'] as bool? ?? false,
+                  isSelf: me != null && r['user_id'] == me,
+                  micOn: r['mic_on'] as bool? ?? false,
+                  handRaised: r['hand_raised'] as bool? ?? false,
+                ),
+              )
+              .toList();
+        });
+  }
+
+  /// Announces this account as present, and refreshes the heartbeat on every
+  /// later call. One upsert does both — the trigger re-stamps `last_seen_at`
+  /// on update as well as insert, so there is no separate "still here" path
+  /// to forget about.
+  Future<void> enterRoom(
+    String lessonId, {
+    bool? micOn,
+    bool? handRaised,
+  }) async {
+    if (isDemo) return;
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return;
+
+    await _db.from('ol_room_presence').upsert({
+      'lesson_id': lessonId,
+      'user_id': me,
+      if (micOn != null) 'mic_on': micOn,
+      if (handRaised != null) 'hand_raised': handRaised,
+    }, onConflict: 'lesson_id,user_id');
+  }
+
+  /// Leaves the room. Best-effort by nature: the window can be closed, the
+  /// machine can sleep, the network can drop. The heartbeat cutoff is what
+  /// makes the list correct anyway; this only makes it correct *immediately*
+  /// for the common case where someone actually pressed "Chiqish".
+  Future<void> leaveRoom(String lessonId) async {
+    if (isDemo) return;
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return;
+    await _db
+        .from('ol_room_presence')
+        .delete()
+        .eq('lesson_id', lessonId)
+        .eq('user_id', me);
+  }
+
+  /// The credentials for joining this lesson's media room.
+  ///
+  /// Minted by the database, not here: the signing secret decides who may
+  /// join as whom, so it lives where the client cannot read it. See
+  /// `20260918140000_livekit_tokens.sql`.
+  ///
+  /// Null when media is not configured on this project — which is a state the
+  /// room has to handle rather than crash on, since the chat and the
+  /// participant list work perfectly well without it.
+  Future<LiveMediaGrant?> liveMediaGrant(String lessonId) async {
+    if (isDemo) return null;
+
+    final rows = await _db.rpc(
+      'ol_livekit_join',
+      params: {'p_lesson_id': lessonId},
+    ) as List<dynamic>;
+    if (rows.isEmpty) return null;
+
+    final row = rows.first as Map<String, dynamic>;
+    final url = row['url'] as String?;
+    final token = row['token'] as String?;
+    if (url == null || token == null) return null;
+
+    return LiveMediaGrant(
+      url: url,
+      token: token,
+      room: row['room'] as String? ?? 'lesson_$lessonId',
+    );
+  }
+
+  Future<bool> liveMediaConfigured() async {
+    if (isDemo) return false;
+    try {
+      return await _db.rpc('ol_livekit_ready') as bool? ?? false;
+    } catch (_) {
+      // An older database without the migration answers 404. That is a "no",
+      // not a reason to keep the room off the screen.
+      return false;
+    }
+  }
+
+  /// Ends every lesson that has run past its slot.
+  ///
+  /// Also scheduled in the database every five minutes, where a project has
+  /// pg_cron. Called from the client too because a free-tier project may not,
+  /// and "the lesson from three weeks ago is still live" is exactly the bug
+  /// this is here to prevent.
+  Future<void> endStaleLessons() async {
+    if (isDemo) return;
+    try {
+      await _db.rpc('ol_end_stale_lessons');
+    } catch (_) {
+      // Housekeeping. A student whose room failed to tidy up somebody else's
+      // lesson should still get their room.
+    }
+  }
 }
 
 /// Null in demo mode. Overridden in `main.dart` once Supabase is initialised.

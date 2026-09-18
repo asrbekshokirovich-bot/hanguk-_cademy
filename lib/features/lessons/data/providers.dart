@@ -26,15 +26,90 @@ final dashboardStatsProvider = FutureProvider<DashboardStats>((ref) {
 });
 
 final todaysLessonsProvider = FutureProvider<List<Lesson>>((ref) {
+  // A lesson's status changes with the wall clock and nothing pushes that
+  // change, so the day has to be re-read on the tick like the live lesson is.
+  ref.watch(_statusTick);
   return ref.watch(lessonsRepositoryProvider).todaysLessons();
 });
 
+/// How often the app re-asks the database what is on air and what has ended.
+///
+/// Both answers move on their own — `ol_sync_lesson_statuses()` runs under
+/// pg_cron every minute — and neither arrives as an event. Twenty seconds is
+/// well inside how fast a student needs to learn their lesson started, and
+/// well under the minute the cron job takes to change anything.
+const _statusPollInterval = Duration(seconds: 20);
+
+/// The lesson currently on air, re-read on [_statusPollInterval].
+///
 /// Polled rather than subscribed to. A realtime channel for a single boolean
-/// ("is anything live?") is a websocket per client for the whole session; a
-/// 30-second poll is well inside how fast a student needs to learn a lesson
-/// started, and it costs one indexed row read.
-final liveLessonProvider = FutureProvider<Lesson?>((ref) {
-  return ref.watch(lessonsRepositoryProvider).liveLesson();
+/// ("is anything live?") is a websocket per client for the whole session,
+/// while a poll costs one indexed row read.
+///
+/// It is a stream rather than a `FutureProvider` because a future resolves
+/// once. That is the whole bug this replaces: the comment above said "poll"
+/// and the code asked exactly once, at launch. A student who opened the app
+/// before their lesson began sat on "Hozir jonli dars yo'q" for the length of
+/// the lesson, however long it had actually been running.
+///
+/// `endStaleLessons()` runs first on every pass because the two are the same
+/// question from opposite ends. The database flips the statuses itself, but a
+/// project whose cron job is paused or behind would leave yesterday's lesson
+/// on air — and the poll would then faithfully report it as live.
+final liveLessonProvider = StreamProvider<Lesson?>((ref) async* {
+  final repo = ref.watch(lessonsRepositoryProvider);
+
+  while (true) {
+    try {
+      await repo.endStaleLessons();
+      yield await repo.liveLesson();
+    } catch (error, stack) {
+      // Reported and then carried on from, rather than thrown. A throw here
+      // ends the generator, and the poll with it: one dropped request on a
+      // train would stop the app noticing lessons for the rest of the
+      // session. Emitting through a sub-stream keeps this one open, so the
+      // banner offers its Retry and the next pass clears it by itself when
+      // the connection comes back.
+      yield* Stream<Lesson?>.error(error, stack);
+    }
+
+    // Demo mode has nothing to poll — the fixtures are a constant — and a
+    // widget test left holding this timer would never finish pumping.
+    if (repo.isDemo) return;
+    await Future<void>.delayed(_statusPollInterval);
+  }
+});
+
+/// A bare counter on the poll cadence, for the screens whose reads are still
+/// one-shot futures. It exists so they do not each end up owning a timer.
+///
+/// The schedule needs it for the same reason the dashboard does: a lesson
+/// that had started, or had finished an hour ago, went on reading
+/// "Rejalashtirilgan" until something else happened to rebuild the screen.
+final _statusTickProvider = StreamProvider<int>((ref) async* {
+  final demo = ref.watch(lessonsRepositoryProvider).isDemo;
+
+  var tick = 0;
+  yield tick;
+  // Demo mode yields the one value and stops: the fixtures never move, and a
+  // widget test left holding this timer would never finish pumping.
+  while (!demo) {
+    await Future<void>.delayed(_statusPollInterval);
+    yield ++tick;
+  }
+});
+
+/// The tick as a plain number, which is what its readers actually want.
+///
+/// Watching the stream itself would fire once more than it should: a
+/// `StreamProvider` starts at `AsyncLoading` and reaches its first value a
+/// microtask later, and that transition alone counts as a change. Every
+/// screen would then re-read the whole day a moment after opening — a second
+/// round trip that can only return what the first one did. Collapsing the
+/// stream to `int` here means the first value looks the same as the state
+/// before it, so the first rebuild is the twenty-second one.
+final _statusTick = Provider<int>((ref) {
+  return ref.watch(_statusTickProvider).value ?? 0;
 });
 
 final lessonByIdProvider =
@@ -84,6 +159,9 @@ final scheduleWeekStartProvider = StateProvider<DateTime>((ref) {
 });
 
 final weekLessonsProvider = FutureProvider<List<Lesson>>((ref) {
+  // As with the day: the week grid paints a status per lesson, and the
+  // statuses move without anyone touching the screen.
+  ref.watch(_statusTick);
   final start = ref.watch(scheduleWeekStartProvider);
   return ref
       .watch(lessonsRepositoryProvider)

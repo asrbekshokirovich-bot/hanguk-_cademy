@@ -30,6 +30,15 @@ class AsyncSection<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return value.when(
+      // Only the first read gets a spinner. Riverpod's default is to show one
+      // again whenever a watched dependency changes, and the lesson statuses
+      // are now re-read on a 20-second tick — that default would blank the
+      // day's schedule and the week grid into a spinner three times a minute,
+      // for the length of a round trip on a connection that is often slow.
+      // The rows on screen are a moment old, not wrong; keep them up and swap
+      // them when the new ones land. A genuine failure still lands in `error`
+      // below, so nothing is hidden by this.
+      skipLoadingOnReload: true,
       loading: () => SizedBox(
         height: loadingHeight,
         child: const Center(

@@ -5,13 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:livekit_client/livekit_client.dart'
-    show RTCVideoViewObjectFit, VideoTrack, VideoTrackRenderer;
+    show VideoTrack, VideoTrackRenderer;
 
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../staff/data/staff_providers.dart';
+import '../data/lessons_repository.dart';
 import '../data/live_media.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
@@ -493,10 +494,9 @@ class _StageState extends State<_Stage> {
             // moment the teacher turns their camera off would look broken.
             if (stageTrack != null)
               Positioned.fill(
-                child: VideoTrackRenderer(
-                  stageTrack,
-                  fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-                ),
+                // Default fit is contain, which is what a shared screen or a
+                // slide needs — cover would crop the edges off a whiteboard.
+                child: VideoTrackRenderer(stageTrack),
               )
             else
               Center(

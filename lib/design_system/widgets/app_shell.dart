@@ -139,11 +139,29 @@ class AppShell extends ConsumerWidget {
         left: 0,
         right: 0,
         child: Center(
-          child: CommandDock(
-            destinations: destinations,
-            current: current,
-            onSelect: go,
-            liveActive: liveActive,
+          // Centred on the window, but not allowed to grow into the two
+          // things sharing this row with it. The superadmin's dock carries
+          // nine sections and is half as wide again as the admin's: at full
+          // size it printed over the logo capsule on one side and had its
+          // last item — "Adminlar" — covered by the user cluster on the
+          // other, where it could be neither read nor tapped.
+          //
+          // Scaled down rather than scrolled or trimmed: a dock item you have
+          // to find is not navigation. Nothing else reaches this width, so
+          // every other role's dock is untouched.
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: _dockMaxWidth(context, layout),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: CommandDock(
+                destinations: destinations,
+                current: current,
+                onSelect: go,
+                liveActive: liveActive,
+              ),
+            ),
           ),
         ),
       ),
@@ -169,6 +187,21 @@ class AppShell extends ConsumerWidget {
         child: PageHeading(title: title, subtitle: subtitle),
       ),
     ];
+  }
+
+  /// How wide the dock may be before it is scaled down.
+  ///
+  /// At the design's width the logo capsule reaches about 242 from the left
+  /// and the user cluster about 256 in from the right, so 260 a side is the
+  /// gutter they occupy plus a little air. It is symmetric because the dock
+  /// is centred on the window, not on the gap: an uneven pair would slide it
+  /// off centre for every role, to buy width only one of them needs.
+  ///
+  /// Below `expanded` the cluster is not drawn and the window itself is the
+  /// only limit — `Center` already supplies that, and this adds nothing.
+  static double _dockMaxWidth(BuildContext context, HkLayout layout) {
+    if (!layout.isExpanded) return double.infinity;
+    return MediaQuery.sizeOf(context).width - 2 * 260;
   }
 }
 

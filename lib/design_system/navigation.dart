@@ -48,13 +48,31 @@ abstract final class HkNav {
     HkDestination('To‘lovlar', Icons.receipt_long_rounded, '/admin/payments'),
   ];
 
-  /// Not a superset of the admin's dock — a different job. The top tier does
-  /// two things and nothing else: it issues the administrator accounts that
-  /// run the school day, and it reads the books. Handing it the roster and
-  /// the timetable as well would make the split decorative.
+  /// The admin's dock plus the two screens that are the top tier's alone.
+  ///
+  /// It was the two on their own for a while, on the theory that the owner
+  /// issues accounts and reads the books while somebody else runs the school
+  /// day. In practice the two accounts are one person: he could not open the
+  /// live room to end a lesson, or look at the timetable he had just been
+  /// asked about, without signing in as his own administrator. The split that
+  /// earns its keep is the one in SQL — `ol_is_super()` still guards the
+  /// money and the administrator accounts — not a shorter menu.
+  ///
+  /// Moliya and Adminlar come last because they are the rarer errands; the
+  /// school day is what the dock is opened for.
   static const superAdmin = <HkDestination>[
-    HkDestination('Adminlar', Icons.admin_panel_settings_rounded, '/super'),
+    HkDestination('Boshqaruv', Icons.insights_rounded, '/admin'),
+    // The admin dock has no live entry — an administrator does not teach. The
+    // owner does drop into a room, to end one a teacher left on air, and that
+    // is the screen he was locked out of.
+    HkDestination('Jonli', Icons.videocam_rounded, '/live'),
+    HkDestination('Talabalar', Icons.people_alt_rounded, '/admin/students'),
+    HkDestination('O‘qituvchilar', Icons.school_rounded, '/admin/teachers'),
+    HkDestination('Guruhlar', Icons.groups_2_rounded, '/admin/groups'),
+    HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
+    HkDestination('To‘lovlar', Icons.receipt_long_rounded, '/admin/payments'),
     HkDestination('Moliya', Icons.payments_rounded, '/admin/finance'),
+    HkDestination('Adminlar', Icons.admin_panel_settings_rounded, '/super'),
   ];
 
   static List<HkDestination> forRole(String? role) => switch (role) {
@@ -64,9 +82,11 @@ abstract final class HkNav {
         _ => student,
       };
 
-  /// Routes only the top tier may open — and, read the other way, the only
-  /// routes it opens at all. A superadmin asking for anything else is sent
-  /// home, the same as a student asking for the admin panel.
+  /// Routes only the top tier may open. It reads one way now, not two: the
+  /// superadmin goes everywhere an admin goes and these two besides, so this
+  /// is what turns an *admin* away from the books, not what fenced the owner
+  /// in. A plain admin asking for them is sent home, the same as a student
+  /// asking for the admin panel.
   static bool isSuperAdminRoute(String location) =>
       location == '/super' || location.startsWith('/admin/finance');
 

@@ -82,13 +82,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return HkNav.homeFor(profile.role);
       }
 
-      // The top tier's two screens are also its only two. It outranks admin
-      // in the database — it has to, to issue the accounts — so nothing else
-      // would turn it away, and a superadmin would quietly end up running the
-      // school day after all.
-      if (profile.isSuperAdmin && !HkNav.isSuperAdminRoute(location)) {
-        return HkNav.homeFor(profile.role);
-      }
+      // Nothing turns the top tier away, and that is deliberate. It used to
+      // be held to its own two screens so the split between the admin tiers
+      // would not go decorative — but the line was drawn in the wrong place.
+      // It is the school owner's account: the rule locked him out of the live
+      // room, so he could not so much as end a lesson a teacher had left on
+      // air. What has to stay separate is the money and the administrator
+      // accounts, and `ol_is_super()` holds that in the database whatever the
+      // router lets through. The rule above, its mirror image, is the half
+      // that still matters — an ordinary admin does not open the books.
       if (HkNav.isTeacherRoute(location) && !profile.isStaff) {
         return HkNav.homeFor(profile.role);
       }

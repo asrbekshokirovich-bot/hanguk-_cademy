@@ -92,16 +92,18 @@ class _ProfileDialog extends ConsumerWidget {
                 width: double.infinity,
                 height: 44,
                 child: OutlinedButton.icon(
-                  onPressed: () async {
+                   onPressed: () async {
+                    // Close the menu *before* signing out. Sign-out fires an
+                    // auth event, the router redirects to /login and drops the
+                    // imperative dialog route along with it; a pop afterwards
+                    // then takes the login page instead and leaves an empty
+                    // Navigator — a blank window with no way back.
+                    final auth = ref.read(authRepositoryProvider);
                     final messenger = ScaffoldMessenger.of(context);
-                    final navigator = Navigator.of(context);
+                    Navigator.of(context).pop();
                     try {
-                      await ref.read(authRepositoryProvider).signOut();
-                      // The router's redirect sends us to /login on the auth
-                      // event; this only closes the menu on top of it.
-                      navigator.pop();
+                      await auth.signOut();
                     } catch (e) {
-                      navigator.pop();
                       messenger.showSnackBar(
                         SnackBar(content: Text('Chiqib bo‘lmadi: $e')),
                       );

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:livekit_client/livekit_client.dart';
 
-import '../domain/models.dart';
+import '../domain/models.dart' show LiveMediaGrant;
 
 /// Where a room's media connection has got to.
 ///

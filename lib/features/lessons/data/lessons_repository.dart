@@ -429,12 +429,20 @@ class LessonsRepository {
     final me = _db.auth.currentUser?.id;
     if (me == null) return;
 
-    await _db.from('ol_room_presence').upsert({
+    // Built up rather than written as a literal with `if` entries: the
+    // heartbeat calls this with both flags null and must not clobber the
+    // state the control bar last set, so an absent key is meaningfully
+    // different from a null one.
+    final row = <String, dynamic>{
       'lesson_id': lessonId,
       'user_id': me,
-      if (micOn != null) 'mic_on': micOn,
-      if (handRaised != null) 'hand_raised': handRaised,
-    }, onConflict: 'lesson_id,user_id');
+    };
+    if (micOn != null) row['mic_on'] = micOn;
+    if (handRaised != null) row['hand_raised'] = handRaised;
+
+    await _db
+        .from('ol_room_presence')
+        .upsert(row, onConflict: 'lesson_id,user_id');
   }
 
   /// Leaves the room. Best-effort by nature: the window can be closed, the

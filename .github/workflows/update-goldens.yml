@@ -1,0 +1,69 @@
+name: Update goldens
+
+# Re-renders every checked-in golden PNG and commits the result.
+#
+# Why this exists: a golden is a picture of how one machine rasterised a
+# screen, and the moment a screen legitimately changes, every golden of it
+# fails. The failure is correct — that is the whole point of a golden — but
+# the fix is mechanical, and it needs a Linux machine with Flutter on it,
+# which the owner does not have. Without this workflow a one-line UI change
+# blocks the Windows build until somebody with a dev environment turns up.
+#
+# Start it from the Actions tab ("Run workflow") AFTER a change you meant to
+# make. Read the diff it pushes: a golden you did not expect to move is a
+# regression, and this workflow will happily bless one.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same pinned version and same plain download as the other two
+      # workflows. A golden rendered by a different Flutter is a golden that
+      # fails on the next ordinary run.
+      - name: Install Flutter 3.44.9
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 5 \
+            -o /tmp/flutter.tar.xz \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.9-stable.tar.xz"
+          mkdir -p "$RUNNER_TOOL_CACHE/flutter"
+          tar -xJf /tmp/flutter.tar.xz -C "$RUNNER_TOOL_CACHE/flutter" --strip-components=1
+          echo "$RUNNER_TOOL_CACHE/flutter/bin" >> "$GITHUB_PATH"
+          git config --global --add safe.directory "$RUNNER_TOOL_CACHE/flutter"
+
+      - run: flutter pub get
+
+      # Analyze first. Regenerating goldens against code that does not compile
+      # produces nothing useful and hides the real error behind a test run.
+      - run: flutter analyze
+
+      - name: Re-render the goldens
+        run: flutter test --update-goldens
+
+      - name: Commit whatever moved
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+            echo "No golden changed — nothing to commit."
+            exit 0
+          fi
+
+          echo "Changed files:"
+          git diff --name-only
+
+          git add -A
+          git commit -m "Re-render goldens"
+          git push

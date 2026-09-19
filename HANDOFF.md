@@ -549,6 +549,17 @@ office ends up with two lists of the same people.
   must not fail the thing it was announcing. The wording follows what
   happened — a teacher fixing a typo a week later does not tell twenty
   students they have new homework.
+- **Every student was flagged "Diqqat".** `TeacherStudent.needsAttention` was
+  `attendance < 0.8 || progress < 0.6`, and `progress` is the share of the
+  available recordings a student has watched — computed from
+  `ol_recording_progress`, which has no writer, because there is no player
+  and nothing to play. It reads zero for everybody, so the second half of
+  that rule was always true and a teacher opening "Talabalarim" found their
+  entire class marked as needing attention, on the screen whose whole job is
+  to pick out the two who do. The rule now ignores the half that is not
+  measured, and the "O'zlashtirish" column goes with it, both behind
+  `HkEnv.recordingEnabled`. Attendance, the other half, became real in the
+  same pass.
 
 ---
 

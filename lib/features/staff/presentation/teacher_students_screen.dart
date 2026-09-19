@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/clock.dart';
+import '../../../core/env.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
@@ -33,7 +34,9 @@ class TeacherStudentsScreen extends ConsumerWidget {
 
     return AppShell(
       title: 'Talabalarim',
-      subtitle: 'Davomat va o‘zlashtirish',
+      subtitle: HkEnv.recordingEnabled
+          ? 'Davomat va o‘zlashtirish'
+          : 'Davomat va faollik',
       child: AsyncSection(
         value: ref.watch(myStudentsProvider),
         onRetry: () => ref.invalidate(myStudentsProvider),
@@ -96,7 +99,10 @@ class TeacherStudentsScreen extends ConsumerWidget {
                   HkColumn('Talaba', 5),
                   HkColumn('Guruh', 4),
                   HkColumn('Davomat', 3),
-                  HkColumn("O'zlashtirish", 3),
+                  // Watched-recording share. Hidden with everything else that
+                  // depends on recordings existing — it reads 0% for the
+                  // whole school until one does. See HkEnv.recordingEnabled.
+                  if (HkEnv.recordingEnabled) HkColumn("O'zlashtirish", 3),
                   HkColumn('Oxirgi faollik', 4),
                   HkColumn('Holat', 3),
                 ],
@@ -155,13 +161,15 @@ class _StudentRow extends StatelessWidget {
                         value: s.attendance,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _Metric(
-                        label: "O'zlashtirish",
-                        value: s.progress,
+                    if (HkEnv.recordingEnabled) ...[
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _Metric(
+                          label: "O'zlashtirish",
+                          value: s.progress,
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(width: 12),
                     HkPill(
                       label: s.statusLabel,
@@ -204,13 +212,14 @@ class _StudentRow extends StatelessWidget {
             color: hkRateColor(s.attendance),
           ),
         ),
-        Expanded(
-          flex: 3,
-          child: HkRateCell(
-            value: s.progress,
-            color: hkRateColor(s.progress),
+        if (HkEnv.recordingEnabled)
+          Expanded(
+            flex: 3,
+            child: HkRateCell(
+              value: s.progress,
+              color: hkRateColor(s.progress),
+            ),
           ),
-        ),
         Expanded(
           flex: 4,
           child: Text(

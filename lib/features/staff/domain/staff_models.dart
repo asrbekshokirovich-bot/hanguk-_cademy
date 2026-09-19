@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../design_system/tokens.dart';
+import '../../../core/env.dart';
 
 /// Deterministic avatar gradient shared by every roster in the staff panels,
 /// so one person is the same colour on the teacher's list and the admin's.
@@ -108,7 +109,16 @@ class TeacherStudent {
   /// The design flags a student as needing attention rather than showing a
   /// bare number, because a teacher scanning sixty rows will not do the
   /// comparison themselves.
-  bool get needsAttention => attendance < 0.8 || progress < 0.6;
+  /// Only on the halves that are actually measured.
+  ///
+  /// `progress` is how much of the available recordings a student has
+  /// watched, and nothing records lessons yet — `ol_recording_progress` has
+  /// no writer, so it reads zero for everybody. Left in the rule, it flagged
+  /// **every student in the school** as needing attention, permanently, on a
+  /// screen a teacher scans to find the two who actually do. It comes back
+  /// with recording; see `HkEnv.recordingEnabled`.
+  bool get needsAttention =>
+      attendance < 0.8 || (HkEnv.recordingEnabled && progress < 0.6);
 
   String get statusLabel => needsAttention ? 'Diqqat' : 'Faol';
 

@@ -59,7 +59,10 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
       initialDate: _dueAt ?? now.add(const Duration(days: 3)),
       firstDate: now.subtract(const Duration(days: 1)),
       lastDate: now.add(const Duration(days: 365)),
-      locale: const Locale('uz'),
+      // No `locale:` here. The app declares `uz` and the picker inherits it;
+      // naming it again only re-creates the way this crashed — a locale
+      // passed to a widget whose delegates do not cover it fails to build,
+      // and a failed build is a blank window.
     );
     if (picked == null) return;
     // End of the chosen day, not midnight at the start of it. "Due Friday"
@@ -232,9 +235,13 @@ class _LessonPicker extends StatelessWidget {
       ),
       data: (all) {
         if (all.isEmpty) {
+          // Both ways of having no lesson point at the same person, so the
+          // sentence names both: the timetable may be empty, or it may have
+          // lessons with somebody else's name against them.
           return Text(
-            'Sizga biriktirilgan dars yo‘q. Vazifa darsga biriktiriladi, '
-            'shuning uchun avval administrator dars qo‘shishi kerak.',
+            'Sizga biriktirilgan dars yo‘q. Vazifa darsga biriktiriladi — '
+            'administrator darsni yaratib, o‘qituvchi qilib sizni '
+            'biriktirishi kerak.',
             style: HkType.body.copyWith(fontSize: 12.5),
           );
         }

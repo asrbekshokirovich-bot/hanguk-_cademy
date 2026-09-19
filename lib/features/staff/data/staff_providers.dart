@@ -62,17 +62,22 @@ final myStudentsProvider = FutureProvider<List<TeacherStudent>>((ref) {
 
 /// The lessons this teacher can attach homework to.
 ///
-/// A fortnight around today: the lesson just taught is the usual case, and a
-/// teacher setting work ahead of next week's class is the other one. Scoped
-/// to their own lessons where there is a teacher row — an admin has none and
-/// sees every lesson, which is what `ol_is_staff()` lets them write to
-/// anyway.
+/// A wide window rather than a tight one. This was a fortnight either side of
+/// today, which sounded reasonable and told a teacher with a lesson three
+/// weeks out that they had **no lessons at all** — the dialog's empty state
+/// then sends them to an administrator who has already done the work. A term
+/// is the right unit; the query is bounded so it cannot run away on a school
+/// with years of history.
+///
+/// Scoped to their own lessons where there is a teacher row. An admin has
+/// none and sees every lesson, which is what `ol_is_staff()` lets them write
+/// to anyway.
 final assignableLessonsProvider = FutureProvider<List<Lesson>>((ref) async {
   final now = hkNow();
   final today = DateTime(now.year, now.month, now.day);
   final lessons = await ref.watch(lessonsRepositoryProvider).lessonsBetween(
-        today.subtract(const Duration(days: 7)),
-        today.add(const Duration(days: 14)),
+        today.subtract(const Duration(days: 120)),
+        today.add(const Duration(days: 180)),
       );
 
   final mine = await ref.watch(myTeacherIdProvider.future);
@@ -81,7 +86,7 @@ final assignableLessonsProvider = FutureProvider<List<Lesson>>((ref) async {
       : lessons.where((l) => l.teacher?.id == mine).toList();
 
   // Most recent first: homework is nearly always set for the lesson that has
-  // just finished, and that one should not be at the bottom of the list.
+  // just finished, and that one should not be at the bottom of a long list.
   return scoped.reversed.toList();
 });
 

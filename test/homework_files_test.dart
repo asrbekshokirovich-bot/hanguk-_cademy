@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
@@ -154,6 +155,39 @@ void main() {
               .having((e) => e.message, 'message', contains('Demo rejimda')),
         ),
       );
+    });
+  });
+
+  group('a storage refusal is explained to the person who can fix it', () {
+    // The likeliest failure here is neither the student's doing nor a bug in
+    // this code: a bucket made in the dashboard arrives with no policies at
+    // all, `storage.objects` has RLS on, and the refusal comes back in
+    // untranslated Postgres. Raw, it reads as "the app is broken" to the one
+    // person who cannot do anything about it.
+    test('a missing policy names the file that adds it', () {
+      final message = LessonsRepository.storageMessage(
+        const StorageException(
+          'new row violates row-level security policy',
+          statusCode: '400',
+        ),
+      );
+      expect(message, contains('ruxsatlar sozlanmagan'));
+      expect(message, contains('20260919120000_storage_uploads.sql'));
+    });
+
+    test('a missing bucket says which one', () {
+      final message = LessonsRepository.storageMessage(
+        const StorageException('Bucket not found', statusCode: '404'),
+      );
+      expect(message, contains('uploads'));
+      expect(message, contains('topilmadi'));
+    });
+
+    test('anything else is passed through rather than swallowed', () {
+      final message = LessonsRepository.storageMessage(
+        const StorageException('connection closed', statusCode: '500'),
+      );
+      expect(message, contains('connection closed'));
     });
   });
 

@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 111 tests
+flutter test             # 121 tests
 flutter build linux --release
 ```
 
@@ -258,7 +258,7 @@ lib/
     lessons/       dashboard, schedule, live room, recordings, search
     staff/         teacher + admin panels, groups, lesson dialog
 supabase/
-  migrations/      10 files, all applied to the live project
+  migrations/      11 files; the last one is storage policy, see §5
   seed/            starter data, make-admin, cleanup
   functions/       admin-users — DEAD, see §7
 test/
@@ -307,14 +307,44 @@ the due date at read time, not stored.
 | `..200000_superadmin_role` | adds the enum value — **must run alone** |
 | `..210000_superadmin_rules` | the tier's policies, views and RPCs |
 | `..220000_admin_takes_payments` | admin records payments; totals stay super |
+| `20260919120000_storage_uploads` | RLS on the `uploads` storage bucket |
 
 `200000` and `210000` cannot be pasted into the SQL Editor together:
 Postgres will not let a newly added enum value be used in the transaction
 that added it.
 
-**All seven are applied to the live project.** So is
+**All but the last are applied to the live project.** So is
 `seed/003_remove_starter_data.sql` — the demo fixtures are gone from the real
 database. Do not re-run `001_starter_data.sql`.
+
+### The `uploads` storage bucket
+
+Homework attachments live here, not in a table. One bucket, two folders, told
+apart by the first path segment because they have different rules:
+
+```
+submissions/<assignment_id>/<student_id>/<file>   written and read by that
+                                                  student, read by staff
+materials/<lesson_id>/<file>                      written by staff, read by
+                                                  anyone signed in
+```
+
+The student id is a **folder** and not part of the filename, so that
+`storage.foldername(name)[3]` can be compared against `auth.uid()`. Path
+segments are 1-indexed.
+
+Two things have to be true or uploads fail, and they fail differently:
+
+- **The bucket must be private.** A public bucket serves every object to
+  anyone holding the URL with no policy consulted, so one student could read
+  another's homework by guessing an id. `LessonsRepository.signedUploadUrl`
+  assumes private: it signs a link for 600 seconds, which is the only address
+  a private object has.
+- **`20260919120000_storage_uploads.sql` must be run.** The bucket was created
+  in the dashboard, which creates it with **no policies at all**, and
+  `storage.objects` has RLS on. With no policy, every upload comes back
+  `42501` — "new row violates row-level security policy". A bucket that exists
+  is not a bucket that works; check Storage → uploads → Policies shows four.
 
 ### Live data as of this handoff
 
@@ -576,8 +606,20 @@ office ends up with two lists of the same people.
   `ol_v_submissions`, into `Submission.note` — and no screen displayed it. So
   the grade dialog showed a name and a title and asked for a mark out of 100
   on writing the teacher had no way of seeing. It shows the answer now, above
-  the box the mark goes in. Attaching a **file** is still not possible in
-  either direction: `file_url` has no storage bucket behind it.
+  the box the mark goes in.
+- **Homework that could only be typed.** Half of what this school sets is a
+  photograph of an exercise book or a recording of somebody reading aloud.
+  `file_url` has been in the schema from the first migration and
+  `ol_v_submissions` has always selected it; nothing wrote or read it, and
+  there was no bucket behind it. There is one now (§5) and the round trip is
+  wired: the student attaches, the teacher opens a signed link, and both see
+  the filename in between. **`file_picker` 13.x is not the API in every
+  tutorial**: `FilePicker.pickFile()` is static and returns a handle, there is
+  no `FilePicker.platform`, and `PlatformFile` has no `.bytes` or `.size` —
+  it has `readAsBytes()`, `lengthSync()` and `length()`. The handle shape is
+  the better one here: the bytes are read when the work is sent, not when the
+  file is chosen, so picking a 40 MB video and then closing the dialog costs
+  nothing.
 
 ---
 
@@ -593,7 +635,12 @@ Roughly in the order they matter:
    room, and a decision about who pays for it. The band and the toggle can
    come back the moment there is something to put in them.
 3. **Recording playback.** The library lists recordings and tracks watch
-   progress; there is no player and no storage bucket.
+   progress; there is no player. Recordings want a bucket of their own rather
+   than a third folder in `uploads` — they are large, they are written by the
+   server and not by a person, and nobody should be able to delete one.
+   **Lesson materials** are the smaller half of the same job: the `materials/`
+   policies are already written and applied, and no screen uploads to them
+   yet.
 4. **Quizzes.** `ol_quizzes` is read and drawn; there is no screen for
    setting one and no screen for taking one. Homework is done — see §7 — but
    a quiz is a different shape and still has nothing behind it.

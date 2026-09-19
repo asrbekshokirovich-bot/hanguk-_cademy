@@ -318,11 +318,15 @@ class LessonsRepository {
     }
 
     final path = '$folder/${_safeFilename(filename)}';
-    await storage.uploadBinary(
-      path,
-      bytes,
-      fileOptions: const FileOptions(upsert: true),
-    );
+    try {
+      await storage.uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
+    } on StorageException catch (e) {
+      throw StateError(storageMessage(e));
+    }
     return path;
   }
 
@@ -331,11 +335,49 @@ class LessonsRepository {
   /// The bucket is private, so there is no permanent URL to store. Ten
   /// minutes is long enough to open or save the file and short enough that a
   /// link pasted into a chat stops working before it travels.
-  Future<String> signedUploadUrl(String objectPath) {
+  Future<String> signedUploadUrl(String objectPath) async {
     if (isDemo) {
       throw StateError('Demo rejimda fayl ochib bo‘lmaydi');
     }
-    return _db.storage.from(_uploadsBucket).createSignedUrl(objectPath, 600);
+    try {
+      return await _db.storage
+          .from(_uploadsBucket)
+          .createSignedUrl(objectPath, 600);
+    } on StorageException catch (e) {
+      throw StateError(storageMessage(e));
+    }
+  }
+
+  /// Turns a storage refusal into a sentence that names what to do about it.
+  ///
+  /// Worth the lines because the likeliest failure here is not the student's
+  /// doing and not a bug in this code: a bucket created through the dashboard
+  /// arrives with **no policies**, `storage.objects` has RLS on, and every
+  /// upload then comes back as an untranslated "new row violates row-level
+  /// security policy". Shown raw, that reads as "the app is broken" to the
+  /// one person who cannot fix it, and says nothing to the one who can.
+  @visibleForTesting
+  static String storageMessage(StorageException e) {
+    final code = e.statusCode ?? '';
+    final text = e.message.toLowerCase();
+
+    if (code == '403' ||
+        code == '401' ||
+        code == '42501' ||
+        text.contains('row-level security') ||
+        text.contains('unauthorized')) {
+      return 'Faylni saqlab bo‘lmadi: serverda “uploads” bucket uchun '
+          'ruxsatlar sozlanmagan. Administrator '
+          '20260919120000_storage_uploads.sql ni ishga tushirishi kerak.';
+    }
+    if (code == '404' || text.contains('not found')) {
+      return 'Faylni saqlab bo‘lmadi: “uploads” bucket topilmadi. '
+          'Administrator uni Storage bo‘limida yaratishi kerak.';
+    }
+    if (code == '413' || text.contains('too large')) {
+      return 'Fayl juda katta. Eng ko‘pi 50 MB.';
+    }
+    return 'Faylni saqlab bo‘lmadi: ${e.message}';
   }
 
   /// Keeps a filename to what an object key can hold, and to what a teacher

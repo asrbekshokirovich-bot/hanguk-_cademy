@@ -20,6 +20,8 @@ class LiveMediaSession extends ChangeNotifier {
   Room? _room;
   Room? get room => _room;
 
+  EventsListener<RoomEvent>? _events;
+
   LiveMediaStatus status = LiveMediaStatus.idle;
 
   /// Why the connection failed, in the form LiveKit reported it. Shown on
@@ -28,7 +30,28 @@ class LiveMediaSession extends ChangeNotifier {
   /// of the diagnosis.
   String? error;
 
+  /// Why the last microphone or camera request was refused, if it was.
+  ///
+  /// Separate from [error] because it is a different failure with a different
+  /// remedy: the room is connected and everyone else can be heard, it is this
+  /// one device that was not handed over. Usually a denied browser permission
+  /// — which the person can go and change, but only if they are told.
+  String? deviceError;
+
+  /// True when the room is connected and its sound is being held back.
+  ///
+  /// Browsers refuse to play audio until the page has been interacted with,
+  /// and they refuse silently. Untreated, the lesson looks perfect and is
+  /// completely mute: everybody waits for somebody else to speak, and every
+  /// one of them is speaking.
+  bool audioBlocked = false;
+
   bool _disposed = false;
+
+  /// Whether the microphone and camera buttons can do anything at all. False
+  /// while the room is still connecting, and false for good on a project with
+  /// no LiveKit behind it.
+  bool get isLive => _room != null && status == LiveMediaStatus.connected;
 
   bool get micOn => _room?.localParticipant?.isMicrophoneEnabled() ?? false;
   bool get cameraOn => _room?.localParticipant?.isCameraEnabled() ?? false;
@@ -46,6 +69,11 @@ class LiveMediaSession extends ChangeNotifier {
   /// only when pressed.
   Future<void> connect(LiveMediaGrant? grant) async {
     if (grant == null) {
+      // Idempotent on purpose. The room calls this from a post-frame
+      // callback, so notifying on a state that has not changed would rebuild
+      // the screen, which would schedule the callback, which would call this
+      // again — for as long as the room stayed open.
+      if (status == LiveMediaStatus.unavailable) return;
       status = LiveMediaStatus.unavailable;
       _changed();
       return;
@@ -78,7 +106,21 @@ class LiveMediaSession extends ChangeNotifier {
       }
       _room = room;
       room.addListener(_changed);
+      // The room reports a blocked speaker as an event, not as a state
+      // change, so `addListener` alone never hears about it.
+      _events = room.createListener()
+        ..on<AudioPlaybackStatusChanged>((_) {
+          audioBlocked = !room.canPlaybackAudio;
+          _changed();
+        });
       status = LiveMediaStatus.connected;
+      // Asked for immediately, because on every platform but a browser it
+      // simply works and the notice must not appear where it is not needed.
+      // Where it is needed, this is what makes the browser say no, which is
+      // the only way to find out before a whole lesson has gone by in
+      // silence.
+      await room.startAudio();
+      audioBlocked = !room.canPlaybackAudio;
     } catch (e) {
       await room.dispose();
       status = LiveMediaStatus.failed;
@@ -87,16 +129,41 @@ class LiveMediaSession extends ChangeNotifier {
     _changed();
   }
 
+  /// Lets the browser play the room's sound, from a tap it will accept.
+  ///
+  /// There is no way to do this on the app's behalf: the permission is
+  /// granted to a gesture, not to a page, which is why the notice that calls
+  /// this has to be something the person presses.
+  Future<void> startAudioPlayback() async {
+    final room = _room;
+    if (room == null) return;
+    try {
+      await room.startAudio();
+    } catch (e) {
+      error = '$e';
+    }
+    audioBlocked = !room.canPlaybackAudio;
+    _changed();
+  }
+
+  /// Turns the microphone on or off, and reports what actually happened.
+  ///
+  /// The caller must read [micOn] afterwards rather than assume the request
+  /// was granted. A room where the button says "on" and the track was never
+  /// published is the worst state this screen can be in: the person talks for
+  /// ten minutes, everyone else's participant list shows a lit microphone
+  /// beside their name, and nobody hears a word.
   Future<void> setMicrophone(bool on) async {
     final me = _room?.localParticipant;
     if (me == null) return;
     try {
       await me.setMicrophoneEnabled(on);
+      deviceError = null;
     } catch (e) {
       // Almost always a denied permission. Surfaced rather than swallowed:
       // a mute button that does nothing and says nothing is the single most
       // reported bug in every video product there has ever been.
-      error = '$e';
+      deviceError = _deviceMessage(e, 'Mikrofon');
     }
     _changed();
   }
@@ -106,10 +173,28 @@ class LiveMediaSession extends ChangeNotifier {
     if (me == null) return;
     try {
       await me.setCameraEnabled(on);
+      deviceError = null;
     } catch (e) {
-      error = '$e';
+      deviceError = _deviceMessage(e, 'Kamera');
     }
     _changed();
+  }
+
+  /// Plain Uzbek for the two refusals that actually happen, and the raw text
+  /// for everything else — a message nobody can act on is worse than one that
+  /// at least names what went wrong.
+  static String _deviceMessage(Object error, String device) {
+    final text = '$error';
+    if (text.contains('NotAllowedError') ||
+        text.contains('Permission') ||
+        text.contains('permission')) {
+      return "$device'ga ruxsat berilmadi. Brauzer manzil qatoridagi qulf "
+          "belgisidan ruxsat bering va qaytadan bosing.";
+    }
+    if (text.contains('NotFoundError') || text.contains('NotReadableError')) {
+      return '$device topilmadi yoki boshqa dastur uni band qilgan.';
+    }
+    return "$device'ni yoqib bo‘lmadi: $text";
   }
 
   /// The video worth putting on the stage: whoever is speaking, falling back
@@ -147,6 +232,10 @@ class LiveMediaSession extends ChangeNotifier {
     final room = _room;
     _room = null;
     status = LiveMediaStatus.idle;
+    audioBlocked = false;
+    deviceError = null;
+    unawaited(_events?.dispose());
+    _events = null;
     _changed();
     if (room == null) return;
     room.removeListener(_changed);
@@ -165,6 +254,8 @@ class LiveMediaSession extends ChangeNotifier {
     _disposed = true;
     final room = _room;
     _room = null;
+    unawaited(_events?.dispose());
+    _events = null;
     if (room != null) {
       room.removeListener(_changed);
       unawaited(room.disconnect().catchError((_) {}).then((_) => room.dispose()));

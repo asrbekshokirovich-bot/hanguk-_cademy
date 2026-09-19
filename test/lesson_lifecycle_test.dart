@@ -189,5 +189,42 @@ void main() {
       expect(find.text('Darsni tugatish'), findsNothing);
       expect(find.text('Chiqish'), findsOneWidget);
     });
+
+    testWidgets('says when there is no audio to speak into', (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'student');
+
+      // Demo mode has no LiveKit behind it. The room used to sit on "Video
+      // tayyorlanmoqda…" for ever, preparing nothing.
+      expect(
+        find.textContaining('Video va audio bu loyihada sozlanmagan'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the microphone button does not light up over nothing',
+        (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'student');
+
+      // Counted rather than matched outright: the participant rows and the
+      // stage nameplate draw the same icon for other people in the room, and
+      // this is about the one in the control bar.
+      final livingMics = tester.widgetList(find.byIcon(Icons.mic_rounded)).length;
+      final mutedMics = find.byIcon(Icons.mic_off_rounded);
+      expect(mutedMics, findsWidgets);
+
+      // Regression. Tapping used to flip a local boolean: the button turned
+      // lime, `mic_on: true` went out to ol_room_presence, and everyone else
+      // in the room saw a live microphone beside a name that was publishing
+      // nothing at all.
+      await tester.tap(mutedMics.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        tester.widgetList(find.byIcon(Icons.mic_rounded)).length,
+        livingMics,
+        reason: 'nothing was published, so nothing may claim to be on',
+      );
+    });
   });
 }

@@ -47,8 +47,17 @@ class LiveRoomScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
-  bool _micOn = false;
-  bool _cameraOn = false;
+  /// Read off the media session rather than kept beside it.
+  ///
+  /// These were local booleans flipped on tap, which made the control bar a
+  /// statement of intent rather than of fact. A refused microphone left the
+  /// button lit and sent `mic_on: true` to `ol_room_presence`, so everyone
+  /// else in the room saw a live microphone next to a name they could not
+  /// hear — and the person talking had nothing on screen telling them
+  /// otherwise.
+  bool get _micOn => _media.micOn;
+  bool get _cameraOn => _media.cameraOn;
+
   bool _handRaised = false;
   bool _showChat = true;
   bool _showCaptions = true;
@@ -109,7 +118,14 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     // fixtures, and there is no backend to tell that anyone arrived. Leaving
     // early also keeps the heartbeat out of the widget tests, where a
     // repeating timer outlives the test that started it.
-    if (repo.isDemo) return;
+    //
+    // The media session is still told, with a null grant. Skipping it left
+    // the session at `idle`, which the notice renders as "Video
+    // tayyorlanmoqda…" — a room that is preparing nothing, for ever.
+    if (repo.isDemo) {
+      unawaited(_media.connect(null));
+      return;
+    }
 
     final previous = _joinedLessonId;
     _joinedLessonId = lesson.id;
@@ -138,15 +154,29 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     );
   }
 
-  /// Mirrors a control-bar toggle into the room, so the other participants
-  /// see it. Local state changes either way — a failed write should not leave
-  /// the button disagreeing with the finger that pressed it.
+  /// Mirrors the room's actual state into `ol_room_presence`, so the other
+  /// participants see it.
+  ///
+  /// What is sent is what is true — [_micOn] now reads the published track,
+  /// not the button — because this row is what draws the little microphone
+  /// beside your name on everybody else's screen.
   void _pushPresence() {
     final id = _joinedLessonId;
     if (id == null) return;
     ref
         .read(lessonsRepositoryProvider)
         .enterRoom(id, micOn: _micOn, handRaised: _handRaised);
+  }
+
+  /// Turns the microphone on or off and tells the room what came of it.
+  ///
+  /// Ordered this way deliberately: ask the device first, publish the result
+  /// second. The other way round announces a microphone that may never have
+  /// been handed over.
+  Future<void> _toggleMic() async {
+    await _media.setMicrophone(!_micOn);
+    if (!mounted) return;
+    _pushPresence();
   }
 
   /// Leaves deliberately, as opposed to closing the window. Distinct from
@@ -251,6 +281,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _MediaNotice(media: _media),
+                _AudioBlockedNotice(media: _media),
+                _DeviceErrorNotice(media: _media),
                 const SizedBox(height: 14),
                 if (layout.isExpanded)
                   // Expanded, not the design's literal 620: the shell gives
@@ -306,17 +338,12 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   handRaised: _handRaised,
                   chatOn: _showChat,
                   captionsOn: _showCaptions,
-                  onMic: () {
-                    final next = !_micOn;
-                    setState(() => _micOn = next);
-                    _media.setMicrophone(next);
-                    _pushPresence();
-                  },
-                  onCamera: () {
-                    final next = !_cameraOn;
-                    setState(() => _cameraOn = next);
-                    _media.setCamera(next);
-                  },
+                  // Null while there is no media connection. A live-looking
+                  // button that cannot reach a microphone is the thing this
+                  // screen must never show again.
+                  onMic: _media.isLive ? _toggleMic : null,
+                  onCamera:
+                      _media.isLive ? () => _media.setCamera(!_cameraOn) : null,
                   onHand: () {
                     setState(() => _handRaised = !_handRaised);
                     _pushPresence();
@@ -431,6 +458,104 @@ class _MediaNotice extends StatelessWidget {
             child: Text(text, style: HkType.body.copyWith(fontSize: 12.5)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "You cannot hear anyone" — and the one button that fixes it.
+///
+/// A browser will not play a page's sound until the page has been interacted
+/// with, and it does not say so. The lesson looks connected, the participant
+/// list fills up, microphones light up, and it is silent: everyone waits for
+/// somebody else to start, and every one of them has started.
+///
+/// It has to be a tap. The permission is granted to a gesture, not to a page,
+/// so there is no way for the app to clear this quietly on the person's
+/// behalf — which is why this is the loudest thing on the screen while it is
+/// up, and gone the moment it is dealt with.
+class _AudioBlockedNotice extends StatelessWidget {
+  const _AudioBlockedNotice({required this.media});
+
+  final LiveMediaSession media;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!media.audioBlocked) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: GlassPanel(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        radius: HkRadius.cardSmall,
+        tint: const Color(0x1AE08600),
+        borderColor: const Color(0x55E08600),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.volume_off_rounded,
+              size: 18,
+              color: HkColors.warningBright,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Brauzer ovozni to‘sib qo‘ydi — hozir hech kimni eshitmaysiz.',
+                style: HkType.body.copyWith(fontSize: 12.5),
+              ),
+            ),
+            const SizedBox(width: 12),
+            LimeButton(
+              label: 'Ovozni yoqish',
+              icon: Icons.volume_up_rounded,
+              onPressed: media.startAudioPlayback,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A microphone or camera the device would not hand over.
+///
+/// Distinct from the connection notice above it: the room is fine and
+/// everyone else is audible, it is this one device that was refused. Almost
+/// always a permission the person can go and grant — which they will never
+/// think to do if the only symptom is a button that does nothing.
+class _DeviceErrorNotice extends StatelessWidget {
+  const _DeviceErrorNotice({required this.media});
+
+  final LiveMediaSession media;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = media.deviceError;
+    if (message == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: GlassPanel(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        radius: HkRadius.cardSmall,
+        tint: const Color(0x1ADC2626),
+        borderColor: const Color(0x33DC2626),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.mic_off_rounded,
+              size: 18,
+              color: HkColors.dangerBright,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: HkType.body.copyWith(fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1059,8 +1184,11 @@ class _ControlBar extends StatelessWidget {
   final bool handRaised;
   final bool chatOn;
   final bool captionsOn;
-  final VoidCallback onMic;
-  final VoidCallback onCamera;
+
+  /// Null when there is no media connection to speak into. The buttons then
+  /// render as unavailable and say why, rather than lighting up over nothing.
+  final VoidCallback? onMic;
+  final VoidCallback? onCamera;
   final VoidCallback onHand;
   final VoidCallback onChat;
   final VoidCallback onCaptions;
@@ -1085,7 +1213,9 @@ class _ControlBar extends StatelessWidget {
             _ControlButton(
               icon: micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
               active: micOn,
-              tooltip: micOn ? 'Mikrofonni o‘chirish' : 'Mikrofonni yoqish',
+              tooltip: onMic == null
+                  ? 'Mikrofon mavjud emas — audio ulanmagan'
+                  : (micOn ? 'Mikrofonni o‘chirish' : 'Mikrofonni yoqish'),
               onTap: onMic,
             ),
             _ControlButton(
@@ -1093,7 +1223,9 @@ class _ControlBar extends StatelessWidget {
                   ? Icons.videocam_rounded
                   : Icons.videocam_off_rounded,
               active: cameraOn,
-              tooltip: cameraOn ? 'Kamerani o‘chirish' : 'Kamerani yoqish',
+              tooltip: onCamera == null
+                  ? 'Kamera mavjud emas — video ulanmagan'
+                  : (cameraOn ? 'Kamerani o‘chirish' : 'Kamerani yoqish'),
               onTap: onCamera,
             ),
             _ControlButton(
@@ -1212,7 +1344,11 @@ class _ControlButton extends StatefulWidget {
   });
 
   final IconData icon;
-  final VoidCallback onTap;
+
+  /// Null renders the button as unavailable: dimmed, not clickable, and with
+  /// a tooltip saying why. Better than a live-looking control that silently
+  /// does nothing.
+  final VoidCallback? onTap;
   final String tooltip;
   final bool active;
 
@@ -1225,10 +1361,14 @@ class _ControlButtonState extends State<_ControlButton> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    final hovered = enabled && _hovered;
+
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor:
+            enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
@@ -1241,13 +1381,15 @@ class _ControlButtonState extends State<_ControlButton> {
               gradient: widget.active ? kLimeGradient : null,
               color: widget.active
                   ? null
-                  : (_hovered ? HkGlass.hoverFill : const Color(0x0FFFFFFF)),
+                  : (hovered ? HkGlass.hoverFill : const Color(0x0FFFFFFF)),
               borderRadius: BorderRadius.circular(HkRadius.control),
             ),
             child: Icon(
               widget.icon,
               size: 20,
-              color: widget.active ? HkColors.ink : HkColors.textPrimary,
+              color: widget.active
+                  ? HkColors.ink
+                  : (enabled ? HkColors.textPrimary : HkColors.textTertiary),
             ),
           ),
         ),

@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 90 tests
+flutter test             # 96 tests
 flutter build linux --release
 ```
 
@@ -434,6 +434,27 @@ office ends up with two lists of the same people.
   full table read. `test/room_presence_test.dart` covers the mechanism; that
   demo mode starts no timer is covered by the live-room tests in
   `lesson_lifecycle_test.dart`, which would fail on a pending timer.
+- **A microphone button that reported the tap, not the track.** It flipped a
+  local boolean, so the button lit and `mic_on: true` went to
+  `ol_room_presence` whether or not anything was published — on a denied
+  permission, on a failed media connection, and on a project with no LiveKit
+  at all. Everyone else in the room saw a live microphone beside a name they
+  could not hear, and the person talking had nothing on screen suggesting
+  otherwise. The control bar reads `LiveMediaSession.micOn` now, which is the
+  published track; the buttons are disabled when there is nothing to speak
+  into; and a refused device gets its own notice, because it is a different
+  failure from a failed connection and it is one the person can go and fix.
+- **Browsers will not play a room's audio, and will not say so.** Sound needs
+  a user gesture first. Untreated, a lesson looks perfect and is silent in
+  both directions — everyone waits for somebody else to speak. `connect()`
+  calls `room.startAudio()` and listens for `AudioPlaybackStatusChanged`;
+  while it is blocked the room shows a notice with an "Ovozni yoqish" button,
+  because the permission is granted to a tap and there is no way to clear it
+  on the person's behalf.
+- **`LiveMediaSession.connect(null)` is idempotent, and has to be.** The room
+  calls it from a post-frame callback, so notifying on an unchanged state
+  rebuilds the screen, which schedules the callback, which calls it again.
+  `test/live_media_test.dart` counts the notifications.
 
 ---
 
@@ -444,9 +465,14 @@ Roughly in the order they matter:
 1. **Payment recording UI.** `StaffRepository.recordPayment` and
    `confirmPayment` exist and work; no button is wired to them. The finance
    screen is read-only.
-2. **LiveKit video.** The live room is a complete shell — participants,
-   controls, chat, the "davom etmoqda" clock — with no media layer. Tables
-   carry `live_room`; nothing writes it.
+2. **The rest of the live room.** Camera and microphone are built and work —
+   `LiveMediaSession` joins LiveKit with a token `ol_livekit_join()` signs.
+   Three things in that room are still pretending, and each looks finished on
+   screen: **screen sharing** is a button wired to `() {}`; the **captions**
+   under the stage are one hard-coded Korean sentence shown to everybody,
+   with a toggle that suggests it is transcribing; and the **"Yozib
+   olinmoqda" pill** appears whenever `lesson.autoRecord` is set, while
+   nothing records and item 3 below says there is nowhere to record to.
 3. **Recording playback.** The library lists recordings and tracks watch
    progress; there is no player and no storage bucket.
 4. **Homework and quizzes.** Grading reads `ol_assignment_submissions`; there

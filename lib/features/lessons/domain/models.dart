@@ -316,23 +316,43 @@ class Assignment {
     required this.id,
     required this.title,
     required this.submitted,
+    this.body,
     this.dueAt,
+    this.lessonId,
+    this.lessonTitle,
   });
 
   final String id;
   final String title;
   final bool submitted;
+
+  /// What the teacher actually asked for. Null on the older rows, and on the
+  /// lesson-detail card, which only ever read the title.
+  final String? body;
   final DateTime? dueAt;
 
+  /// Which lesson set it. Needed on the student's dashboard, where the
+  /// assignment is read across lessons rather than inside one.
+  final String? lessonId;
+  final String? lessonTitle;
+
   String get statusLabel => submitted ? 'Topshirilgan' : 'Topshirilmagan';
+
+  /// Past its due date and still not handed in. Derived at read time rather
+  /// than stored, the same way an overdue payment is.
+  bool isOverdueAt(DateTime now) =>
+      !submitted && dueAt != null && dueAt!.isBefore(now);
 
   factory Assignment.fromMap(Map<String, dynamic> map) => Assignment(
         id: map['id'] as String,
         title: (map['title'] as String?) ?? 'Uy vazifasi',
         submitted: (map['submitted'] as bool?) ?? false,
+        body: map['body'] as String?,
         dueAt: map['due_at'] == null
             ? null
             : DateTime.parse(map['due_at'] as String).toLocal(),
+        lessonId: map['lesson_id'] as String?,
+        lessonTitle: map['lesson_title'] as String?,
       );
 }
 

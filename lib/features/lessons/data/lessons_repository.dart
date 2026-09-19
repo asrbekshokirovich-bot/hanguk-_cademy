@@ -217,6 +217,78 @@ class LessonsRepository {
     return Assignment.fromMap({...row, 'submitted': submission != null});
   }
 
+  /// Every assignment set on a lesson this account is enrolled in.
+  ///
+  /// Read here rather than on the lesson-detail screen, which is the only
+  /// place homework used to appear — and which is reachable only through a
+  /// recording. With no recordings, a student had no route to their homework
+  /// at all, however carefully the teacher had set it.
+  ///
+  /// Three round trips rather than a view, because there is no view for this
+  /// and adding one means a migration. `ol_enrollments` is readable only for
+  /// your own rows, which is what scopes the first query.
+  Future<List<Assignment>> myAssignments() async {
+    if (isDemo) return DemoData.myAssignments();
+
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return const [];
+
+    final enrolled = await _db
+        .from('ol_enrollments')
+        .select('lesson_id')
+        .eq('student_id', userId);
+    final lessonIds =
+        enrolled.map((r) => r['lesson_id'] as String).toSet().toList();
+    if (lessonIds.isEmpty) return const [];
+
+    final rows = await _db
+        .from('ol_assignments')
+        .select('id, lesson_id, title, body, due_at, ol_lessons(title)')
+        .inFilter('lesson_id', lessonIds)
+        .order('due_at', ascending: true, nullsFirst: false);
+    if (rows.isEmpty) return const [];
+
+    final mine = await _db
+        .from('ol_assignment_submissions')
+        .select('assignment_id')
+        .eq('student_id', userId)
+        .inFilter('assignment_id', rows.map((r) => r['id'] as String).toList());
+    final submitted = mine.map((r) => r['assignment_id'] as String).toSet();
+
+    return rows.map((r) {
+      final lesson = r['ol_lessons'];
+      return Assignment.fromMap({
+        ...r,
+        'submitted': submitted.contains(r['id']),
+        'lesson_title': lesson is Map<String, dynamic> ? lesson['title'] : null,
+      });
+    }).toList();
+  }
+
+  /// Hands in [note] against [assignmentId].
+  ///
+  /// Text only. `ol_assignment_submissions.file_url` has been in the schema
+  /// from the start, but there is no storage bucket to put a file in, so
+  /// offering an upload would be the same lie as the play button was.
+  ///
+  /// An upsert, so a student who realises they answered the wrong question
+  /// can hand it in again — the primary key is (assignment, student), and
+  /// the grading queue reads whatever is there when the teacher opens it.
+  Future<void> submitAssignment(String assignmentId, String note) async {
+    if (isDemo) {
+      throw StateError('Demo rejimda vazifa topshirib bo‘lmaydi');
+    }
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) throw StateError('Tizimga kirilmagan');
+
+    await _db.from('ol_assignment_submissions').upsert({
+      'assignment_id': assignmentId,
+      'student_id': userId,
+      'note': note.trim(),
+      'submitted_at': hkNow().toUtc().toIso8601String(),
+    }, onConflict: 'assignment_id,student_id');
+  }
+
   // -------------------------------------------------------------- search ---
 
   /// Matches [query] against lesson and recording titles, categories and

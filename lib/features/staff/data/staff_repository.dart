@@ -106,6 +106,48 @@ class StaffRepository {
         .eq('student_id', studentId);
   }
 
+  /// Sets, or rewrites, the homework on a lesson.
+  ///
+  /// There was no way to do this at all. `ol_assignments` has been in the
+  /// schema since the first migration and the grading queue reads what comes
+  /// back against it, so a teacher was asked to mark work nobody could set —
+  /// "Baholash" was an empty screen with no way to ever stop being one.
+  ///
+  /// One assignment per lesson, matching what the lesson screens read. There
+  /// is no unique index on `lesson_id` to upsert against, so an existing row
+  /// is found and updated rather than duplicated.
+  Future<void> setAssignment({
+    required String lessonId,
+    required String title,
+    String? body,
+    DateTime? dueAt,
+  }) async {
+    if (isDemo) {
+      throw StateError('Demo rejimda vazifa berib bo‘lmaydi');
+    }
+
+    final row = {
+      'title': title.trim(),
+      'body': (body ?? '').trim().isEmpty ? null : body!.trim(),
+      'due_at': dueAt?.toUtc().toIso8601String(),
+    };
+
+    final existing = await _db
+        .from('ol_assignments')
+        .select('id')
+        .eq('lesson_id', lessonId)
+        .maybeSingle();
+
+    if (existing == null) {
+      await _db.from('ol_assignments').insert({'lesson_id': lessonId, ...row});
+    } else {
+      await _db
+          .from('ol_assignments')
+          .update(row)
+          .eq('id', existing['id'] as String);
+    }
+  }
+
   // -------------------------------------------------------------- groups ---
 
   Future<List<StudyGroup>> groups() async {

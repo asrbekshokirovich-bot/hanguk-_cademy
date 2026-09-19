@@ -230,6 +230,42 @@ abstract final class DemoData {
     submitted: false,
   );
 
+  /// What the student owes, across their lessons.
+  ///
+  /// One of each state the card has to draw: handed in, still open with a
+  /// deadline ahead, and one that is already past it.
+  static List<Assignment> myAssignments() {
+    final now = hkNow();
+    return [
+      Assignment(
+        id: 'a1',
+        title: 'Yangi so‘zlarni yozib keling',
+        body: '3-bo‘limdagi 20 ta so‘zni gap ichida ishlating.',
+        submitted: false,
+        dueAt: now.add(const Duration(days: 2)),
+        lessonId: 'd2',
+        lessonTitle: 'Koreys tili · Suhbat amaliyoti',
+      ),
+      Assignment(
+        id: 'a2',
+        title: 'Tinglash mashqi',
+        body: 'Audioni tinglab, savollarga javob yozing.',
+        submitted: false,
+        dueAt: now.subtract(const Duration(days: 1)),
+        lessonId: 'd4',
+        lessonTitle: 'Tinglab tushunish',
+      ),
+      Assignment(
+        id: 'a3',
+        title: 'O‘zini tanishtirish',
+        submitted: true,
+        dueAt: now.subtract(const Duration(days: 3)),
+        lessonId: 'd1',
+        lessonTitle: 'Grammatika · Daraja 2',
+      ),
+    ];
+  }
+
   static List<AppNotification> notifications() {
     final now = hkNow();
     return [

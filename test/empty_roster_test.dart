@@ -14,6 +14,7 @@ import 'package:hanguk_online/features/staff/domain/staff_models.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_groups_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_students_screen.dart';
 import 'package:hanguk_online/features/staff/presentation/admin_teachers_screen.dart';
+import 'package:hanguk_online/features/staff/presentation/teacher_grading_screen.dart';
 import 'package:hanguk_online/main.dart';
 
 /// Regression tests for a defect the user hit on their own data.
@@ -82,6 +83,21 @@ void main() {
 
     expect(find.textContaining('Hali o‘qituvchi yo‘q'), findsOneWidget);
     expect(find.text('O‘qituvchi qo‘shish'), findsNothing);
+  });
+
+  testWidgets('an empty grading queue still offers a way to set work',
+      (tester) async {
+    // The same rule, and the case that made it matter twice. A teacher was
+    // asked to mark homework nobody could set: `ol_assignments` had no write
+    // path anywhere in the app, so "Baholash" was an empty screen with no way
+    // of ever ceasing to be one. Now that it has a button, that button must
+    // survive the empty state it exists for.
+    await pump(tester, const TeacherGradingScreen(), [
+      submissionsProvider.overrideWith((ref) async => <Submission>[]),
+    ]);
+
+    expect(find.textContaining('Hali vazifa topshirilmagan'), findsOneWidget);
+    expect(find.text('Yangi vazifa'), findsOneWidget);
   });
 
   testWidgets('the button is there while the roster is still loading',

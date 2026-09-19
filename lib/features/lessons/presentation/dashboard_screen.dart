@@ -13,6 +13,7 @@ import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/env.dart';
+import 'submit_assignment_dialog.dart';
 import '../../../core/clock.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -43,6 +44,12 @@ class DashboardScreen extends ConsumerWidget {
             loadingHeight: 120,
             builder: (stats) => _StatRow(stats: stats, layout: layout),
           ),
+          // Above the timetable, because it is the thing with a deadline on
+          // it. Homework used to live only on the recording-detail page,
+          // which is reachable only through a recording — and there are
+          // none, so work a teacher set was invisible to the student who
+          // owed it. Renders nothing at all when there is none.
+          const _HomeworkCard(),
           const SizedBox(height: HkSpace.gridGapWide),
           if (layout.isExpanded)
             IntrinsicHeight(
@@ -62,6 +69,147 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// "Uy vazifalari" — what this student owes, across all their lessons.
+///
+/// Renders nothing at all when there is no homework rather than an empty
+/// panel: a card that says "nothing here" on a dashboard that already has
+/// four is noise, and a student with no homework does not need telling.
+class _HomeworkCard extends ConsumerWidget {
+  const _HomeworkCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final assignments = ref.watch(myAssignmentsProvider).value ?? const [];
+    final open = assignments.where((a) => !a.submitted).toList();
+    if (assignments.isEmpty) return const SizedBox.shrink();
+
+    final now = hkNow();
+    return Padding(
+      padding: const EdgeInsets.only(top: HkSpace.gridGapWide),
+      child: GlassPanel(
+        radius: HkRadius.cardLarge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Uy vazifalari', style: HkType.sectionTitle),
+                ),
+                if (open.isNotEmpty)
+                  HkPill(
+                    label: '${open.length} ta topshirilmagan',
+                    background: const Color(0x26E08600),
+                    foreground: HkColors.warningBright,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            for (final a in assignments) ...[
+              _HomeworkRow(assignment: a, now: now),
+              if (a != assignments.last) const SizedBox(height: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeworkRow extends ConsumerWidget {
+  const _HomeworkRow({required this.assignment, required this.now});
+
+  final Assignment assignment;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = assignment;
+    final overdue = a.isOverdueAt(now);
+    final compact = HkLayout.of(context).isCompact;
+
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(a.title, style: HkType.cardTitle.copyWith(fontSize: 13.5)),
+        const SizedBox(height: 3),
+        Text(
+          [
+            if (a.lessonTitle != null) a.lessonTitle!,
+            if (a.dueAt != null)
+              '${DateFormat('d-MMMM', 'uz').format(a.dueAt!)} gacha',
+          ].join(' · '),
+          style: HkType.muted,
+        ),
+        if (a.body != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            a.body!,
+            style: HkType.body.copyWith(fontSize: 12.5),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ],
+    );
+
+    final trailing = <Widget>[
+      if (a.submitted)
+        const HkPill(
+          label: 'Topshirilgan',
+          background: Color(0x2634C77B),
+          foreground: HkColors.successBright,
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        )
+      else ...[
+        if (overdue)
+          const HkPill(
+            label: 'Muddati o‘tgan',
+            background: Color(0x26DC2626),
+            foreground: HkColors.dangerBright,
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          ),
+        LimeButton(
+          label: 'Topshirish',
+          onPressed: () async {
+            final sent = await showSubmitAssignmentDialog(context, a);
+            if (sent == true) ref.invalidate(myAssignmentsProvider);
+          },
+        ),
+      ],
+    ];
+
+    return GlassPanel(
+      radius: HkRadius.cardSmall,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      tint: overdue ? const Color(0x14DC2626) : null,
+      // Stacked on a phone. Side by side, the title, the deadline, an overdue
+      // badge and a button do not fit across 390pt — and 'Topshirish' is the
+      // one control on the card, so it is not the thing to let overflow.
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                text,
+                const SizedBox(height: 12),
+                Wrap(spacing: 10, runSpacing: 8, children: trailing),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: text),
+                const SizedBox(width: 12),
+                Wrap(spacing: 10, children: trailing),
+              ],
+            ),
     );
   }
 }

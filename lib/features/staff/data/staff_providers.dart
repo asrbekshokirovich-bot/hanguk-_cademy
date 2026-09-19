@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/clock.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../lessons/data/lessons_repository.dart';
 import '../../lessons/data/providers.dart';
 import '../../lessons/domain/models.dart';
 import '../domain/staff_models.dart';
@@ -56,6 +58,31 @@ final teacherStatsProvider = FutureProvider<TeacherStats>((ref) {
 
 final myStudentsProvider = FutureProvider<List<TeacherStudent>>((ref) {
   return ref.watch(staffRepositoryProvider).myStudents();
+});
+
+/// The lessons this teacher can attach homework to.
+///
+/// A fortnight around today: the lesson just taught is the usual case, and a
+/// teacher setting work ahead of next week's class is the other one. Scoped
+/// to their own lessons where there is a teacher row — an admin has none and
+/// sees every lesson, which is what `ol_is_staff()` lets them write to
+/// anyway.
+final assignableLessonsProvider = FutureProvider<List<Lesson>>((ref) async {
+  final now = hkNow();
+  final today = DateTime(now.year, now.month, now.day);
+  final lessons = await ref.watch(lessonsRepositoryProvider).lessonsBetween(
+        today.subtract(const Duration(days: 7)),
+        today.add(const Duration(days: 14)),
+      );
+
+  final mine = await ref.watch(myTeacherIdProvider.future);
+  final scoped = mine == null
+      ? lessons
+      : lessons.where((l) => l.teacher?.id == mine).toList();
+
+  // Most recent first: homework is nearly always set for the lesson that has
+  // just finished, and that one should not be at the bottom of the list.
+  return scoped.reversed.toList();
 });
 
 /// The grading queue, ungraded first.

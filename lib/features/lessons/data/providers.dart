@@ -168,6 +168,16 @@ final weekLessonsProvider = FutureProvider<List<Lesson>>((ref) {
       .lessonsBetween(start, start.add(const Duration(days: 7)));
 });
 
+/// The homework this student owes, across every lesson they are enrolled in.
+///
+/// Watched on the dashboard, which is the only screen a student opens every
+/// day. Homework used to live on the recording-detail page alone, and that
+/// page is reachable only through a recording — of which there are none, so
+/// the work a teacher set was invisible to the person meant to do it.
+final myAssignmentsProvider = FutureProvider<List<Assignment>>((ref) {
+  return ref.watch(lessonsRepositoryProvider).myAssignments();
+});
+
 final notificationsProvider = FutureProvider<List<AppNotification>>((ref) {
   return ref.watch(lessonsRepositoryProvider).notifications();
 });

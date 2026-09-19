@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 100 tests
+flutter test             # 107 tests
 flutter build linux --release
 ```
 
@@ -497,6 +497,25 @@ office ends up with two lists of the same people.
   that looks like the thing to press should be the thing to press; both are
   now a line of text saying the feature is not available yet, which is the
   same news without the invitation.
+- **Homework had a middle and no ends.** `ol_assignments` has been in the
+  schema since the first migration and "Baholash" is built on what comes back
+  against it, but nothing in the app ever wrote a row — a teacher was asked
+  to mark work that could not be set, on a screen with no way of ever ceasing
+  to be empty. And the only place an assignment was ever shown was the
+  recording-detail page, which is reachable through a recording, of which
+  there are none: so even a hand-written row would have been invisible to the
+  student who owed it.
+  Both ends exist now. A teacher sets work from **one** door —
+  `showAssignmentDialog` on Baholash, outside the AsyncSection for the reason
+  in `test/empty_roster_test.dart` — and a student sees and answers it on the
+  dashboard's "Uy vazifalari" card. No SQL was needed: `ol_assignments_write`
+  already allowed `ol_is_staff()`, and `ol_assignment_submissions_insert`
+  already allowed `student_id = auth.uid()`. Two things to know about the
+  shape: there is **one assignment per lesson**, which the read path assumes
+  and `setAssignment` maintains by updating rather than inserting a second
+  (there is no unique index to upsert against); and a submission is **text
+  only**, because `file_url` still has no storage bucket behind it and an
+  upload button would be the play button all over again.
 
 ---
 
@@ -513,8 +532,9 @@ Roughly in the order they matter:
    come back the moment there is something to put in them.
 3. **Recording playback.** The library lists recordings and tracks watch
    progress; there is no player and no storage bucket.
-4. **Homework and quizzes.** Grading reads `ol_assignment_submissions`; there
-   is no screen for *setting* an assignment.
+4. **Quizzes.** `ol_quizzes` is read and drawn; there is no screen for
+   setting one and no screen for taking one. Homework is done — see §7 — but
+   a quiz is a different shape and still has nothing behind it.
 5. **App icons and store packaging.** Android/iOS build but ship with the
    default Flutter icon.
 

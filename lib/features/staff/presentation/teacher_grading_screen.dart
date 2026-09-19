@@ -14,6 +14,7 @@ import '../../../design_system/widgets/states.dart';
 import '../data/staff_providers.dart';
 import '../data/staff_repository.dart';
 import '../domain/staff_models.dart';
+import 'assignment_dialog.dart';
 import 'grade_dialog.dart';
 
 /// Show graded work as well as pending, or only what is waiting.
@@ -32,7 +33,94 @@ class TeacherGradingScreen extends ConsumerWidget {
     return AppShell(
       title: 'Baholash',
       subtitle: 'Topshirilgan vazifalar',
-      child: AsyncSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Outside the AsyncSection, deliberately. Inside its data builder
+          // the empty state would replace the button with "Hali vazifa
+          // topshirilmagan" — and an empty queue is the one moment a teacher
+          // certainly needs a way to set some work. See
+          // `test/empty_roster_test.dart` for the same rule on the roster.
+          _NewAssignmentBar(onCreated: () {
+            ref.invalidate(submissionsProvider);
+          }),
+          const SizedBox(height: HkSpace.gridGap),
+          // Not Expanded: on a phone the shell puts this column inside a
+          // scroll view, where a flex child has no finite height to expand
+          // into. The queue sizes itself either way.
+          _GradingQueue(showAll: showAll, now: now, layout: layout),
+        ],
+      ),
+    );
+  }
+}
+
+/// The one place homework is set.
+///
+/// One door, not two: the teacher dashboard shows the same lessons and it was
+/// tempting to put a second button there, but two ways into the same thing is
+/// how an office ends up with two lists of the same work.
+class _NewAssignmentBar extends StatelessWidget {
+  const _NewAssignmentBar({required this.onCreated});
+
+  final VoidCallback onCreated;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Vazifani darsga biriktirasiz — shu darsdagi talabalar uni '
+            'ko‘radi va shu yerga topshiradi.',
+            style: HkType.muted.copyWith(fontSize: 12.5),
+          ),
+        ),
+        const SizedBox(width: 16),
+        SizedBox(
+          height: 44,
+          child: FilledButton.icon(
+            onPressed: () async {
+              final saved = await showAssignmentDialog(context);
+              if (saved == true) onCreated();
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: HkColors.lime,
+              foregroundColor: HkColors.ink,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(HkRadius.control),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+            ),
+            icon: const Icon(Icons.assignment_add, size: 18),
+            label: const Text(
+              'Yangi vazifa',
+              style: TextStyle(
+                fontFamily: HkType.family,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GradingQueue extends ConsumerWidget {
+  const _GradingQueue({
+    required this.showAll,
+    required this.now,
+    required this.layout,
+  });
+
+  final bool showAll;
+  final DateTime now;
+  final HkLayout layout;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AsyncSection(
         value: ref.watch(submissionsProvider),
         onRetry: () => ref.invalidate(submissionsProvider),
         loadingHeight: 260,
@@ -110,8 +198,7 @@ class TeacherGradingScreen extends ConsumerWidget {
                 ),
             ],
           );
-        },
-      ),
+      },
     );
   }
 }

@@ -67,10 +67,15 @@ bool ownsLesson(WidgetRef ref, Lesson lesson) {
 }
 
 final teacherStatsProvider = FutureProvider<TeacherStats>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).teacherStats();
 }, isAutoDispose: true);
 
 final myStudentsProvider = FutureProvider<List<TeacherStudent>>((ref) {
+  // Re-read on the roster tick as well as on re-entry: a teacher looking at
+  // this screen while an administrator fills their group should not have to
+  // know that leaving and coming back is what makes it true.
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).myStudents();
 }, isAutoDispose: true);
 
@@ -106,6 +111,7 @@ final assignableLessonsProvider = FutureProvider<List<Lesson>>((ref) async {
 
 /// The grading queue, ungraded first.
 final submissionsProvider = FutureProvider<List<Submission>>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).submissions();
 }, isAutoDispose: true);
 
@@ -121,18 +127,22 @@ final pendingSubmissionsProvider = Provider<List<Submission>>((ref) {
 }, isAutoDispose: true);
 
 final adminKpisProvider = FutureProvider<AdminKpis>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).adminKpis();
 }, isAutoDispose: true);
 
 final teacherRosterProvider = FutureProvider<List<TeacherRosterEntry>>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).teacherRoster();
 }, isAutoDispose: true);
 
 final adminStudentsProvider = FutureProvider<List<AdminStudent>>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).adminStudents();
 }, isAutoDispose: true);
 
 final paymentsProvider = FutureProvider<List<Payment>>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).payments();
 }, isAutoDispose: true);
 
@@ -141,6 +151,7 @@ final plansProvider = FutureProvider<List<PaymentPlan>>((ref) {
 });
 
 final groupsProvider = FutureProvider<List<StudyGroup>>((ref) {
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).groups();
 }, isAutoDispose: true);
 
@@ -156,6 +167,7 @@ final groupsProvider = FutureProvider<List<StudyGroup>>((ref) {
 /// and would also be a migration.
 final upcomingLessonsByGroupProvider =
     FutureProvider<Map<String, int>>((ref) async {
+  ref.watch(hkRosterTick);
   final now = hkNow();
   final lessons = await ref.watch(lessonsRepositoryProvider).lessonsBetween(
         now,

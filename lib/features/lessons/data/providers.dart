@@ -112,6 +112,37 @@ final _statusTick = Provider<int>((ref) {
   return ref.watch(_statusTickProvider).value ?? 0;
 });
 
+/// How often the lists a person maintains by hand are re-read.
+///
+/// Rosters, groups and the grading queue do not move on their own — somebody
+/// in the office does something and they change — so the twenty-second beat
+/// would be asking a question whose answer almost never differs. Never asking
+/// is what left a teacher reading "no group has been assigned to you" while
+/// an administrator looked at the opposite on the next screen. A minute is
+/// short enough that nobody calls it broken.
+const _rosterPollInterval = Duration(minutes: 1);
+
+final _rosterTickProvider = StreamProvider<int>((ref) async* {
+  final demo = ref.watch(lessonsRepositoryProvider).isDemo;
+
+  var tick = 0;
+  yield tick;
+  // Demo yields once and stops, for the same reason the status tick does: a
+  // widget test left holding this timer would never finish pumping.
+  while (!demo) {
+    await Future<void>.delayed(_rosterPollInterval);
+    yield ++tick;
+  }
+});
+
+/// The roster tick as a plain number. Public because the screens that need it
+/// most are in the staff feature, and collapsed to an `int` for the reason
+/// written above [_statusTick]: watching the stream would cost every list a
+/// second read a microtask after it opened.
+final hkRosterTick = Provider<int>((ref) {
+  return ref.watch(_rosterTickProvider).value ?? 0;
+});
+
 final lessonByIdProvider =
     FutureProvider.family<Lesson?, String>((ref, id) {
   return ref.watch(lessonsRepositoryProvider).lessonById(id);

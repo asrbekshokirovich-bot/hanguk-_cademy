@@ -28,6 +28,9 @@ dependencies:
   # is the one the school actually teaches from.
   livekit_client: ^2.13.0
   intl: ^0.20.2
+  # Choosing a file to hand in. Windows, web and Android all need a native
+  # picker; this is the one that has all three.
+  file_picker: ^13.1.0
   url_launcher: ^6.3.0
   # Desktop: size/centre/title the window before the first frame so the
   # 1440x920 shell from the design isn't at the mercy of the WM default.

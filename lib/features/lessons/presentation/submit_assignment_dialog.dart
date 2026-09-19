@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,13 +8,19 @@ import '../../auth/presentation/auth_scaffold.dart';
 import '../data/lessons_repository.dart';
 import '../domain/models.dart';
 
-/// Hands in one piece of homework.
+/// What the `uploads` bucket will take, checked here as well as there.
 ///
-/// Text only. `ol_assignment_submissions.file_url` has been in the schema
-/// from the start and there is still no storage bucket behind it, so an
-/// upload button here would be the same promise the play button used to make.
-/// A written answer is worth having on its own, and it is what makes the
-/// teacher's grading queue stop being empty.
+/// The bucket rejects anything larger, but it does so after the whole file
+/// has gone up the wire — which on a phone in Qarshi is several minutes of
+/// waiting for a refusal that was knowable before the first byte left.
+const _maxUploadBytes = 50 * 1024 * 1024;
+
+/// Hands in one piece of homework: a written answer, a file, or both.
+///
+/// Both, because they are not alternatives — a photographed exercise usually
+/// wants a sentence with it, and a sentence on its own is perfectly good
+/// homework. The file is optional and the text is not, so there is always
+/// something for the teacher to open.
 ///
 /// Returns true when something was handed in.
 Future<bool?> showSubmitAssignmentDialog(
@@ -42,10 +49,51 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
   bool _sending = false;
   String? _error;
 
+  /// Held as a handle until the work is handed in. Picking a file and then
+  /// closing the dialog must not leave an orphan in the bucket.
+  PlatformFile? _file;
+
+  /// Kept beside the file because the size is worth showing before sending
+  /// and finding it can cost a disk read (see [_pick]).
+  int? _size;
+
   @override
   void dispose() {
     _note.dispose();
     super.dispose();
+  }
+
+  Future<void> _pick() async {
+    try {
+      final picked = await FilePicker.pickFile();
+      if (picked == null || !mounted) return;
+
+      // The picker hands back a handle, not the bytes: reading a 40 MB photo
+      // into memory is the hand-in's job, not the picker's. The size usually
+      // comes back with the pick; `length()` falls back to a read when the
+      // platform did not report one, and returns null if even that failed.
+      final size = picked.lengthSync() ?? await picked.length();
+      if (!mounted) return;
+
+      if (size != null && size > _maxUploadBytes) {
+        setState(() {
+          _file = null;
+          _size = null;
+          _error = 'Fayl juda katta (${_FileRow.size(size)}). '
+              'Eng ko‘pi 50 MB.';
+        });
+        return;
+      }
+
+      setState(() {
+        _file = picked;
+        _size = size;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Faylni tanlab bo‘lmadi: $e');
+    }
   }
 
   Future<void> _send() async {
@@ -55,9 +103,25 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
       _error = null;
     });
     try {
-      await ref
-          .read(lessonsRepositoryProvider)
-          .submitAssignment(widget.assignment.id, _note.text);
+      final repository = ref.read(lessonsRepositoryProvider);
+
+      // Uploaded first, so a failure here stops the whole hand-in rather than
+      // recording an answer that claims a file it does not have.
+      String? path;
+      final file = _file;
+      if (file != null) {
+        path = await repository.uploadSubmissionFile(
+          assignmentId: widget.assignment.id,
+          filename: file.name,
+          bytes: await file.readAsBytes(),
+        );
+      }
+
+      await repository.submitAssignment(
+        widget.assignment.id,
+        _note.text,
+        fileUrl: path,
+      );
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -121,11 +185,17 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
                   validator: (v) =>
                       (v ?? '').trim().isEmpty ? 'Javob yozing' : null,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Fayl biriktirish hali mavjud emas — javobni matn '
-                  'ko‘rinishida yozing.',
-                  style: HkType.muted.copyWith(fontSize: 11.5),
+                const SizedBox(height: 12),
+                _FileRow(
+                  name: _file?.name,
+                  bytes: _size,
+                  onPick: _sending ? null : _pick,
+                  onClear: _sending
+                      ? null
+                      : () => setState(() {
+                            _file = null;
+                            _size = null;
+                          }),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
@@ -148,6 +218,87 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The optional attachment.
+///
+/// Named and sized once chosen, because "fayl tanlandi" tells a student
+/// nothing about whether they picked the right one — and a 50 MB limit is
+/// only useful if the number is on screen before they press send.
+class _FileRow extends StatelessWidget {
+  const _FileRow({
+    required this.name,
+    required this.bytes,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final String? name;
+  final int? bytes;
+  final VoidCallback? onPick;
+  final VoidCallback? onClear;
+
+  /// Also used by the over-size message, which is why it is not private.
+  static String size(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / 1024).round()} KB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final picked = name;
+    final length = bytes;
+
+    return Row(
+      children: [
+        Icon(
+          picked == null
+              ? Icons.attach_file_rounded
+              : Icons.insert_drive_file_outlined,
+          size: 18,
+          color: picked == null ? HkColors.textSecondary : HkColors.lime,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            picked == null
+                ? 'Fayl biriktirilmagan'
+                : length == null
+                    ? picked
+                    : '$picked · ${size(length)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: HkType.body.copyWith(fontSize: 12.5),
+          ),
+        ),
+        if (picked != null)
+          TextButton(
+            onPressed: onClear,
+            child: const Text(
+              'Olib tashlash',
+              style: TextStyle(
+                fontFamily: HkType.family,
+                fontSize: 12.5,
+                color: HkColors.textTertiary,
+              ),
+            ),
+          ),
+        TextButton(
+          onPressed: onPick,
+          child: Text(
+            picked == null ? 'Fayl biriktirish' : 'Almashtirish',
+            style: const TextStyle(
+              fontFamily: HkType.family,
+              fontSize: 12.5,
+              color: HkColors.lime,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

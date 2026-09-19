@@ -322,6 +322,7 @@ class Assignment {
     this.lessonTitle,
     this.grade,
     this.feedback,
+    this.fileUrl,
   });
 
   final String id;
@@ -345,7 +346,21 @@ class Assignment {
   final int? grade;
   final String? feedback;
 
+  /// The object path of the file this student attached, if any.
+  ///
+  /// Shown back to them on purpose: an upload with no acknowledgement is a
+  /// student wondering whether the photograph went, and re-sending it twice
+  /// to be sure.
+  final String? fileUrl;
+
   bool get isGraded => grade != null;
+
+  /// The stored filename, for showing rather than for fetching.
+  String? get fileName {
+    final path = fileUrl;
+    if (path == null || path.isEmpty) return null;
+    return Uri.decodeComponent(path.split('/').last);
+  }
 
   String get statusLabel => submitted ? 'Topshirilgan' : 'Topshirilmagan';
 
@@ -366,6 +381,7 @@ class Assignment {
         lessonTitle: map['lesson_title'] as String?,
         grade: (map['grade'] as num?)?.round(),
         feedback: map['feedback'] as String?,
+        fileUrl: map['file_url'] as String?,
       );
 }
 

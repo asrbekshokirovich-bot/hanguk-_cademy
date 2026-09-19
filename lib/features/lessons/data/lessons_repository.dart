@@ -253,7 +253,7 @@ class LessonsRepository {
     // into a void.
     final mine = await _db
         .from('ol_assignment_submissions')
-        .select('assignment_id, grade, feedback')
+        .select('assignment_id, grade, feedback, file_url')
         .eq('student_id', userId)
         .inFilter('assignment_id', rows.map((r) => r['id'] as String).toList());
     final byAssignment = {
@@ -268,21 +268,103 @@ class LessonsRepository {
         'submitted': submission != null,
         'grade': submission?['grade'],
         'feedback': submission?['feedback'],
+        'file_url': submission?['file_url'],
         'lesson_title': lesson is Map<String, dynamic> ? lesson['title'] : null,
       });
     }).toList();
   }
 
+  /// The bucket every upload goes into. One bucket, two folders — see
+  /// `20260919120000_storage_uploads.sql`, which is what stops one student
+  /// reading another's work.
+  static const _uploadsBucket = 'uploads';
+
+  /// Puts a student's answer file in the place the storage policy expects.
+  ///
+  /// `submissions/<assignment>/<student>/<file>`, with the student id as a
+  /// folder of its own: that is the segment the policy compares against
+  /// `auth.uid()`, and it is the whole of what keeps one pupil out of
+  /// another's homework.
+  ///
+  /// Anything already in that folder is cleared first, so handing the work in
+  /// again replaces it rather than leaving both files behind with no way to
+  /// tell which one was meant.
+  ///
+  /// Returns the object path, which is what goes in the row. Not a URL: the
+  /// bucket is private, so a link only exists for the few minutes somebody is
+  /// actually opening it — see [signedUploadUrl].
+  Future<String> uploadSubmissionFile({
+    required String assignmentId,
+    required String filename,
+    required Uint8List bytes,
+  }) async {
+    if (isDemo) {
+      throw StateError('Demo rejimda fayl yuklab bo‘lmaydi');
+    }
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) throw StateError('Tizimga kirilmagan');
+
+    final folder = 'submissions/$assignmentId/$userId';
+    final storage = _db.storage.from(_uploadsBucket);
+
+    try {
+      final existing = await storage.list(path: folder);
+      if (existing.isNotEmpty) {
+        await storage.remove([for (final f in existing) '$folder/${f.name}']);
+      }
+    } catch (_) {
+      // Tidying, not the work. A leftover file is untidy; a failed hand-in
+      // is a student who did their homework for nothing.
+    }
+
+    final path = '$folder/${_safeFilename(filename)}';
+    await storage.uploadBinary(
+      path,
+      bytes,
+      fileOptions: const FileOptions(upsert: true),
+    );
+    return path;
+  }
+
+  /// A link to an uploaded file, good for ten minutes.
+  ///
+  /// The bucket is private, so there is no permanent URL to store. Ten
+  /// minutes is long enough to open or save the file and short enough that a
+  /// link pasted into a chat stops working before it travels.
+  Future<String> signedUploadUrl(String objectPath) {
+    if (isDemo) {
+      throw StateError('Demo rejimda fayl ochib bo‘lmaydi');
+    }
+    return _db.storage.from(_uploadsBucket).createSignedUrl(objectPath, 600);
+  }
+
+  /// Keeps a filename to what an object key can hold, and to what a teacher
+  /// can recognise. Uzbek and Korean names arrive here routinely, and a
+  /// storage key is not the place to find out which bytes survive.
+  static String _safeFilename(String name) {
+    final cleaned = name
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp(r'-{2,}'), '-')
+        .replaceAll(RegExp(r'^[-.]+'), '');
+    final trimmed = cleaned.isEmpty ? 'javob' : cleaned;
+    return trimmed.length <= 80 ? trimmed : trimmed.substring(0, 80);
+  }
+
   /// Hands in [note] against [assignmentId].
   ///
-  /// Text only. `ol_assignment_submissions.file_url` has been in the schema
-  /// from the start, but there is no storage bucket to put a file in, so
-  /// offering an upload would be the same lie as the play button was.
+  /// A written answer, and optionally the object path of a file already
+  /// uploaded by [uploadSubmissionFile]. Both are kept: a photographed
+  /// exercise usually wants a sentence with it, and a sentence on its own is
+  /// a perfectly good piece of homework.
   ///
   /// An upsert, so a student who realises they answered the wrong question
   /// can hand it in again — the primary key is (assignment, student), and
   /// the grading queue reads whatever is there when the teacher opens it.
-  Future<void> submitAssignment(String assignmentId, String note) async {
+  Future<void> submitAssignment(
+    String assignmentId,
+    String note, {
+    String? fileUrl,
+  }) async {
     if (isDemo) {
       throw StateError('Demo rejimda vazifa topshirib bo‘lmaydi');
     }
@@ -293,6 +375,7 @@ class LessonsRepository {
       'assignment_id': assignmentId,
       'student_id': userId,
       'note': note.trim(),
+      'file_url': fileUrl,
       'submitted_at': hkNow().toUtc().toIso8601String(),
     }, onConflict: 'assignment_id,student_id');
   }

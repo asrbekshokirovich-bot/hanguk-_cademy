@@ -102,6 +102,10 @@ abstract final class StaffDemoData {
         studentName: 'Sardor Mirzayev',
         assignmentTitle: 'Ovozli xabar',
         lessonTitle: 'talaffuz',
+        // The one hand-in that is a file and nothing else — which is what a
+        // pronunciation exercise is, and what the grade dialog has to be able
+        // to open.
+        fileUrl: 'submissions/sub-3/ts-sm/talaffuz.m4a',
         submittedAt: now.subtract(const Duration(hours: 8)),
       ),
       Submission(

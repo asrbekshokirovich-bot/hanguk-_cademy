@@ -259,6 +259,9 @@ abstract final class DemoData {
         id: 'a3',
         title: 'O‘zini tanishtirish',
         submitted: true,
+        // Handed in with an attachment, so the demo shows the whole shape of
+        // a hand-in and not just its text half.
+        fileUrl: 'submissions/a3/demo-student/ozimni-tanishtirish.pdf',
         grade: 92,
         feedback: 'Yaxshi. Fe’l qo‘shimchalariga e’tibor bering.',
         dueAt: now.subtract(const Duration(days: 3)),

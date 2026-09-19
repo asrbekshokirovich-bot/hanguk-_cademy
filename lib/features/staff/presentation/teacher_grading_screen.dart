@@ -227,6 +227,7 @@ class _SubmissionRowState extends ConsumerState<_SubmissionRow> {
       studentName: widget.submission.studentName,
       assignmentTitle: widget.submission.assignmentTitle,
       answer: widget.submission.note,
+      fileUrl: widget.submission.fileUrl,
       initialGrade: widget.submission.grade,
     );
     if (result == null) return;

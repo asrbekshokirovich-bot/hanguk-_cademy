@@ -158,6 +158,30 @@ class _HomeworkRow extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+        // What they attached, named back to them. An upload with no
+        // acknowledgement is a student wondering whether the photograph went
+        // and sending it a second time to be sure.
+        if (a.fileName != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(
+                Icons.insert_drive_file_outlined,
+                size: 14,
+                color: HkColors.textTertiary,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  a.fileName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: HkType.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
         if (a.feedback != null && a.feedback!.trim().isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(

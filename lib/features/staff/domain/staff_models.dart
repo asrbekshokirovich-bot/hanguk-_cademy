@@ -154,6 +154,7 @@ class Submission {
     this.grade,
     this.gradedAt,
     this.note,
+    this.fileUrl,
   });
 
   final String assignmentId;
@@ -165,6 +166,12 @@ class Submission {
   final int? grade;
   final DateTime? gradedAt;
   final String? note;
+
+  /// The object path of the handed-in file inside the `uploads` bucket, or
+  /// null when the student wrote their answer and attached nothing. Not a
+  /// URL despite the column's name: the bucket is private, so it is signed
+  /// for a few minutes at the moment somebody asks to open it.
+  final String? fileUrl;
 
   bool get isGraded => gradedAt != null;
 
@@ -191,6 +198,7 @@ class Submission {
             ? null
             : DateTime.parse(map['graded_at'] as String).toLocal(),
         note: map['note'] as String?,
+        fileUrl: map['file_url'] as String?,
       );
 }
 

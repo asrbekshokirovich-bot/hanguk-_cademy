@@ -544,6 +544,76 @@ class LessonsRepository {
         .upsert(row, onConflict: 'lesson_id,user_id');
   }
 
+  /// Opens this account's attendance record for a lesson, and says how many
+  /// seconds it already holds.
+  ///
+  /// `ol_attendance` has been in the schema since the first migration and is
+  /// what every attendance figure in the app is computed from — the admin
+  /// dashboard's average, the teacher's, the percentage beside each name in
+  /// "Talabalarim". Nothing ever wrote a row, so against the real database
+  /// all of them were zero, and the numbers on screen came from fixtures.
+  ///
+  /// Measured, not marked. The room already knows exactly who is in it and
+  /// for how long, which is a better record than a register anyone has to
+  /// remember to fill in — and it is what the columns were designed for:
+  /// `seconds_attended` accumulates across rejoins, so a dropped connection
+  /// does not zero somebody's lesson.
+  Future<int> beginAttendance(String lessonId) async {
+    if (isDemo) return 0;
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return 0;
+
+    try {
+      final row = await _db
+          .from('ol_attendance')
+          .select('seconds_attended')
+          .eq('lesson_id', lessonId)
+          .eq('student_id', me)
+          .maybeSingle();
+
+      if (row != null) return (row['seconds_attended'] as num?)?.round() ?? 0;
+
+      await _db.from('ol_attendance').insert({
+        'lesson_id': lessonId,
+        'student_id': me,
+        'joined_at': hkNow().toUtc().toIso8601String(),
+        'seconds_attended': 0,
+      });
+      return 0;
+    } catch (_) {
+      // Bookkeeping. A student whose attendance row will not open should
+      // still get their lesson.
+      return 0;
+    }
+  }
+
+  /// Banks [seconds] against this lesson.
+  ///
+  /// Called on the room's heartbeat rather than only on the way out, because
+  /// the way out is the half that does not happen: laptops close, tabs are
+  /// killed, connections drop. `left_at` is re-stamped each time and so means
+  /// "last seen", which is the only honest reading of it for a client that
+  /// may never say goodbye.
+  Future<void> recordAttendance(String lessonId, int seconds) async {
+    if (isDemo) return;
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return;
+
+    try {
+      await _db
+          .from('ol_attendance')
+          .update({
+            'seconds_attended': seconds,
+            'left_at': hkNow().toUtc().toIso8601String(),
+          })
+          .eq('lesson_id', lessonId)
+          .eq('student_id', me);
+    } catch (_) {
+      // As above: the next heartbeat carries the same total, so one lost
+      // request costs nothing.
+    }
+  }
+
   /// Leaves the room. Best-effort by nature: the window can be closed, the
   /// machine can sleep, the network can drop. The heartbeat cutoff is what
   /// makes the list correct anyway; this only makes it correct *immediately*

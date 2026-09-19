@@ -70,6 +70,26 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   String? _joinedLessonId;
   Timer? _heartbeat;
 
+  /// Attendance, which is measured rather than marked: the room knows who is
+  /// in it, so nobody has to keep a register. [_attendedBefore] is what the
+  /// row already held when this sitting began — somebody who drops out and
+  /// comes back must not lose the first half of their lesson — and
+  /// [_sittingFrom] is when this one started.
+  int _attendedBefore = 0;
+  DateTime? _sittingFrom;
+
+  /// Only students are counted. A teacher is present by definition, and
+  /// averaging their perfect attendance in with the class would lift every
+  /// figure on the admin dashboard by a little, for no reason.
+  bool get _countsAttendance =>
+      ref.read(profileProvider).value?.role == 'student';
+
+  int get _attendedSeconds {
+    final from = _sittingFrom;
+    if (from == null) return _attendedBefore;
+    return _attendedBefore + hkNow().difference(from).inSeconds;
+  }
+
   /// The camera/microphone connection. Created once and kept across rebuilds:
   /// a media session torn down by a rebuild would reconnect every time the
   /// chat received a message.
@@ -99,9 +119,13 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     _heartbeat?.cancel();
     final left = _joinedLessonId;
     if (left != null) {
+      final repo = ref.read(lessonsRepositoryProvider);
       // Not awaited: dispose cannot be async, and the heartbeat cutoff covers
-      // this row within the minute even if the request never lands.
-      ref.read(lessonsRepositoryProvider).leaveRoom(left);
+      // the presence row within the minute even if the request never lands.
+      // Attendance is sent on the same terms — it was banked 30 seconds ago
+      // at worst, so losing this one costs half a minute of one lesson.
+      if (_sittingFrom != null) repo.recordAttendance(left, _attendedSeconds);
+      repo.leaveRoom(left);
     }
     super.dispose();
   }
@@ -146,12 +170,25 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       }
     }());
 
+    if (_countsAttendance) {
+      unawaited(() async {
+        final banked = await repo.beginAttendance(lesson.id);
+        if (!mounted || _joinedLessonId != lesson.id) return;
+        _attendedBefore = banked;
+        _sittingFrom = hkNow();
+      }());
+    }
+
     // Half the 75-second cutoff, so one dropped request is not enough to make
     // someone vanish from the list they are sitting in.
-    _heartbeat = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => repo.enterRoom(lesson.id),
-    );
+    _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
+      repo.enterRoom(lesson.id);
+      // Banked on the beat as well as on the way out, because the way out is
+      // the half that does not happen — laptops close and tabs are killed.
+      if (_sittingFrom != null) {
+        repo.recordAttendance(lesson.id, _attendedSeconds);
+      }
+    });
   }
 
   /// Mirrors the room's actual state into `ol_room_presence`, so the other
@@ -188,7 +225,12 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     _joinedLessonId = null;
     await _media.leave();
     if (id != null) {
-      await ref.read(lessonsRepositoryProvider).leaveRoom(id);
+      final repo = ref.read(lessonsRepositoryProvider);
+      if (_sittingFrom != null) {
+        await repo.recordAttendance(id, _attendedSeconds);
+        _sittingFrom = null;
+      }
+      await repo.leaveRoom(id);
     }
     if (!mounted) return;
     context.go('/');

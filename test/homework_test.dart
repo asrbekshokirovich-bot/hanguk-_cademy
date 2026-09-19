@@ -126,6 +126,23 @@ void main() {
     });
   });
 
+  group('attendance is measured, not marked', () {
+    // Every attendance figure in the app — the admin dashboard's average, the
+    // teacher's, the percentage beside each name in "Talabalarim" — divides
+    // `ol_attendance.seconds_attended` by the lesson's length. Nothing ever
+    // wrote a row, so against the real database all of them were zero and
+    // what appeared on screen came from fixtures. The room now banks the
+    // time, because it is the one thing that already knows.
+    test('demo mode neither opens nor banks anything', () async {
+      final repository = LessonsRepository(null);
+
+      expect(await repository.beginAttendance('d2'), 0);
+      // A no-op rather than a throw: this runs on a timer inside the room,
+      // and a demo room must not start raising errors on the half-minute.
+      await repository.recordAttendance('d2', 600);
+    });
+  });
+
   group('the model', () {
     test('overdue is not stored, it is the clock against the due date', () {
       final due = DateTime(2026, 6, 20, 23, 59);

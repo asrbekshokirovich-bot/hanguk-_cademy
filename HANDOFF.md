@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 108 tests
+flutter test             # 109 tests
 flutter build linux --release
 ```
 
@@ -524,6 +524,20 @@ office ends up with two lists of the same people.
   darslarim" was their whole view of the week and "when is my next class" had
   no answer inside the app. `/schedule` gates its create button on `isAdmin`,
   so they get it read-only and the router needed no change.
+- **Every attendance percentage was a fixture.** `ol_attendance` has been in
+  the schema since the first migration and is what all of them are computed
+  from — the admin dashboard's average, the teacher's, the figure beside each
+  name in "Talabalarim" — dividing `seconds_attended` by the lesson's length.
+  Nothing wrote a row, so against the real database every one of those
+  numbers was zero and what appeared on screen came from `*_demo_data.dart`.
+  The live room banks the time now, on the same 30-second heartbeat that
+  refreshes presence and again on the way out. Measured, not marked: the room
+  already knows who is in it, which is a better record than a register
+  somebody has to remember to fill in, and it is what the columns were shaped
+  for — `seconds_attended` accumulates across rejoins so a dropped connection
+  does not zero a lesson. **Students only.** A teacher is present by
+  definition and averaging their perfect attendance in with the class would
+  lift every figure on the dashboard for no reason.
 
 ---
 

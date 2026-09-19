@@ -58,11 +58,15 @@ class AdminDashboardScreen extends ConsumerWidget {
                 ),
                 // No money card. This screen belongs to the administrator,
                 // and money belongs to the tier above — which never opens it.
+                // Was the teacher count under a "Guruhlar" label, which
+                // duplicated the first card's note. `ol_admin_kpis` has no
+                // group column, so the number comes from the list the groups
+                // screen already reads.
                 HkStatCard(
                   label: 'Guruhlar',
-                  value: '${k.teacherCount}',
-                  icon: Icons.school_rounded,
-                  note: 'Faol o‘qituvchilar',
+                  value: '${ref.watch(groupsProvider).value?.length ?? 0}',
+                  icon: Icons.groups_2_rounded,
+                  note: 'Faol sinflar',
                 ),
               ],
             ),

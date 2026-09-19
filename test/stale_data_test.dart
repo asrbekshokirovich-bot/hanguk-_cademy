@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
+import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/staff/data/staff_providers.dart';
 import 'package:hanguk_online/features/staff/data/staff_repository.dart';
 import 'package:hanguk_online/features/staff/domain/staff_models.dart';
@@ -25,6 +26,8 @@ import 'package:hanguk_online/main.dart';
 /// empty state stops guessing at why it is empty.
 void main() {
   setUpAll(() => initializeDateFormatting('uz'));
+
+  group('nothing outlives the screen that opened it', _lifetimes);
 
   group('a list is re-read when its screen comes back', () {
     test('the teacher roster is not cached for the run', () async {
@@ -155,6 +158,28 @@ void main() {
       expect(find.text('Dars qo‘yilmagan'), findsOneWidget);
       expect(find.text('2 ta'), findsOneWidget);
     });
+  });
+}
+
+/// The lifetimes the audit found still pinned open.
+///
+/// Each of these is a stream or a list that used to live for the whole run:
+/// every live room ever opened kept its realtime channel and its fifteen-
+/// second timer; the room's own lesson never re-read its status, so the
+/// screen stayed "live" after an administrator ended it and the first
+/// keystroke came back as a row-level-security error; a handout uploaded
+/// after the homework card had drawn stayed invisible; and the price list
+/// behind the payment dialog went on charging last month's tariff.
+void _lifetimes() {
+  test('what the live room opens, the live room closes', () {
+    expect(roomChatProvider('x').isAutoDispose, isTrue);
+    expect(roomParticipantsProvider('x').isAutoDispose, isTrue);
+    expect(lessonByIdProvider('x').isAutoDispose, isTrue);
+    expect(materialsProvider('x').isAutoDispose, isTrue);
+  });
+
+  test('the price list is not cached for the run', () {
+    expect(plansProvider.isAutoDispose, isTrue);
   });
 }
 

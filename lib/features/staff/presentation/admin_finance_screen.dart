@@ -74,7 +74,9 @@ class AdminFinanceScreen extends ConsumerWidget {
                   label: 'Faol talabalar',
                   value: '${k.activeStudents}',
                   icon: Icons.people_alt_rounded,
-                  note: 'To‘lov kutilayotganlar',
+                  // Not "awaiting payment": this is every student on the
+                  // roll, and the card above it is the one that counts debts.
+                  note: 'Jami ro‘yxatda',
                 ),
               ],
             ),

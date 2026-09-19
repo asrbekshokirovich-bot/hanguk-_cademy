@@ -69,6 +69,8 @@ class _ProfileDialog extends ConsumerWidget {
               _InfoRow(
                 label: 'Rol',
                 value: switch (profile?.role) {
+                  // The owner's own card read "Talaba" for want of this arm.
+                  'superadmin' => 'Bosh administrator',
                   'admin' => 'Administrator',
                   'teacher' => "O'qituvchi",
                   _ => 'Talaba',

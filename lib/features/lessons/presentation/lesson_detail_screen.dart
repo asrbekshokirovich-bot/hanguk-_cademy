@@ -11,6 +11,7 @@ import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import 'material_link.dart';
+import 'submit_assignment_dialog.dart';
 
 /// "Dars tafsiloti" — a recording with its materials, quiz and homework.
 ///
@@ -543,10 +544,25 @@ class _HomeworkCard extends ConsumerWidget {
             style: HkType.body.copyWith(fontSize: 13),
           ),
           const SizedBox(height: 10),
-          Text(
-            'Vazifani topshirish hali mavjud emas.',
-            style: HkType.muted.copyWith(fontSize: 12.5),
-          ),
+          // It was an apology for something that works: the dialog exists and
+          // the dashboard offers the same assignment with a button that
+          // hands it in. Only this copy of the card said it could not.
+          if (assignment.submitted)
+            Text(
+              assignment.isGraded
+                  ? 'Topshirilgan · ${assignment.grade} ball'
+                  : 'Topshirilgan · tekshirilmoqda',
+              style: HkType.muted.copyWith(fontSize: 12.5),
+            )
+          else
+            LimeButton(
+              label: 'Topshirish',
+              onPressed: () async {
+                final sent =
+                    await showSubmitAssignmentDialog(context, assignment);
+                if (sent == true) ref.invalidate(assignmentProvider(lessonId));
+              },
+            ),
         ],
       ),
     );

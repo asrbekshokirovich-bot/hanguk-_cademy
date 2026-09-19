@@ -18,10 +18,20 @@ final profileProvider = FutureProvider<UserProfile>((ref) {
   // must_change_password gate never fires because the router sees a null
   // profile and skips the check.
   ref.watch(authStateProvider);
+  // Re-read on the roster tick too. The role lives here and a superadmin can
+  // change it from another machine: without this a demoted admin keeps the
+  // admin dock and passes the router's checks until they restart the app, and
+  // somebody promoted to teacher is shown none of the staff screens they were
+  // just given. A minute-old role is acceptable; a session-old one is not.
+  ref.watch(hkRosterTick);
   return ref.watch(lessonsRepositoryProvider).currentProfile();
 });
 
 final dashboardStatsProvider = FutureProvider<DashboardStats>((ref) {
+  // On the tick, like the timetable card directly underneath it. Otherwise
+  // "Bugungi darslar" reads 0 all day after an admin schedules today's
+  // lesson, while the card below it lists that very lesson.
+  ref.watch(_statusTick);
   return ref.watch(lessonsRepositoryProvider).dashboardStats();
 });
 
@@ -145,8 +155,14 @@ final hkRosterTick = Provider<int>((ref) {
 
 final lessonByIdProvider =
     FutureProvider.family<Lesson?, String>((ref, id) {
+  // The live room decides whether it is still a room from this value, so it
+  // has to move with the lesson's status. Without the tick a teacher stayed
+  // in a full live room after an admin ended it — and the first thing they
+  // pressed came back as a raw row-level-security error, because the policy
+  // behind the chat checks the status the screen had stopped reading.
+  ref.watch(_statusTick);
   return ref.watch(lessonsRepositoryProvider).lessonById(id);
-});
+}, isAutoDispose: true);
 
 /// Which filter chip is active in the recordings library. `null` = "Barchasi".
 final recordingsFilterProvider = StateProvider<String?>((ref) => null);
@@ -167,10 +183,13 @@ final recordingByIdProvider =
   return ref.watch(lessonsRepositoryProvider).recordingById(id);
 });
 
+/// Auto-disposing: the homework row beside it re-reads on the tick, so a
+/// handout uploaded afterwards would otherwise stay invisible while the
+/// assignment around it updated — which reads as a failed upload.
 final materialsProvider =
     FutureProvider.family<List<LessonMaterial>, String>((ref, lessonId) {
   return ref.watch(lessonsRepositoryProvider).materials(lessonId);
-});
+}, isAutoDispose: true);
 
 final quizProvider =
     FutureProvider.family<LessonQuiz?, String>((ref, lessonId) {
@@ -232,10 +251,13 @@ final unreadCountProvider = Provider<int>((ref) {
 });
 
 /// The live room's chat, as it arrives.
+/// Auto-disposing, like the presence stream below: leaving the room has to
+/// close the realtime channel. Kept alive, every room a person had ever
+/// opened stayed subscribed for the rest of the run.
 final roomChatProvider =
     StreamProvider.family<List<ChatMessage>, String>((ref, lessonId) {
   return ref.watch(lessonsRepositoryProvider).chatStream(lessonId);
-});
+}, isAutoDispose: true);
 
 /// Who is in the live room, as they come and go.
 ///
@@ -255,13 +277,16 @@ final roomChatProvider =
 /// Demo mode gets no timer at all: `participantsStream` returns a fixture
 /// before the interval is ever looked at, so widget tests are not left
 /// pumping a loop that never ends.
+///
+/// Auto-disposing, which is also what cancels that fifteen-second timer when
+/// the room closes. Kept alive, it ran for every room ever visited.
 final roomParticipantsProvider =
     StreamProvider.family<List<Participant>, String>((ref, lessonId) {
   return ref.watch(lessonsRepositoryProvider).participantsStream(
         lessonId,
         recheckEvery: const Duration(seconds: 15),
       );
-});
+}, isAutoDispose: true);
 
 /// What the user has typed into the search sheet.
 final searchQueryProvider = StateProvider<String>((ref) => '');

@@ -324,21 +324,44 @@ class _LessonPicker extends StatelessWidget {
           );
         }
         final format = DateFormat('d-MMM, HH:mm', 'uz');
-        return HkDropdownField<String>(
-          value: value,
-          label: 'Dars',
-          icon: Icons.menu_book_rounded,
-          validator: (v) => v == null ? 'Darsni tanlang' : null,
-          onChanged: onChanged,
-          items: [
-            for (final l in all)
-              DropdownMenuItem(
-                value: l.id,
-                child: Text(
-                  '${format.format(l.startsAt)} · ${l.title}',
-                  overflow: TextOverflow.ellipsis,
+        final chosen = all.where((l) => l.id == value).firstOrNull;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            HkDropdownField<String>(
+              value: value,
+              label: 'Dars',
+              icon: Icons.menu_book_rounded,
+              validator: (v) => v == null ? 'Darsni tanlang' : null,
+              onChanged: onChanged,
+              items: [
+                for (final l in all)
+                  DropdownMenuItem(
+                    value: l.id,
+                    child: Text(
+                      // The head count is the point: homework reaches whoever
+                      // is enrolled, and enrolment comes from the lesson's
+                      // group. A lesson with nobody on it takes the homework
+                      // and tells nobody, which looked exactly like success.
+                      '${format.format(l.startsAt)} · ${l.title} · '
+                      '${l.enrolledCount} ta',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+            if (chosen != null && chosen.enrolledCount == 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Bu darsga hech kim yozilmagan — vazifani hech kim ko‘rmaydi. '
+                'Avval “Jadval” bo‘limida darsga guruh biriktiring.',
+                style: HkType.body.copyWith(
+                  fontSize: 12,
+                  color: HkColors.warningBright,
                 ),
               ),
+            ],
           ],
         );
       },

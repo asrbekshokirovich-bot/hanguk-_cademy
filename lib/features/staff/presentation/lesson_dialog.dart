@@ -311,7 +311,6 @@ class _LessonDialogState extends ConsumerState<_LessonDialog> {
                         ? 'Avval “O‘qituvchilar” bo‘limida hisob oching'
                         : null,
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('—')),
                       for (final t in teachers)
                         DropdownMenuItem(
                           value: t.id,
@@ -319,6 +318,13 @@ class _LessonDialogState extends ConsumerState<_LessonDialog> {
                         ),
                     ],
                     onChanged: (v) => setState(() => _teacherId = v),
+                    // Required, and the "—" option is gone with it. A lesson
+                    // saved with no teacher is the join behind every
+                    // teacher-scoped read: the grading queue, the teacher's
+                    // day, the homework picker and the roster all go quietly
+                    // empty, and the only trace is a dash in this table.
+                    validator: (v) =>
+                        v == null ? 'O‘qituvchini tanlang' : null,
                   ),
                   const SizedBox(height: 14),
                   HkDropdownField<String?>(
@@ -339,8 +345,26 @@ class _LessonDialogState extends ConsumerState<_LessonDialog> {
                           child: Text('${g.name} · ${g.memberCount} ta'),
                         ),
                     ],
-                    onChanged: (v) => setState(() => _groupId = v),
+                    // Picking the group fills in its teacher, because that is
+                    // nearly always the answer and the pair has to agree: the
+                    // group decides who is enrolled, the teacher decides who
+                    // can mark them.
+                    onChanged: (v) => setState(() {
+                      _groupId = v;
+                      final group = groups.where((g) => g.id == v).firstOrNull;
+                      if (group?.teacherId != null) {
+                        _teacherId = group!.teacherId;
+                      }
+                    }),
                   ),
+                  if (_groupId == null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Guruhsiz darsga hech kim yozilmaydi — talabalar uni '
+                      'jadvalida ko‘rmaydi.',
+                      style: HkType.muted.copyWith(fontSize: 12),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   AuthField(
                     controller: _description,

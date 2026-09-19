@@ -28,6 +28,9 @@ Future<void> setLessonStatus(
   ref.invalidate(dashboardStatsProvider);
   ref.invalidate(teacherStatsProvider);
   ref.invalidate(adminKpisProvider);
+  // The room reads the lesson through this one, and it is what decides
+  // whether there is still a room to be in.
+  ref.invalidate(lessonByIdProvider);
 }
 
 /// This account's `ol_teachers.id`, or null when it has no teacher row —
@@ -147,8 +150,12 @@ final paymentsProvider = FutureProvider<List<Payment>>((ref) {
 }, isAutoDispose: true);
 
 final plansProvider = FutureProvider<List<PaymentPlan>>((ref) {
+  // The one list the first pass missed, and the one where stale is worst: the
+  // payment dialog prices from it, so a tariff changed elsewhere went on
+  // being charged at the old amount for the rest of the session.
+  ref.watch(hkRosterTick);
   return ref.watch(staffRepositoryProvider).plans();
-});
+}, isAutoDispose: true);
 
 final groupsProvider = FutureProvider<List<StudyGroup>>((ref) {
   ref.watch(hkRosterTick);

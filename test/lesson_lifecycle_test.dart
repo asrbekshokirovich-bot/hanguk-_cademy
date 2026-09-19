@@ -226,5 +226,26 @@ void main() {
         reason: 'nothing was published, so nothing may claim to be on',
       );
     });
+
+    testWidgets('does not say it is recording, because it is not',
+        (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'student');
+
+      // The demo lesson carries `autoRecord: true`, and the badge used to
+      // follow that flag with a running clock — announcing a recording to a
+      // room of students while nothing recorded anything. It comes back with
+      // HkEnv.recordingEnabled.
+      expect(find.textContaining('Yozib olinmoqda'), findsNothing);
+    });
+
+    testWidgets('the self preview says what the camera is doing',
+        (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'student');
+
+      // It was a box with "Siz" in it and nothing else, identical whether the
+      // camera was on, off or refused — so there was no way to find out
+      // whether your own camera worked except to ask somebody.
+      expect(find.text('Kamera ulanmagan'), findsOneWidget);
+    });
   });
 }

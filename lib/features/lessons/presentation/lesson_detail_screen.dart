@@ -14,10 +14,14 @@ import '../domain/models.dart';
 
 /// "Dars tafsiloti" — a recording with its materials, quiz and homework.
 ///
-/// The player itself is a placeholder surface: it renders the scrubber, times
-/// and controls from the design, but does not decode video. Playback lands
-/// with the media milestone alongside the live room; wiring a player here
-/// before the recordings have real `video_url`s would only hide that.
+/// There is no player yet, and the screen says so.
+///
+/// It used to draw the design's play button and scrubber over a gradient —
+/// a control that could be pressed for ever with no handler behind it, above
+/// a position for a video that cannot be opened. Nothing records lessons yet
+/// (see `HkEnv.recordingEnabled`) and there is no storage bucket to read one
+/// from, so the surface states that plainly and keeps the length, which is
+/// the one number on it that is real.
 class LessonDetailScreen extends ConsumerWidget {
   const LessonDetailScreen({super.key, required this.recordingId});
 
@@ -238,12 +242,6 @@ class _VideoSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Scrubber position follows the student's saved watch progress rather than
-    // the design's fixed 19%, so reopening a half-watched lesson looks right.
-    final position = Duration(
-      seconds: (recording.durationSeconds * recording.progress).round(),
-    );
-
     String fmt(Duration d) {
       final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
       final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -267,18 +265,53 @@ class _VideoSurface extends StatelessWidget {
                   foreground: HkColors.textPrimary,
                 ),
               ),
+              // Where the play button was.
+              //
+              // It was a lime circle with a play triangle in it and no tap
+              // handler at all: it could be clicked for ever and nothing
+              // would happen, and nothing on the screen explained why. The
+              // scrubber underneath it was the same story told twice — a
+              // position and a duration for a video that cannot be opened.
+              //
+              // This says so instead. When a player and a storage bucket
+              // exist, this is the block to replace; the flag alone is not
+              // enough, because there is still no decoder behind it.
               Center(
-                child: Container(
-                  width: 74,
-                  height: 74,
-                  decoration: const BoxDecoration(
-                    color: HkColors.lime,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    size: 40,
-                    color: HkColors.ink,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: const Color(0x33000000),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: HkGlass.border),
+                        ),
+                        child: const Icon(
+                          Icons.videocam_off_rounded,
+                          size: 28,
+                          color: HkColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Ijro etish hali mavjud emas',
+                        style: HkType.cardTitle,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Darslar hozircha yozib olinmaydi. Yozuvlar '
+                        'ulangach, shu yerdan ko‘rish mumkin bo‘ladi.',
+                        textAlign: TextAlign.center,
+                        style: HkType.body.copyWith(
+                          fontSize: 12.5,
+                          color: HkColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -287,19 +320,10 @@ class _VideoSurface extends StatelessWidget {
                 right: 18,
                 bottom: 16,
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      fmt(position),
-                      style: HkType.monoTime.copyWith(fontSize: 12),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: HkProgressBar(
-                        value: recording.progress,
-                        height: 5,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    // The length is real — it comes off the row. A position
+                    // and a progress bar would not be.
                     Text(
                       fmt(Duration(seconds: recording.durationSeconds)),
                       style: HkType.monoTime.copyWith(

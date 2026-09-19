@@ -12,6 +12,7 @@ import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import '../../../core/env.dart';
 import '../../../core/clock.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -203,7 +204,10 @@ class _LiveHeroBannerState extends State<LiveHeroBanner> {
                     dotColor: HkColors.ink,
                     pulsingDot: true,
                   ),
-                  if (lesson.autoRecord)
+                  // Only when something records. See HkEnv.recordingEnabled:
+                  // the flag has been in the schema from the start and the
+                  // badge drawn from it since, with nothing behind either.
+                  if (HkEnv.recordingEnabled && lesson.autoRecord)
                     const HkPill(
                       label: 'Yozib olinmoqda',
                       dotColor: HkColors.danger,

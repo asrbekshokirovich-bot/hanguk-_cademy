@@ -11,6 +11,7 @@ import '../../staff/presentation/lesson_dialog.dart';
 import '../data/lessons_repository.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import '../../../core/env.dart';
 
 /// "Jadval" — the week's lessons, with per-lesson auto-record control.
 ///
@@ -113,13 +114,16 @@ class _WeekHeader extends ConsumerWidget {
             ],
           ),
         ),
-        const HkPill(
-          label: 'Avto-yozuv yoniq',
-          background: Color(0x26D4E94C),
-          foreground: HkColors.lime,
-          icon: Icons.fiber_manual_record_rounded,
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        ),
+        // Announced recording that is not happening. Comes back with the
+        // column and the switch — see HkEnv.recordingEnabled.
+        if (HkEnv.recordingEnabled)
+          const HkPill(
+            label: 'Avto-yozuv yoniq',
+            background: Color(0x26D4E94C),
+            foreground: HkColors.lime,
+            icon: Icons.fiber_manual_record_rounded,
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          ),
         if (isAdmin)
           SizedBox(
             height: 44,
@@ -168,7 +172,7 @@ class _TableHeader extends StatelessWidget {
           cell('Dars', 5),
           cell("O'qituvchi", 4),
           cell('Talabalar', 2),
-          cell('Avto-yozuv', 3),
+          if (HkEnv.recordingEnabled) cell('Avto-yozuv', 3),
           cell('Holat', 3),
           const SizedBox(width: 40),
         ],
@@ -260,12 +264,14 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
               '· ${l.durationMinutes} daq',
               style: HkType.muted,
             ),
-            const SizedBox(height: 10),
-            _AutoRecordToggle(
-              value: _autoRecord,
-              enabled: widget.isStaff && !_saving,
-              onChanged: _toggleAutoRecord,
-            ),
+            if (HkEnv.recordingEnabled) ...[
+              const SizedBox(height: 10),
+              _AutoRecordToggle(
+                value: _autoRecord,
+                enabled: widget.isStaff && !_saving,
+                onChanged: _toggleAutoRecord,
+              ),
+            ],
           ],
         ),
       );
@@ -353,14 +359,18 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
             flex: 2,
             child: Text('${l.enrolledCount}', style: HkType.label),
           ),
-          Expanded(
-            flex: 3,
-            child: _AutoRecordToggle(
-              value: _autoRecord,
-              enabled: widget.isStaff && !_saving,
-              onChanged: _toggleAutoRecord,
+          // Hidden, not removed. The column comes back with recording —
+          // see HkEnv.recordingEnabled — and until then a switch that only
+          // writes a flag nothing reads is a promise the app cannot keep.
+          if (HkEnv.recordingEnabled)
+            Expanded(
+              flex: 3,
+              child: _AutoRecordToggle(
+                value: _autoRecord,
+                enabled: widget.isStaff && !_saving,
+                onChanged: _toggleAutoRecord,
+              ),
             ),
-          ),
           Expanded(
             flex: 3,
             child: Align(

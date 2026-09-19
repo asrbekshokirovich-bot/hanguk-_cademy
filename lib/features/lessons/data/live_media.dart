@@ -55,6 +55,62 @@ class LiveMediaSession extends ChangeNotifier {
 
   bool get micOn => _room?.localParticipant?.isMicrophoneEnabled() ?? false;
   bool get cameraOn => _room?.localParticipant?.isCameraEnabled() ?? false;
+  bool get screenSharing =>
+      _room?.localParticipant?.isScreenShareEnabled() ?? false;
+
+  /// Your own camera, for the corner preview.
+  ///
+  /// Without it there is no way to find out whether the camera works other
+  /// than asking somebody else — the preview was a box with "Siz" written in
+  /// it, unchanged whether the camera was on, off or refused.
+  VideoTrack? get localCameraTrack {
+    final me = _room?.localParticipant;
+    if (me == null) return null;
+    for (final pub in me.videoTrackPublications) {
+      if (pub.source != TrackSource.camera || pub.muted) continue;
+      final track = pub.track;
+      if (track is VideoTrack) return track;
+    }
+    return null;
+  }
+
+  /// Who is speaking right now, by the identity LiveKit knows them as.
+  ///
+  /// That identity is the Supabase `user_id`: `ol_livekit_join()` signs it
+  /// into the token's `sub`, which is what makes it possible to line these
+  /// up with the rows in `ol_room_presence`.
+  Set<String> get speakingIdentities {
+    final room = _room;
+    if (room == null) return const {};
+    return {
+      for (final p in room.activeSpeakers)
+        if (p.isSpeaking) p.identity,
+    };
+  }
+
+  /// Whether [identity] is transmitting audio, as the server sees it — or
+  /// null when this room has never heard of them.
+  ///
+  /// The presence table only carries what each client said about itself, so a
+  /// browser that crashed leaves a lit microphone behind for the length of
+  /// the heartbeat cutoff. This is the published track, and it goes away with
+  /// the connection that published it.
+  bool? micOf(String identity) {
+    final room = _room;
+    if (room == null) return null;
+
+    final me = room.localParticipant;
+    if (me != null && me.identity == identity) return me.isMicrophoneEnabled();
+
+    for (final remote in room.remoteParticipants.values) {
+      if (remote.identity != identity) continue;
+      for (final pub in remote.audioTrackPublications) {
+        if (pub.source == TrackSource.microphone) return !pub.muted;
+      }
+      return false;
+    }
+    return null;
+  }
 
   void _changed() {
     if (_disposed) return;
@@ -112,7 +168,18 @@ class LiveMediaSession extends ChangeNotifier {
         ..on<AudioPlaybackStatusChanged>((_) {
           audioBlocked = !room.canPlaybackAudio;
           _changed();
-        });
+        })
+        // Who is speaking, and whose microphone is live, are the two things
+        // the room draws on other people's behalf. Both arrive as events
+        // rather than as a state change, so `addListener` alone would leave
+        // the screen showing a moment that has passed.
+        ..on<ActiveSpeakersChangedEvent>((_) => _changed())
+        ..on<TrackMutedEvent>((_) => _changed())
+        ..on<TrackUnmutedEvent>((_) => _changed())
+        ..on<TrackPublishedEvent>((_) => _changed())
+        ..on<TrackUnpublishedEvent>((_) => _changed())
+        ..on<LocalTrackPublishedEvent>((_) => _changed())
+        ..on<LocalTrackUnpublishedEvent>((_) => _changed());
       status = LiveMediaStatus.connected;
       // Asked for immediately, because on every platform but a browser it
       // simply works and the notice must not appear where it is not needed.
@@ -180,6 +247,25 @@ class LiveMediaSession extends ChangeNotifier {
     _changed();
   }
 
+  /// Shares the screen, or stops sharing it.
+  ///
+  /// The button for this was wired to an empty callback: it could be pressed,
+  /// it did nothing, and it said nothing. The platform picks the window or
+  /// display itself, so there is no source list to build here — but it can
+  /// refuse (a browser dialog dismissed, a mobile browser that has no such
+  /// API at all), and a refusal has to reach the screen like any other.
+  Future<void> setScreenShare(bool on) async {
+    final me = _room?.localParticipant;
+    if (me == null) return;
+    try {
+      await me.setScreenShareEnabled(on);
+      deviceError = null;
+    } catch (e) {
+      deviceError = _deviceMessage(e, 'Ekran');
+    }
+    _changed();
+  }
+
   /// Plain Uzbek for the two refusals that actually happen, and the raw text
   /// for everything else — a message nobody can act on is worse than one that
   /// at least names what went wrong.
@@ -188,13 +274,13 @@ class LiveMediaSession extends ChangeNotifier {
     if (text.contains('NotAllowedError') ||
         text.contains('Permission') ||
         text.contains('permission')) {
-      return "$device'ga ruxsat berilmadi. Brauzer manzil qatoridagi qulf "
-          "belgisidan ruxsat bering va qaytadan bosing.";
+      return '$device — ruxsat berilmadi. Brauzer manzil qatoridagi qulf '
+          'belgisidan ruxsat bering va qaytadan urinib ko‘ring.';
     }
     if (text.contains('NotFoundError') || text.contains('NotReadableError')) {
       return '$device topilmadi yoki boshqa dastur uni band qilgan.';
     }
-    return "$device'ni yoqib bo‘lmadi: $text";
+    return '$device — yoqib bo‘lmadi: $text';
   }
 
   /// The video worth putting on the stage: whoever is speaking, falling back

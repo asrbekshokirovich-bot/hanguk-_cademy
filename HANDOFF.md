@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 96 tests
+flutter test             # 100 tests
 flutter build linux --release
 ```
 
@@ -455,6 +455,35 @@ office ends up with two lists of the same people.
   calls it from a post-frame callback, so notifying on an unchanged state
   rebuilds the screen, which schedules the callback, which calls it again.
   `test/live_media_test.dart` counts the notifications.
+- **Controls and badges that described intentions rather than facts.** Four
+  more of the same family, all in the live room, all fixed together with the
+  microphone: the **screen-share button** was wired to `() {}` — pressable,
+  silent, inert, now `setScreenShare`; the **self preview** was a box with
+  "Siz" written in it whatever the camera was doing, so there was no way to
+  learn whether your own camera worked except to ask; the **speaking ring**
+  around the teacher's avatar was a 1.8-second loop with no audio behind it,
+  announcing that somebody was talking through an entire silence; and the
+  **nameplate** carried a lit microphone icon unconditionally.
+- **`ol_room_presence.mic_on` is a claim, not an observation.** It is written
+  by each client about itself, so a browser that crashed leaves a lit
+  microphone beside a name for the length of the heartbeat cutoff. The
+  participant list prefers `LiveMediaSession.micOf()`, which is the published
+  track, and falls back to the presence row only where the media room has
+  never heard of that person. The two line up because `ol_livekit_join()`
+  signs the account id into the token's `sub`, which is what LiveKit calls
+  the identity — the same id `ol_room_presence.user_id` holds. Note that
+  `lesson.teacher.id` is **not** that id: it is an `ol_teachers` row id and
+  matches nothing in the media room, which is why the stage takes the
+  teacher's identity from the presence row flagged `is_host`.
+- **Recording was announced everywhere and happened nowhere.** A switch in
+  the lesson dialog, a column in the week table, a "Avto-yozuv yoniq" badge
+  above it, a "Yozib olinmoqda" pill with a running clock on the live stage
+  and another on the dashboard hero, and a play button over a scrubber in the
+  recordings library that had no tap handler at all. Nothing recorded
+  anything: there is no egress and no storage bucket. All of it now hangs off
+  `HkEnv.recordingEnabled`, which is false, and the player surface says so in
+  words. Turning the flag on is not enough on its own — there is still no
+  decoder behind that surface.
 
 ---
 
@@ -465,14 +494,12 @@ Roughly in the order they matter:
 1. **Payment recording UI.** `StaffRepository.recordPayment` and
    `confirmPayment` exist and work; no button is wired to them. The finance
    screen is read-only.
-2. **The rest of the live room.** Camera and microphone are built and work —
-   `LiveMediaSession` joins LiveKit with a token `ol_livekit_join()` signs.
-   Three things in that room are still pretending, and each looks finished on
-   screen: **screen sharing** is a button wired to `() {}`; the **captions**
-   under the stage are one hard-coded Korean sentence shown to everybody,
-   with a toggle that suggests it is transcribing; and the **"Yozib
-   olinmoqda" pill** appears whenever `lesson.autoRecord` is set, while
-   nothing records and item 3 below says there is nowhere to record to.
+2. **Live captions.** The one thing left in the live room that pretends. The
+   band under the stage is a single hard-coded Korean sentence with its Uzbek
+   translation, shown to everybody in every lesson, and the control bar has a
+   "Subtitrlar" toggle that reads as if something were transcribing. It is
+   on by default. Either wire real speech-to-text or take the band and the
+   toggle out; leaving it is the most misleading thing on any screen.
 3. **Recording playback.** The library lists recordings and tracks watch
    progress; there is no player and no storage bucket.
 4. **Homework and quizzes.** Grading reads `ol_assignment_submissions`; there

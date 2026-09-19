@@ -54,4 +54,22 @@ abstract final class HkEnv {
     'BUILD_STAMP',
     defaultValue: 'dev',
   );
+
+  /// Whether lessons are actually recorded. They are not.
+  ///
+  /// The schema has carried `auto_record` since the first migration, and the
+  /// screens drew it faithfully: a switch in the lesson dialog, a "Yozib
+  /// olinmoqda" badge with a running clock on the live stage, a marker on the
+  /// dashboard. Nothing behind any of it records anything — there is no
+  /// egress, no storage bucket, and the recordings library has no player to
+  /// play a file with.
+  ///
+  /// Telling a roomful of students they are being recorded when they are not
+  /// is worse than a missing feature, and it runs the other way too: a
+  /// teacher who believes the class is saved does not take notes. So the
+  /// controls stay behind this until recording exists, at which point this
+  /// becomes true in one place and they all come back.
+  ///
+  ///   flutter run --dart-define=RECORDING_ENABLED=true
+  static const recordingEnabled = bool.fromEnvironment('RECORDING_ENABLED');
 }

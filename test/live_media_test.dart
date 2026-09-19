@@ -58,6 +58,34 @@ void main() {
     expect(notifications, 1, reason: 'nothing changed, so nothing to say');
   });
 
+  test('with no room, it claims nothing about anybody', () async {
+    final media = LiveMediaSession();
+    addTearDown(media.dispose);
+    await media.connect(null);
+
+    expect(media.screenSharing, isFalse);
+    expect(media.localCameraTrack, isNull, reason: 'the self preview says so');
+    expect(media.speakingIdentities, isEmpty, reason: 'the ring stays still');
+    expect(
+      media.micOf('some-user-id'),
+      isNull,
+      reason: 'null, not false — the participant list then falls back to '
+          'the presence row rather than drawing everyone as muted',
+    );
+  });
+
+  test('a screen-share request with no room behind it changes nothing',
+      () async {
+    final media = LiveMediaSession();
+    addTearDown(media.dispose);
+    await media.connect(null);
+
+    await media.setScreenShare(true);
+
+    expect(media.screenSharing, isFalse);
+    expect(media.deviceError, isNull);
+  });
+
   test('a microphone request with no room behind it changes nothing',
       () async {
     final media = LiveMediaSession();

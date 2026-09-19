@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:livekit_client/livekit_client.dart'
-    show VideoTrack, VideoTrackRenderer;
+    show VideoTrack, VideoTrackRenderer, VideoViewFit;
 
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
@@ -17,6 +17,7 @@ import '../data/live_media.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/clock.dart';
+import '../../../core/env.dart';
 
 /// "Jonli dars" — the live lesson room.
 ///
@@ -262,6 +263,18 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     // again on the way to the database.
     final canEnd = lesson != null && ownsLesson(ref, lesson);
 
+    // Whoever the presence table has flagged as host — the teacher, by the
+    // account id LiveKit also knows them by. The stage needs it to say
+    // whether that person is speaking and whether their microphone is live,
+    // neither of which `lesson.teacher` can answer: its id belongs to
+    // `ol_teachers`, not to `auth.users`.
+    final hostId = lesson == null
+        ? null
+        : (ref.watch(roomParticipantsProvider(lesson.id)).value ?? const [])
+            .where((p) => p.isHost)
+            .map((p) => p.id)
+            .firstOrNull;
+
     // Announce ourselves as soon as we know which room this is. Deferred out
     // of the build phase: joining writes to a provider, and a provider write
     // during build is the classic Riverpod assertion.
@@ -298,6 +311,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                             lesson: lesson,
                             showCaptions: _showCaptions,
                             media: _media,
+                            hostId: hostId,
                           ),
                         ),
                         const SizedBox(width: HkSpace.gridGap),
@@ -306,6 +320,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                           child: _RightRail(
                             showChat: _showChat,
                             lessonId: lesson.id,
+                            media: _media,
                           ),
                         ),
                       ],
@@ -318,6 +333,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                       lesson: lesson,
                       showCaptions: _showCaptions,
                       media: _media,
+                      hostId: hostId,
                     ),
                   ),
                   const SizedBox(height: HkSpace.gridGap),
@@ -326,6 +342,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                     child: _RightRail(
                       showChat: _showChat,
                       lessonId: lesson.id,
+                      media: _media,
                     ),
                   ),
                 ],
@@ -344,6 +361,10 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   onMic: _media.isLive ? _toggleMic : null,
                   onCamera:
                       _media.isLive ? () => _media.setCamera(!_cameraOn) : null,
+                  screenSharing: _media.screenSharing,
+                  onScreenShare: _media.isLive
+                      ? () => _media.setScreenShare(!_media.screenSharing)
+                      : null,
                   onHand: () {
                     setState(() => _handRaised = !_handRaised);
                     _pushPresence();
@@ -566,11 +587,21 @@ class _Stage extends StatefulWidget {
     required this.lesson,
     required this.showCaptions,
     required this.media,
+    required this.hostId,
   });
 
   final Lesson lesson;
   final bool showCaptions;
   final LiveMediaSession media;
+
+  /// The teacher's account id, as LiveKit knows them.
+  ///
+  /// Taken from the presence row flagged `is_host` rather than from
+  /// `lesson.teacher.id`, which is an `ol_teachers` row id and matches
+  /// nothing in the media room — `ol_livekit_join()` signs the *account* id
+  /// into the token. Null until presence has arrived, or when the teacher is
+  /// not in the room.
+  final String? hostId;
 
   @override
   State<_Stage> createState() => _StageState();
@@ -608,6 +639,12 @@ class _StageState extends State<_Stage> {
     final compact = HkLayout.of(context).isCompact;
     final VideoTrack? stageTrack = widget.media.stageTrack;
 
+    final host = widget.hostId;
+    // Null when the room has never heard of them — not joined yet, or no
+    // media connection at all. The nameplate then shows no icon rather than
+    // inventing one.
+    final bool? hostMic = host == null ? null : widget.media.micOf(host);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(HkRadius.cardLarge),
       child: DecoratedBox(
@@ -640,6 +677,13 @@ class _StageState extends State<_Stage> {
                       initials: teacher?.initials ?? '?',
                       gradient: teacher?.gradient,
                       size: compact ? 104 : 144,
+                      // Whether this person is actually talking, not a loop.
+                      // The rings used to pulse for ever, so the stage said
+                      // "somebody is speaking" through an entire silence —
+                      // the one question a quiet room needs answered
+                      // truthfully.
+                      speaking: host != null &&
+                          widget.media.speakingIdentities.contains(host),
                     ),
                   ],
                 ),
@@ -658,7 +702,11 @@ class _StageState extends State<_Stage> {
                     background: HkColors.danger,
                     foreground: Colors.white,
                   ),
-                  if (widget.lesson.autoRecord)
+                  // Only when something is actually recording. The badge
+                  // used to appear on any lesson flagged `auto_record`, with
+                  // a running clock, while nothing recorded anything — see
+                  // HkEnv.recordingEnabled.
+                  if (HkEnv.recordingEnabled && widget.lesson.autoRecord)
                     HkPill(
                       label: 'Yozib olinmoqda · $_clock',
                       dotColor: HkColors.danger,
@@ -680,7 +728,13 @@ class _StageState extends State<_Stage> {
                 bottom: 16,
                 child: HkPill(
                   label: teacher.fullName,
-                  icon: Icons.mic_rounded,
+                  // The icon was always the lit one, so the nameplate said
+                  // the teacher was transmitting whatever they were doing.
+                  // Null while the room has never heard of them, rather than
+                  // guessing either way.
+                  icon: hostMic == null
+                      ? null
+                      : (hostMic ? Icons.mic_rounded : Icons.mic_off_rounded),
                   background: const Color(0x66000000),
                   foreground: HkColors.textPrimary,
                   padding: const EdgeInsets.symmetric(
@@ -718,30 +772,14 @@ class _StageState extends State<_Stage> {
                   ),
                 ),
               ),
-            // Self PiP
+            // Self PiP. Your own camera when it is on — this was a box with
+            // "Siz" written in it and nothing else, so the only way to learn
+            // whether your camera worked was to ask somebody.
             if (!compact)
               Positioned(
                 right: 16,
                 bottom: 16,
-                child: Container(
-                  width: 158,
-                  height: 104,
-                  decoration: BoxDecoration(
-                    color: const Color(0x1AD4E94C),
-                    borderRadius: BorderRadius.circular(HkRadius.chip),
-                    border: Border.all(color: const Color(0x33D4E94C)),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Siz',
-                    style: TextStyle(
-                      fontFamily: HkType.family,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: HkColors.lime,
-                    ),
-                  ),
-                ),
+                child: _SelfPreview(media: widget.media),
               ),
           ],
         ),
@@ -750,16 +788,99 @@ class _StageState extends State<_Stage> {
   }
 }
 
-/// The teacher's avatar with the design's animated lime speaking ring.
+/// Your own camera, in the corner of the stage.
+///
+/// Says which of the three states it is in rather than showing the same box
+/// for all of them: the camera is on and this is what it sees, the camera is
+/// off, or there is no media connection to turn one on with.
+class _SelfPreview extends StatelessWidget {
+  const _SelfPreview({required this.media});
+
+  final LiveMediaSession media;
+
+  @override
+  Widget build(BuildContext context) {
+    final track = media.localCameraTrack;
+
+    return Container(
+      width: 158,
+      height: 104,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0x1AD4E94C),
+        borderRadius: BorderRadius.circular(HkRadius.chip),
+        border: Border.all(color: const Color(0x33D4E94C)),
+      ),
+      alignment: Alignment.center,
+      child: track != null
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                // Mirrored, because a preview of yourself that is not
+                // mirrored reads as somebody else's camera.
+                Transform.flip(
+                  flipX: true,
+                  child: VideoTrackRenderer(track, fit: VideoViewFit.cover),
+                ),
+                const Positioned(
+                  left: 8,
+                  bottom: 6,
+                  child: Text(
+                    'Siz',
+                    style: TextStyle(
+                      fontFamily: HkType.family,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  media.isLive
+                      ? Icons.videocam_off_rounded
+                      : Icons.videocam_off_outlined,
+                  size: 18,
+                  color: HkColors.lime.withValues(alpha: 0.7),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  media.isLive ? 'Kamerangiz o‘chiq' : 'Kamera ulanmagan',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: HkType.family,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: HkColors.lime,
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+/// The teacher's avatar, with the design's lime ring while they are talking.
+///
+/// The ring used to repeat for ever, unconnected to any audio, so the stage
+/// announced that somebody was speaking through an entire silence. On a
+/// screen whose whole job is "can you hear this person", that was the one
+/// thing it could not be allowed to make up.
 class _SpeakingAvatar extends StatefulWidget {
   const _SpeakingAvatar({
     required this.initials,
     required this.size,
+    required this.speaking,
     this.gradient,
   });
 
   final String initials;
   final double size;
+  final bool speaking;
   final Gradient? gradient;
 
   @override
@@ -771,7 +892,22 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1800),
-  )..repeat();
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.speaking) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_SpeakingAvatar old) {
+    super.didUpdateWidget(old);
+    if (widget.speaking == old.speaking) return;
+    // Stopped where it stands rather than reset: a ring that snaps back to
+    // its starting radius every time somebody pauses for breath flickers.
+    widget.speaking ? _c.repeat() : _c.stop();
+  }
 
   @override
   void dispose() {
@@ -792,21 +928,22 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
             alignment: Alignment.center,
             children: [
               // Two rings, offset in phase, expanding outward and fading.
-              for (final phase in [0.0, 0.5])
-                Opacity(
-                  opacity: (1 - ((t + phase) % 1)) * 0.5,
-                  child: Container(
-                    width: widget.size * (1 + ((t + phase) % 1) * 0.55),
-                    height: widget.size * (1 + ((t + phase) % 1) * 0.55),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: HkColors.lime.withValues(alpha: 0.6),
-                        width: 2,
+              if (widget.speaking)
+                for (final phase in [0.0, 0.5])
+                  Opacity(
+                    opacity: (1 - ((t + phase) % 1)) * 0.5,
+                    child: Container(
+                      width: widget.size * (1 + ((t + phase) % 1) * 0.55),
+                      height: widget.size * (1 + ((t + phase) % 1) * 0.55),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: HkColors.lime.withValues(alpha: 0.6),
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
               child!,
             ],
           ),
@@ -822,10 +959,17 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
 }
 
 class _RightRail extends ConsumerWidget {
-  const _RightRail({required this.showChat, required this.lessonId});
+  const _RightRail({
+    required this.showChat,
+    required this.lessonId,
+    required this.media,
+  });
 
   final bool showChat;
   final String lessonId;
+
+  /// Consulted for the microphone beside each name. See [_ParticipantRow].
+  final LiveMediaSession media;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -879,7 +1023,10 @@ class _RightRail extends ConsumerWidget {
                     itemCount: participants.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, i) =>
-                        _ParticipantRow(participant: participants[i]),
+                        _ParticipantRow(
+                      participant: participants[i],
+                      media: media,
+                    ),
                   ),
           ),
           if (showChat) ...[
@@ -897,13 +1044,26 @@ class _RightRail extends ConsumerWidget {
 }
 
 class _ParticipantRow extends StatelessWidget {
-  const _ParticipantRow({required this.participant});
+  const _ParticipantRow({required this.participant, required this.media});
 
   final Participant participant;
+  final LiveMediaSession media;
 
   @override
   Widget build(BuildContext context) {
     final p = participant;
+
+    // The server's answer where there is one, the presence row's only where
+    // there is not.
+    //
+    // `ol_room_presence.mic_on` is each client's account of itself, written
+    // when somebody pressed a button. A browser that crashed mid-lesson
+    // leaves its last claim behind for the length of the heartbeat cutoff,
+    // and a lit microphone next to someone who is not in the room any more is
+    // how a teacher ends up waiting for an answer from an empty chair.
+    // LiveKit knows which audio tracks are actually published, and they stop
+    // existing with the connection that published them.
+    final micOn = media.micOf(p.id) ?? p.micOn;
     return Row(
       children: [
         HkAvatar(initials: p.initials, size: 32),
@@ -935,9 +1095,9 @@ class _ParticipantRow extends StatelessWidget {
           )
         else
           Icon(
-            p.micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+            micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
             size: 16,
-            color: p.micOn ? HkColors.lime : HkColors.dangerBright,
+            color: micOn ? HkColors.lime : HkColors.dangerBright,
           ),
       ],
     );
@@ -1166,6 +1326,8 @@ class _ControlBar extends StatelessWidget {
   const _ControlBar({
     required this.micOn,
     required this.cameraOn,
+    required this.screenSharing,
+    required this.onScreenShare,
     required this.handRaised,
     required this.chatOn,
     required this.captionsOn,
@@ -1185,10 +1347,15 @@ class _ControlBar extends StatelessWidget {
   final bool chatOn;
   final bool captionsOn;
 
+  final bool screenSharing;
+
   /// Null when there is no media connection to speak into. The buttons then
   /// render as unavailable and say why, rather than lighting up over nothing.
   final VoidCallback? onMic;
   final VoidCallback? onCamera;
+
+  /// Was wired to an empty callback: pressable, silent, and inert.
+  final VoidCallback? onScreenShare;
   final VoidCallback onHand;
   final VoidCallback onChat;
   final VoidCallback onCaptions;
@@ -1229,9 +1396,16 @@ class _ControlBar extends StatelessWidget {
               onTap: onCamera,
             ),
             _ControlButton(
-              icon: Icons.screen_share_outlined,
-              tooltip: 'Ekranni ulashish',
-              onTap: () {},
+              icon: screenSharing
+                  ? Icons.stop_screen_share_rounded
+                  : Icons.screen_share_outlined,
+              active: screenSharing,
+              tooltip: onScreenShare == null
+                  ? 'Ekranni ulashish mavjud emas — video ulanmagan'
+                  : (screenSharing
+                      ? 'Ulashishni to‘xtatish'
+                      : 'Ekranni ulashish'),
+              onTap: onScreenShare,
             ),
             _ControlButton(
               icon: Icons.pan_tool_alt_outlined,

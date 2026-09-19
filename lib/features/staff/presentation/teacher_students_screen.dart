@@ -32,6 +32,17 @@ class TeacherStudentsScreen extends ConsumerWidget {
     final filter = ref.watch(teacherGroupFilterProvider);
     final now = hkNow();
 
+    // Two different nothings, and they need different people to act.
+    //
+    // `ol_v_teacher_students` matches on `ol_teachers.user_id = auth.uid()`,
+    // so a teacher whose roster row is not tied to their account gets an
+    // empty list even when an administrator has put three students in their
+    // group and can see them under that teacher's name. Saying "no group has
+    // been assigned to you" there sends the one person who noticed to ask for
+    // something they already have.
+    final teacherRow = ref.watch(myTeacherIdProvider);
+    final unlinked = teacherRow.hasValue && teacherRow.value == null;
+
     return AppShell(
       title: 'Talabalarim',
       subtitle: HkEnv.recordingEnabled
@@ -42,7 +53,12 @@ class TeacherStudentsScreen extends ConsumerWidget {
         onRetry: () => ref.invalidate(myStudentsProvider),
         loadingHeight: 260,
         isEmpty: (s) => s.isEmpty,
-        emptyMessage: 'Sizga hali guruh biriktirilmagan',
+        emptyMessage: unlinked
+            ? 'Hisobingiz o‘qituvchilar ro‘yxatiga bog‘lanmagan, shuning '
+                'uchun guruh biriktirilgan bo‘lsa ham bu yerda ko‘rinmaydi. '
+                'Administratorga ayting.'
+            : 'Sizga hali guruh biriktirilmagan. Administrator guruh ochib, '
+                'o‘qituvchi qilib sizni biriktirishi kerak.',
         builder: (students) {
           final groups = <String>{
             for (final s in students)

@@ -32,13 +32,27 @@ Future<void> setLessonStatus(
 
 /// This account's `ol_teachers.id`, or null when it has no teacher row —
 /// an admin, or a student who somehow reached a staff screen.
+/// Every list below is `isAutoDispose: true`, and that is a fix rather than
+/// a preference.
+///
+/// A Riverpod 3 provider is kept alive for the whole run by default, so each
+/// of these was fetched **once per app launch**. Every screen here shows
+/// something somebody else maintains: an administrator puts three students in
+/// a group, and the teacher — whose app has been open since the morning — is
+/// told "Sizga hali guruh biriktirilmagan" until they restart it. The
+/// administrator sees their own change, because the dialog invalidates what
+/// it wrote, which is exactly what makes the stale half so hard to believe.
+///
+/// Auto-disposing ties the data to the screen: leaving it drops the cache,
+/// opening it asks again. The lesson-status providers keep their 20-second
+/// tick instead, because those move on their own while somebody watches.
 final myTeacherIdProvider = FutureProvider<String?>((ref) {
   // Rebound when the session changes: signing out and back in as somebody
   // else must not leave the previous teacher's id cached, or a lesson row
   // would still say "mine".
   ref.watch(authStateProvider);
   return ref.watch(staffRepositoryProvider).myTeacherId();
-});
+}, isAutoDispose: true);
 
 /// Whether this account is the one teaching [lesson] — the test for the
 /// controls that belong to whoever is running the lesson, not to staff at
@@ -54,11 +68,11 @@ bool ownsLesson(WidgetRef ref, Lesson lesson) {
 
 final teacherStatsProvider = FutureProvider<TeacherStats>((ref) {
   return ref.watch(staffRepositoryProvider).teacherStats();
-});
+}, isAutoDispose: true);
 
 final myStudentsProvider = FutureProvider<List<TeacherStudent>>((ref) {
   return ref.watch(staffRepositoryProvider).myStudents();
-});
+}, isAutoDispose: true);
 
 /// The lessons this teacher can attach homework to.
 ///
@@ -88,35 +102,39 @@ final assignableLessonsProvider = FutureProvider<List<Lesson>>((ref) async {
   // Most recent first: homework is nearly always set for the lesson that has
   // just finished, and that one should not be at the bottom of a long list.
   return scoped.reversed.toList();
-});
+}, isAutoDispose: true);
 
 /// The grading queue, ungraded first.
 final submissionsProvider = FutureProvider<List<Submission>>((ref) {
   return ref.watch(staffRepositoryProvider).submissions();
-});
+}, isAutoDispose: true);
 
 /// The four cards on the teacher's home screen need the same list the
 /// grading screen shows, so it is derived rather than fetched twice.
+/// Auto-disposing too, and not only for symmetry: a provider that is kept
+/// alive holds everything it watches alive with it, so leaving this one as it
+/// was would have pinned the grading queue for the whole run and undone half
+/// the fix above.
 final pendingSubmissionsProvider = Provider<List<Submission>>((ref) {
   final all = ref.watch(submissionsProvider).value ?? const <Submission>[];
   return all.where((s) => !s.isGraded).toList();
-});
+}, isAutoDispose: true);
 
 final adminKpisProvider = FutureProvider<AdminKpis>((ref) {
   return ref.watch(staffRepositoryProvider).adminKpis();
-});
+}, isAutoDispose: true);
 
 final teacherRosterProvider = FutureProvider<List<TeacherRosterEntry>>((ref) {
   return ref.watch(staffRepositoryProvider).teacherRoster();
-});
+}, isAutoDispose: true);
 
 final adminStudentsProvider = FutureProvider<List<AdminStudent>>((ref) {
   return ref.watch(staffRepositoryProvider).adminStudents();
-});
+}, isAutoDispose: true);
 
 final paymentsProvider = FutureProvider<List<Payment>>((ref) {
   return ref.watch(staffRepositoryProvider).payments();
-});
+}, isAutoDispose: true);
 
 final plansProvider = FutureProvider<List<PaymentPlan>>((ref) {
   return ref.watch(staffRepositoryProvider).plans();
@@ -124,4 +142,30 @@ final plansProvider = FutureProvider<List<PaymentPlan>>((ref) {
 
 final groupsProvider = FutureProvider<List<StudyGroup>>((ref) {
   return ref.watch(staffRepositoryProvider).groups();
-});
+}, isAutoDispose: true);
+
+/// How many lessons each group has ahead of it.
+///
+/// A student is enrolled through their group, and the enrolment trigger only
+/// reaches lessons that have not happened yet. So a group with nothing on the
+/// timetable is a group whose students open the app to an empty week — while
+/// the admin panel shows them correctly assigned to a teacher and nothing
+/// anywhere says why they see nothing. This is what makes that visible.
+///
+/// Counted from the schedule the app already reads. A view would be tidier
+/// and would also be a migration.
+final upcomingLessonsByGroupProvider =
+    FutureProvider<Map<String, int>>((ref) async {
+  final now = hkNow();
+  final lessons = await ref.watch(lessonsRepositoryProvider).lessonsBetween(
+        now,
+        now.add(const Duration(days: 90)),
+      );
+
+  final counts = <String, int>{};
+  for (final lesson in lessons) {
+    final id = lesson.groupId;
+    if (id != null) counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
+}, isAutoDispose: true);

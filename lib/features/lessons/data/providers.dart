@@ -175,10 +175,19 @@ final weekLessonsProvider = FutureProvider<List<Lesson>>((ref) {
 /// page is reachable only through a recording — of which there are none, so
 /// the work a teacher set was invisible to the person meant to do it.
 final myAssignmentsProvider = FutureProvider<List<Assignment>>((ref) {
+  // On the same tick as the lesson status, because homework arrives the same
+  // way: somebody else writes it while this screen is open. Without it a
+  // student sitting on the dashboard is told they have no homework for as
+  // long as they sit there, and the teacher who just set it is told by the
+  // app that it was saved.
+  ref.watch(_statusTick);
   return ref.watch(lessonsRepositoryProvider).myAssignments();
 });
 
 final notificationsProvider = FutureProvider<List<AppNotification>>((ref) {
+  // Same reason, and more obviously so: a notification nobody is told about
+  // until they restart the app is a notification that did not happen.
+  ref.watch(_statusTick);
   return ref.watch(lessonsRepositoryProvider).notifications();
 });
 

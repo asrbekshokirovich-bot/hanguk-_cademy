@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 125 tests
+flutter test             # 130 tests
 flutter build linux --release
 ```
 
@@ -607,6 +607,22 @@ office ends up with two lists of the same people.
   the grade dialog showed a name and a title and asked for a mark out of 100
   on writing the teacher had no way of seeing. It shows the answer now, above
   the box the mark goes in.
+- **Every list was read once per launch.** A Riverpod 3 provider is kept
+  alive by default (`isAutoDispose: false`), so each staff list was fetched
+  when its screen first opened and never again. An admin put three students
+  in a teacher's group; the teacher's "Talabalarim", open since the morning,
+  went on saying "Sizga hali guruh biriktirilmagan" while the admin panel
+  showed the same three students under that teacher's name. The database was
+  right throughout — `ol_v_teacher_students` returns them for that account,
+  which is how this was finally pinned down (emulate the session in the SQL
+  editor: `select set_config('request.jwt.claims', json_build_object('sub',
+  <uid>, 'role', 'authenticated')::text, false);` then query the view). The
+  admin never noticed because their own dialogs invalidate what they wrote.
+  The staff lists are `isAutoDispose: true` now, so leaving a screen drops
+  the cache; homework and notifications ride the 20-second status tick.
+  **A provider that is kept alive pins everything it watches**, so a derived
+  one (`pendingSubmissionsProvider`) has to be auto-dispose as well or it
+  quietly undoes the fix.
 - **Handouts with nowhere to be handed out.** `ol_materials` has been in the
   schema from the first migration and `LessonDetailScreen` has always listed
   it — but that screen hangs off a **recording**, and there are none, so a

@@ -42,7 +42,10 @@ class AdminGroupsScreen extends ConsumerWidget {
         children: [
           HkSectionIntro(
             text: 'Talaba guruhga qo‘shilganda o‘sha guruhning o‘qituvchisiga '
-                'biriktiriladi va guruhning kelgusi darslariga yoziladi.',
+                'biriktiriladi va guruhning kelgusi darslariga yoziladi. '
+                'Guruhga dars qo‘yilmasa, talaba jadvalda hech narsa '
+                'ko‘rmaydi — “Jadval” bo‘limida dars yarating va guruhni '
+                'tanlang.',
             action: FilledButton.icon(
               onPressed: () => edit(),
               style: FilledButton.styleFrom(
@@ -72,6 +75,9 @@ class AdminGroupsScreen extends ConsumerWidget {
                 'Hali guruh yo‘q — “Yangi guruh” tugmasi bilan yarating',
             builder: (groups) {
               final members = groups.fold<int>(0, (a, g) => a + g.memberCount);
+              // Null while it loads: an unknown count must not be drawn as
+              // "no lessons", which is the one thing this column is for.
+              final upcoming = ref.watch(upcomingLessonsByGroupProvider).value;
               // How many distinct people are teaching, not how many rows have
               // a teacher: one teacher with three groups is one teacher.
               final teaching = groups
@@ -114,12 +120,15 @@ class AdminGroupsScreen extends ConsumerWidget {
                       HkColumn("O'qituvchi", 5),
                       HkColumn('Daraja', 3),
                       HkColumn('Talabalar', 3),
+                      HkColumn('Kelgusi darslar', 4),
                       HkColumn('', 1),
                     ],
                     rows: [
                       for (final g in groups)
                         _GroupRow(
                           group: g,
+                          lessons: upcoming?[g.id] ?? 0,
+                          lessonsKnown: upcoming != null,
                           expanded: layout.isExpanded,
                           onEdit: () => edit(group: g),
                         ),
@@ -138,17 +147,40 @@ class AdminGroupsScreen extends ConsumerWidget {
 class _GroupRow extends StatelessWidget {
   const _GroupRow({
     required this.group,
+    required this.lessons,
+    required this.lessonsKnown,
     required this.expanded,
     required this.onEdit,
   });
 
   final StudyGroup group;
+
+  /// Lessons ahead of this group, and whether that has been counted yet.
+  final int lessons;
+  final bool lessonsKnown;
+
   final bool expanded;
   final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final g = group;
+
+    // The empty case is the one worth a badge: it is the reason a correctly
+    // assigned student sees an empty week, and it is invisible everywhere
+    // else in the panel.
+    final schedule = !lessonsKnown
+        ? Text('—', style: HkType.muted)
+        : lessons == 0
+            ? const Align(
+                alignment: Alignment.centerLeft,
+                child: HkPill(
+                  label: 'Dars qo‘yilmagan',
+                  background: Color(0x29F0B24A),
+                  foreground: HkColors.warningBright,
+                ),
+              )
+            : Text('$lessons ta', style: HkType.label);
 
     final level = g.level == null
         ? Text('—', style: HkType.muted)
@@ -181,6 +213,8 @@ class _GroupRow extends StatelessWidget {
                     level,
                     const SizedBox(width: 12),
                     Text('${g.memberCount} ta talaba', style: HkType.muted),
+                    const SizedBox(width: 12),
+                    Flexible(child: schedule),
                     const Spacer(),
                     IconButton(
                       tooltip: 'Tahrirlash',
@@ -225,6 +259,7 @@ class _GroupRow extends StatelessWidget {
           flex: 3,
           child: Text('${g.memberCount}', style: HkType.label),
         ),
+        Expanded(flex: 4, child: schedule),
         Expanded(
           flex: 1,
           child: IconButton(

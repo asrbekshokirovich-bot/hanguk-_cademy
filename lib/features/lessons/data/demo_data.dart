@@ -43,9 +43,14 @@ abstract final class DemoData {
     recordingCount: 38,
   );
 
+  /// Each lesson carries the group its teacher runs. The admin panel counts
+  /// a group's upcoming lessons from exactly this, and a fixture with no
+  /// group would show every demo group as having nothing scheduled — a
+  /// warning about the fixtures rather than about the school.
   static List<Lesson> todaysLessons() => [
         Lesson(
           id: 'd1',
+          groupId: 'g-2b',
           title: 'Grammatika · Daraja 2',
           category: 'Grammatika',
           startsAt: _todayAt(9, 0),
@@ -57,6 +62,7 @@ abstract final class DemoData {
         ),
         Lesson(
           id: 'd2',
+          groupId: 'g-2a',
           title: 'Koreys tili · Suhbat amaliyoti',
           category: 'Koreys tili',
           description:
@@ -76,6 +82,7 @@ abstract final class DemoData {
         ),
         Lesson(
           id: 'd3',
+          groupId: 'g-topik',
           title: 'TOPIK tayyorgarlik',
           category: 'TOPIK',
           startsAt: _todayAt(16, 0),
@@ -87,6 +94,7 @@ abstract final class DemoData {
         ),
         Lesson(
           id: 'd4',
+          groupId: 'g-2a',
           title: 'Tinglab tushunish',
           category: 'Tinglash',
           startsAt: _todayAt(18, 30),
@@ -106,6 +114,7 @@ abstract final class DemoData {
         ...todaysLessons(),
         Lesson(
           id: 'd5',
+          groupId: 'g-2b',
           title: 'Grammatika · Daraja 2',
           category: 'Grammatika',
           startsAt: _dayAt(1, 10, 0),
@@ -117,6 +126,7 @@ abstract final class DemoData {
         ),
         Lesson(
           id: 'd6',
+          groupId: 'g-2a',
           title: 'Suhbat amaliyoti',
           category: 'Koreys tili',
           startsAt: _dayAt(1, 15, 0),

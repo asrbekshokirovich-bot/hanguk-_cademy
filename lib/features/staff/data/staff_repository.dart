@@ -171,6 +171,31 @@ class StaffRepository {
     );
   }
 
+  /// The homework set on these lessons, most recent first.
+  ///
+  /// `ol_v_submissions` is built from rows a student has handed in, so an
+  /// assignment nobody has answered yet appears in no query anywhere — which
+  /// is why "Baholash" looked identical before and after setting one, and why
+  /// three different failure modes all read as "Hali vazifa topshirilmagan".
+  Future<List<Assignment>> assignmentsFor(List<String> lessonIds) async {
+    if (isDemo) return StaffDemoData.setAssignments();
+    if (lessonIds.isEmpty) return const [];
+
+    final rows = await _db
+        .from('ol_assignments')
+        .select('id, lesson_id, title, body, due_at, ol_lessons(title)')
+        .inFilter('lesson_id', lessonIds)
+        .order('created_at', ascending: false);
+
+    return rows.map((r) {
+      final lesson = r['ol_lessons'];
+      return Assignment.fromMap({
+        ...r,
+        'lesson_title': lesson is Map<String, dynamic> ? lesson['title'] : null,
+      });
+    }).toList();
+  }
+
   /// Records a handout against a lesson.
   ///
   /// The file itself goes up through `LessonsRepository.uploadMaterialFile`,

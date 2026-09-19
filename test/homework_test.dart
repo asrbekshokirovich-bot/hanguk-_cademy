@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +11,7 @@ import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
 import 'package:hanguk_online/features/lessons/presentation/dashboard_screen.dart';
 import 'package:hanguk_online/features/staff/data/staff_repository.dart';
+import 'package:hanguk_online/features/staff/presentation/teacher_grading_screen.dart';
 import 'package:hanguk_online/main.dart';
 
 /// Homework had a middle and no ends.
@@ -22,7 +26,14 @@ import 'package:hanguk_online/main.dart';
 /// These cover the two new ends: the student's side of the loop, and that
 /// demo mode refuses both writes in plain Uzbek rather than hanging.
 void main() {
-  setUpAll(() => initializeDateFormatting('uz'));
+  setUpAll(() async {
+    initializeDateFormatting('uz');
+    // The bundled fonts, because the default test font is about twice as wide
+    // and overflows controls that fit perfectly in the app. A test that fails
+    // on the font rather than on the layout teaches nothing; see the same
+    // helper in the golden tests.
+    await _loadBundledFonts();
+  });
 
   Future<void> pumpDashboard(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 920);
@@ -94,6 +105,45 @@ void main() {
     // Derived from the due date at read time, the way an overdue payment is
     // — nothing stores "late".
     expect(find.text('Muddati o‘tgan'), findsOneWidget);
+  });
+
+  group('the teacher can see the work they set', () {
+    // The queue is built from `ol_v_submissions`, which has a row only once a
+    // student has handed something in — so setting homework changed nothing
+    // on screen, and "saved but nobody enrolled", "saved on somebody else's
+    // lesson" and "not saved at all" all read as the same empty state.
+    testWidgets('set assignments are listed with what has come back',
+        (tester) async {
+      tester.view.physicalSize = const Size(1440, 920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [supabaseClientProvider.overrideWithValue(null)],
+          child: MaterialApp.router(
+            theme: hangukTheme,
+            routerConfig: GoRouter(
+              routes: [
+                GoRoute(
+                  path: '/',
+                  builder: (_, _) => const TeacherGradingScreen(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Berilgan vazifalar'), findsOneWidget);
+      expect(find.text('Yangi so‘zlar · 8-bo‘lim'), findsOneWidget);
+      // Set, answered by nobody yet — which is a different thing from not
+      // being set, and the screen could not tell them apart.
+      expect(find.text('0/22 topshirdi'), findsOneWidget);
+      expect(find.text('1/18 topshirdi'), findsNWidgets(2));
+    });
   });
 
   group('demo mode refuses the writes, in Uzbek', () {
@@ -176,4 +226,26 @@ void main() {
       );
     });
   });
+}
+
+Future<void> _loadBundledFonts() async {
+  Future<void> load(String family, List<String> paths) async {
+    final loader = FontLoader(family);
+    for (final path in paths) {
+      loader.addFont(
+        File(path).readAsBytes().then((b) => ByteData.sublistView(b)),
+      );
+    }
+    await loader.load();
+  }
+
+  await load('Inter', [
+    for (final w in [400, 500, 600, 700, 800, 900])
+      'assets/fonts/Inter-$w.ttf',
+  ]);
+  await load('JetBrainsMono', ['assets/fonts/JetBrainsMono-600.ttf']);
+  await load('NotoSansKR', [
+    'assets/fonts/NotoSansKR-500.ttf',
+    'assets/fonts/NotoSansKR-700.ttf',
+  ]);
 }

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../design_system/tokens.dart';
 import '../../../core/env.dart';
+import '../../lessons/domain/models.dart';
 
 /// Deterministic avatar gradient shared by every roster in the staff panels,
 /// so one person is the same colour on the teacher's list and the admin's.
@@ -149,6 +150,45 @@ class TeacherStudent {
 }
 
 /// A handed-in piece of homework, graded or waiting.
+/// One piece of homework a teacher has set, and what came back.
+///
+/// Not a database row: the counts are stitched together from the lesson's
+/// enrolment and the submissions already on screen. It exists because the
+/// teacher had no way of seeing the work they had set — only the work that
+/// had been handed in, which on a fresh assignment is nothing at all.
+class SetAssignment {
+  const SetAssignment({
+    required this.assignment,
+    required this.enrolled,
+    required this.handedIn,
+    required this.graded,
+  });
+
+  final Assignment assignment;
+
+  /// How many students the lesson has. Zero means the lesson has no group,
+  /// so this homework reached nobody however well it saved.
+  final int enrolled;
+  final int handedIn;
+  final int graded;
+
+  bool get reachesNobody => enrolled == 0;
+  bool get allIn => enrolled > 0 && handedIn >= enrolled;
+
+  String get progressLabel => '$handedIn/$enrolled topshirdi';
+
+  @override
+  bool operator ==(Object other) =>
+      other is SetAssignment &&
+      other.assignment.id == assignment.id &&
+      other.enrolled == enrolled &&
+      other.handedIn == handedIn &&
+      other.graded == graded;
+
+  @override
+  int get hashCode => Object.hash(assignment.id, enrolled, handedIn, graded);
+}
+
 class Submission {
   const Submission({
     required this.assignmentId,

@@ -112,6 +112,37 @@ final assignableLessonsProvider = FutureProvider<List<Lesson>>((ref) async {
   return scoped.reversed.toList();
 }, isAutoDispose: true);
 
+/// What this teacher has set, with how many have answered it.
+///
+/// Derived rather than fetched whole: the assignments come from
+/// `ol_assignments`, the head count from the lesson row that is already in
+/// hand, and the answers from the grading queue this screen reads anyway.
+final setAssignmentsProvider =
+    FutureProvider<List<SetAssignment>>((ref) async {
+  final lessons = await ref.watch(assignableLessonsProvider.future);
+  if (lessons.isEmpty) return const [];
+
+  final assignments = await ref
+      .watch(staffRepositoryProvider)
+      .assignmentsFor([for (final l in lessons) l.id]);
+  if (assignments.isEmpty) return const [];
+
+  final submissions = await ref.watch(submissionsProvider.future);
+  final enrolled = {for (final l in lessons) l.id: l.enrolledCount};
+
+  return [
+    for (final a in assignments)
+      SetAssignment(
+        assignment: a,
+        enrolled: enrolled[a.lessonId] ?? 0,
+        handedIn: submissions.where((s) => s.assignmentId == a.id).length,
+        graded: submissions
+            .where((s) => s.assignmentId == a.id && s.isGraded)
+            .length,
+      ),
+  ];
+}, isAutoDispose: true);
+
 /// The grading queue, ungraded first.
 final submissionsProvider = FutureProvider<List<Submission>>((ref) {
   ref.watch(hkRosterTick);

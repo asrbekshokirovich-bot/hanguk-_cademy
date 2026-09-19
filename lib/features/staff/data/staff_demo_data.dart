@@ -1,4 +1,5 @@
 import '../../../core/clock.dart';
+import '../../lessons/domain/models.dart';
 import '../domain/staff_models.dart';
 
 /// Fixtures for the teacher and admin panels, transcribed from the second
@@ -71,6 +72,39 @@ abstract final class StaffDemoData {
         attendance: 0.98,
         progress: 0.88,
         lastSeenAt: now.subtract(const Duration(minutes: 30)),
+      ),
+    ];
+  }
+
+  /// The homework the demo teacher has set. Two of the three have answers in
+  /// [submissions], so the strip shows work in progress rather than a column
+  /// of zeroes.
+  static List<Assignment> setAssignments() {
+    final now = hkNow();
+    return [
+      Assignment(
+        id: 'sub-1',
+        title: 'Dialog yozish',
+        lessonId: 'd2',
+        lessonTitle: '14-dars',
+        submitted: false,
+        dueAt: now.add(const Duration(days: 2)),
+      ),
+      Assignment(
+        id: 'sub-3',
+        title: 'Ovozli xabar',
+        lessonId: 'd2',
+        lessonTitle: 'talaffuz',
+        submitted: false,
+        dueAt: now.subtract(const Duration(days: 1)),
+      ),
+      Assignment(
+        id: 'a-new',
+        title: 'Yangi so‘zlar · 8-bo‘lim',
+        lessonId: 'd4',
+        lessonTitle: 'Tinglab tushunish',
+        submitted: false,
+        dueAt: now.add(const Duration(days: 5)),
       ),
     ];
   }

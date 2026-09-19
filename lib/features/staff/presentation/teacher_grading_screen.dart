@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Riverpod 3 moved StateProvider out of the main barrel; the filter here is
 // a single value driven by a tap, which is what it is for.
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/clock.dart';
 import '../../../design_system/layout.dart';
@@ -43,8 +44,10 @@ class TeacherGradingScreen extends ConsumerWidget {
           // `test/empty_roster_test.dart` for the same rule on the roster.
           _NewAssignmentBar(onCreated: () {
             ref.invalidate(submissionsProvider);
+            ref.invalidate(setAssignmentsProvider);
           }),
           const SizedBox(height: HkSpace.gridGap),
+          const _SetAssignments(),
           // Not Expanded: on a phone the shell puts this column inside a
           // scroll view, where a flex child has no finite height to expand
           // into. The queue sizes itself either way.
@@ -102,6 +105,97 @@ class _NewAssignmentBar extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// "Berilgan vazifalar" — the work this teacher has set.
+///
+/// The queue below it is built from `ol_v_submissions`, which only has a row
+/// once a student has handed something in. So a teacher who had just set
+/// homework saw a screen identical to the one before they set it, and three
+/// different failures — saved but nobody enrolled, saved on somebody else's
+/// lesson, not saved at all — all read as "Hali vazifa topshirilmagan".
+///
+/// Silent when there is none: the bar above already explains how to set one.
+class _SetAssignments extends ConsumerWidget {
+  const _SetAssignments();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final assignments = ref.watch(setAssignmentsProvider).value ?? const [];
+    if (assignments.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: HkSpace.gridGap),
+      child: GlassPanel(
+        radius: HkRadius.cardLarge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Berilgan vazifalar', style: HkType.sectionTitle),
+            const SizedBox(height: 12),
+            for (final a in assignments) ...[
+              _SetAssignmentRow(item: a),
+              if (a != assignments.last) const SizedBox(height: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SetAssignmentRow extends StatelessWidget {
+  const _SetAssignmentRow({required this.item});
+
+  final SetAssignment item;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = item.assignment;
+    final subtitle = [
+      ?a.lessonTitle,
+      if (a.dueAt != null)
+        '${DateFormat('d-MMMM', 'uz').format(a.dueAt!)} gacha',
+    ].join(' · ');
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(a.title, style: HkType.cardTitle.copyWith(fontSize: 13.5)),
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(subtitle, style: HkType.muted),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        // The count is the whole point of the row. Nobody enrolled is not a
+        // slow start, it is homework that reached no one — and it looked
+        // exactly like a class that had simply not answered yet.
+        if (item.reachesNobody)
+          const HkPill(
+            label: 'Hech kim yozilmagan',
+            background: Color(0x29F0B24A),
+            foreground: HkColors.warningBright,
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          )
+        else
+          HkPill(
+            label: item.progressLabel,
+            background: item.allIn
+                ? const Color(0x2634C77B)
+                : const Color(0x1AFFFFFF),
+            foreground:
+                item.allIn ? HkColors.successBright : HkColors.textSecondary,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          ),
       ],
     );
   }

@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 132 tests
+flutter test             # 133 tests
 flutter build linux --release
 ```
 
@@ -607,6 +607,15 @@ office ends up with two lists of the same people.
   the grade dialog showed a name and a title and asked for a mark out of 100
   on writing the teacher had no way of seeing. It shows the answer now, above
   the box the mark goes in.
+- **The teacher could not see the homework they had set.** "Baholash" is
+  built on `ol_v_submissions`, which has a row only once a student has handed
+  something in — so setting homework changed nothing on screen, and *saved
+  but nobody enrolled*, *saved on somebody else's lesson* and *not saved at
+  all* all read as "Hali vazifa topshirilmagan". There is a "Berilgan
+  vazifalar" strip above the queue now, with `handedIn/enrolled` per
+  assignment and a warning where the lesson has no group. `ol_assignments` is
+  readable by anyone signed in (`ol_assignments_select using (true)`), so it
+  needed no migration.
 - **Every list was read once per launch.** A Riverpod 3 provider is kept
   alive by default (`isAutoDispose: false`), so each staff list was fetched
   when its screen first opened and never again. An admin put three students

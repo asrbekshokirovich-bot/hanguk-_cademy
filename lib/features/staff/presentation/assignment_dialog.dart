@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/clock.dart';
+import '../../../core/file_pick.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/dropdown_field.dart';
+import '../../../design_system/widgets/file_row.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/presentation/auth_scaffold.dart';
+import '../../lessons/data/lessons_repository.dart';
 import '../../lessons/domain/models.dart';
 import '../data/staff_providers.dart';
 import '../data/staff_repository.dart';
@@ -45,6 +48,10 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
   bool _saving = false;
   String? _error;
 
+  /// The worksheet, if there is one. Read only when the form is saved, so
+  /// choosing a file and then closing the dialog uploads nothing.
+  HkPickedFile? _file;
+
   @override
   void dispose() {
     _title.dispose();
@@ -73,6 +80,45 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
     });
   }
 
+  Future<void> _pick() async {
+    try {
+      final picked = await hkPickFile();
+      if (picked == null || !mounted) return;
+
+      if (picked.isTooLarge) {
+        setState(() {
+          _file = null;
+          _error = 'Fayl juda katta '
+              '(${hkFileSizeLabel(picked.sizeBytes)}). Eng ko‘pi 50 MB.';
+        });
+        return;
+      }
+
+      setState(() {
+        _file = picked;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Faylni tanlab bo‘lmadi: $e');
+    }
+  }
+
+  /// Which of the four `ol_material_kind` values a filename is.
+  ///
+  /// The enum predates this dialog and cannot grow a value without a
+  /// migration, so a photograph is filed as `doc` rather than `link`: it
+  /// picks the wrong icon, where `link` would claim the file is somewhere
+  /// else entirely.
+  static MaterialKind _kindOf(String filename) {
+    final ext = filename.split('.').last.toLowerCase();
+    if (ext == 'pdf') return MaterialKind.pdf;
+    if (const {'mp3', 'm4a', 'wav', 'ogg', 'aac'}.contains(ext)) {
+      return MaterialKind.audio;
+    }
+    return MaterialKind.doc;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -80,8 +126,31 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
       _error = null;
     });
     try {
+      final lessonId = _lessonId!;
+
+      // The handout goes first and is recorded against the lesson rather
+      // than the assignment: `ol_materials` is where the app already looks
+      // for one, and a worksheet is worth having even if setting the
+      // homework fails on the next line.
+      final file = _file;
+      if (file != null) {
+        final lessons = ref.read(lessonsRepositoryProvider);
+        final path = await lessons.uploadMaterialFile(
+          lessonId: lessonId,
+          filename: file.name,
+          bytes: await file.file.readAsBytes(),
+        );
+        await ref.read(staffRepositoryProvider).addMaterial(
+              lessonId: lessonId,
+              name: file.name,
+              url: path,
+              kind: _kindOf(file.name),
+              sizeBytes: file.sizeBytes,
+            );
+      }
+
       await ref.read(staffRepositoryProvider).setAssignment(
-            lessonId: _lessonId!,
+            lessonId: lessonId,
             title: _title.text,
             body: _body.text,
             dueAt: _dueAt,
@@ -167,6 +236,15 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
                   dueAt: _dueAt,
                   onPick: _pickDue,
                   onClear: () => setState(() => _dueAt = null),
+                ),
+                const SizedBox(height: 12),
+                HkFileRow(
+                  name: _file?.name,
+                  sizeBytes: _file?.sizeBytes,
+                  onPick: _saving ? null : _pick,
+                  onClear: _saving ? null : () => setState(() => _file = null),
+                  emptyLabel: 'Material biriktirilmagan',
+                  pickLabel: 'Material biriktirish',
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),

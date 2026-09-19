@@ -171,6 +171,36 @@ class StaffRepository {
     );
   }
 
+  /// Records a handout against a lesson.
+  ///
+  /// The file itself goes up through `LessonsRepository.uploadMaterialFile`,
+  /// which owns the bucket; this is only the row that makes it findable.
+  /// `ol_materials` has been in the schema from the first migration and the
+  /// recording screen has always listed it — nothing ever inserted one, so
+  /// every lesson in the real database had an empty "Materiallar".
+  ///
+  /// [url] is an object path for an uploaded file and an ordinary link for
+  /// anything else; `LessonsRepository.materialLink` tells them apart when
+  /// somebody opens it.
+  Future<void> addMaterial({
+    required String lessonId,
+    required String name,
+    required String url,
+    MaterialKind kind = MaterialKind.link,
+    int? sizeBytes,
+  }) async {
+    if (isDemo) {
+      throw StateError('Demo rejimda material qo‘shib bo‘lmaydi');
+    }
+    await _db.from('ol_materials').insert({
+      'lesson_id': lessonId,
+      'name': name.trim(),
+      'kind': kind.name,
+      'url': url,
+      'size_bytes': sizeBytes,
+    });
+  }
+
   /// Tells everyone enrolled in a lesson that something happened on it.
   ///
   /// `ol_notifications` has been in the schema since the first migration and

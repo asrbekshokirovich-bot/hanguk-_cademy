@@ -3,12 +3,16 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
+import 'package:hanguk_online/features/lessons/presentation/dashboard_screen.dart';
 import 'package:hanguk_online/features/lessons/presentation/submit_assignment_dialog.dart';
+import 'package:hanguk_online/features/staff/data/staff_repository.dart';
+import 'package:hanguk_online/features/staff/presentation/assignment_dialog.dart';
 import 'package:hanguk_online/features/staff/presentation/grade_dialog.dart';
 import 'package:hanguk_online/main.dart';
 
@@ -42,6 +46,33 @@ void main() {
           supportedLocales: hkSupportedLocales,
           localizationsDelegates: hkLocalizationsDelegates,
           home: home,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  /// The dashboard needs a router above it — the shell navigates — so it is
+  /// pumped through one rather than as a bare `home:`.
+  Future<void> pumpDashboard(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [supabaseClientProvider.overrideWithValue(null)],
+        child: MaterialApp.router(
+          theme: hangukTheme,
+          locale: hkLocale,
+          supportedLocales: hkSupportedLocales,
+          localizationsDelegates: hkLocalizationsDelegates,
+          routerConfig: GoRouter(
+            routes: [
+              GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
+            ],
+          ),
         ),
       ),
     );
@@ -154,6 +185,86 @@ void main() {
           isA<StateError>()
               .having((e) => e.message, 'message', contains('Demo rejimda')),
         ),
+      );
+    });
+  });
+
+  group('the handout the teacher gives out', () {
+    // `ol_materials` has been in the schema since the first migration and
+    // the recording screen has always listed it — but nothing ever inserted
+    // a row, and the only screen that read one hangs off a recording, of
+    // which there are none. So a worksheet was unreachable in both
+    // directions at once.
+    testWidgets('the set-homework dialog offers one', (tester) async {
+      await pump(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showAssignmentDialog(context),
+            child: const Text('open'),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Yangi vazifa'), findsOneWidget);
+      expect(find.text('Material biriktirilmagan'), findsOneWidget);
+      expect(find.text('Material biriktirish'), findsOneWidget);
+    });
+
+    testWidgets('the student sees it on the homework it belongs to',
+        (tester) async {
+      await pumpDashboard(tester);
+
+      // Against the lesson the fixtures attach it to, and only that one: a
+      // worksheet belongs to a lesson, and claiming the same file for every
+      // piece of homework is how the demo used to read.
+      expect(find.text('Dars taqdimoti.pdf'), findsOneWidget);
+      expect(find.text("Yangi so'zlar lug'ati"), findsOneWidget);
+    });
+
+    test('demo mode refuses both halves, in Uzbek', () async {
+      await expectLater(
+        () => LessonsRepository(null).uploadMaterialFile(
+          lessonId: 'd2',
+          filename: 'taqdimot.pdf',
+          bytes: Uint8List.fromList(const [1, 2, 3]),
+        ),
+        throwsA(
+          isA<StateError>()
+              .having((e) => e.message, 'message', contains('Demo rejimda')),
+        ),
+      );
+      await expectLater(
+        () => StaffRepository(null).addMaterial(
+          lessonId: 'd2',
+          name: 'taqdimot.pdf',
+          url: 'materials/d2/taqdimot.pdf',
+        ),
+        throwsA(
+          isA<StateError>()
+              .having((e) => e.message, 'message', contains('Demo rejimda')),
+        ),
+      );
+    });
+
+    test('an ordinary link is left alone, an object path is signed',
+        () async {
+      final repository = LessonsRepository(null);
+
+      // The column holds both kinds. A link goes straight through; a path
+      // has no address until it is signed, and in demo mode the signing is
+      // what refuses — which is the proof it was treated as a path.
+      expect(
+        await repository.materialLink('https://example.uz/worksheet.pdf'),
+        'https://example.uz/worksheet.pdf',
+      );
+      await expectLater(
+        () => repository.materialLink('materials/d2/worksheet.pdf'),
+        throwsA(isA<StateError>()),
       );
     });
   });

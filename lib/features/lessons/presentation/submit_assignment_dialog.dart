@@ -1,19 +1,13 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/file_pick.dart';
 import '../../../design_system/tokens.dart';
+import '../../../design_system/widgets/file_row.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/presentation/auth_scaffold.dart';
 import '../data/lessons_repository.dart';
 import '../domain/models.dart';
-
-/// What the `uploads` bucket will take, checked here as well as there.
-///
-/// The bucket rejects anything larger, but it does so after the whole file
-/// has gone up the wire — which on a phone in Qarshi is several minutes of
-/// waiting for a refusal that was knowable before the first byte left.
-const _maxUploadBytes = 50 * 1024 * 1024;
 
 /// Hands in one piece of homework: a written answer, a file, or both.
 ///
@@ -51,11 +45,7 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
 
   /// Held as a handle until the work is handed in. Picking a file and then
   /// closing the dialog must not leave an orphan in the bucket.
-  PlatformFile? _file;
-
-  /// Kept beside the file because the size is worth showing before sending
-  /// and finding it can cost a disk read (see [_pick]).
-  int? _size;
+  HkPickedFile? _file;
 
   @override
   void dispose() {
@@ -65,29 +55,20 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
 
   Future<void> _pick() async {
     try {
-      final picked = await FilePicker.pickFile();
+      final picked = await hkPickFile();
       if (picked == null || !mounted) return;
 
-      // The picker hands back a handle, not the bytes: reading a 40 MB photo
-      // into memory is the hand-in's job, not the picker's. The size usually
-      // comes back with the pick; `length()` falls back to a read when the
-      // platform did not report one, and returns null if even that failed.
-      final size = picked.lengthSync() ?? await picked.length();
-      if (!mounted) return;
-
-      if (size != null && size > _maxUploadBytes) {
+      if (picked.isTooLarge) {
         setState(() {
           _file = null;
-          _size = null;
-          _error = 'Fayl juda katta (${_FileRow.size(size)}). '
-              'Eng ko‘pi 50 MB.';
+          _error = 'Fayl juda katta '
+              '(${hkFileSizeLabel(picked.sizeBytes)}). Eng ko‘pi 50 MB.';
         });
         return;
       }
 
       setState(() {
         _file = picked;
-        _size = size;
         _error = null;
       });
     } catch (e) {
@@ -113,7 +94,7 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
         path = await repository.uploadSubmissionFile(
           assignmentId: widget.assignment.id,
           filename: file.name,
-          bytes: await file.readAsBytes(),
+          bytes: await file.file.readAsBytes(),
         );
       }
 
@@ -186,16 +167,12 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
                       (v ?? '').trim().isEmpty ? 'Javob yozing' : null,
                 ),
                 const SizedBox(height: 12),
-                _FileRow(
+                HkFileRow(
                   name: _file?.name,
-                  bytes: _size,
+                  sizeBytes: _file?.sizeBytes,
                   onPick: _sending ? null : _pick,
-                  onClear: _sending
-                      ? null
-                      : () => setState(() {
-                            _file = null;
-                            _size = null;
-                          }),
+                  onClear:
+                      _sending ? null : () => setState(() => _file = null),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
@@ -218,87 +195,6 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The optional attachment.
-///
-/// Named and sized once chosen, because "fayl tanlandi" tells a student
-/// nothing about whether they picked the right one — and a 50 MB limit is
-/// only useful if the number is on screen before they press send.
-class _FileRow extends StatelessWidget {
-  const _FileRow({
-    required this.name,
-    required this.bytes,
-    required this.onPick,
-    required this.onClear,
-  });
-
-  final String? name;
-  final int? bytes;
-  final VoidCallback? onPick;
-  final VoidCallback? onClear;
-
-  /// Also used by the over-size message, which is why it is not private.
-  static String size(int bytes) {
-    if (bytes >= 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / 1024).round()} KB';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final picked = name;
-    final length = bytes;
-
-    return Row(
-      children: [
-        Icon(
-          picked == null
-              ? Icons.attach_file_rounded
-              : Icons.insert_drive_file_outlined,
-          size: 18,
-          color: picked == null ? HkColors.textSecondary : HkColors.lime,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            picked == null
-                ? 'Fayl biriktirilmagan'
-                : length == null
-                    ? picked
-                    : '$picked · ${size(length)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: HkType.body.copyWith(fontSize: 12.5),
-          ),
-        ),
-        if (picked != null)
-          TextButton(
-            onPressed: onClear,
-            child: const Text(
-              'Olib tashlash',
-              style: TextStyle(
-                fontFamily: HkType.family,
-                fontSize: 12.5,
-                color: HkColors.textTertiary,
-              ),
-            ),
-          ),
-        TextButton(
-          onPressed: onPick,
-          child: Text(
-            picked == null ? 'Fayl biriktirish' : 'Almashtirish',
-            style: const TextStyle(
-              fontFamily: HkType.family,
-              fontSize: 12.5,
-              color: HkColors.lime,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

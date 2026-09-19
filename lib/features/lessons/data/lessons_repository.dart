@@ -175,7 +175,7 @@ class LessonsRepository {
   // ----------------------------------------------- materials / homework ---
 
   Future<List<LessonMaterial>> materials(String lessonId) async {
-    if (isDemo) return DemoData.materials();
+    if (isDemo) return DemoData.materials(lessonId);
     final rows = await _db
         .from('ol_materials')
         .select()
@@ -346,6 +346,51 @@ class LessonsRepository {
     } on StorageException catch (e) {
       throw StateError(storageMessage(e));
     }
+  }
+
+  /// Puts a handout where the storage policy expects a teacher's file.
+  ///
+  /// `materials/<lesson_id>/<file>`, which the policy lets any signed-in
+  /// account read and only staff write — the opposite way round from a
+  /// submission, and for the obvious reason: a worksheet a student cannot
+  /// open is not a worksheet.
+  ///
+  /// Nothing is cleared first, unlike a hand-in. A lesson can have a
+  /// presentation and a word list and a recording of the dialogue, and the
+  /// second upload must not delete the first.
+  Future<String> uploadMaterialFile({
+    required String lessonId,
+    required String filename,
+    required Uint8List bytes,
+  }) async {
+    if (isDemo) {
+      throw StateError('Demo rejimda fayl yuklab bo‘lmaydi');
+    }
+    if (_db.auth.currentUser == null) throw StateError('Tizimga kirilmagan');
+
+    final path = 'materials/$lessonId/${_safeFilename(filename)}';
+    try {
+      await _db.storage.from(_uploadsBucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+    } on StorageException catch (e) {
+      throw StateError(storageMessage(e));
+    }
+    return path;
+  }
+
+  /// Whatever is in `ol_materials.url`, turned into something openable.
+  ///
+  /// The column predates the bucket and holds both kinds: rows written by
+  /// hand hold an ordinary link, rows written by the upload above hold an
+  /// object path, which has no address until it is signed. Telling them
+  /// apart here rather than at each call site is what stops a download
+  /// button quietly launching the string `materials/…` at the browser.
+  Future<String> materialLink(String url) {
+    final direct = url.startsWith('http://') || url.startsWith('https://');
+    return direct ? Future.value(url) : signedUploadUrl(url);
   }
 
   /// Turns a storage refusal into a sentence that names what to do about it.

@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 121 tests
+flutter test             # 125 tests
 flutter build linux --release
 ```
 
@@ -607,6 +607,17 @@ office ends up with two lists of the same people.
   the grade dialog showed a name and a title and asked for a mark out of 100
   on writing the teacher had no way of seeing. It shows the answer now, above
   the box the mark goes in.
+- **Handouts with nowhere to be handed out.** `ol_materials` has been in the
+  schema from the first migration and `LessonDetailScreen` has always listed
+  it — but that screen hangs off a **recording**, and there are none, so a
+  worksheet was unreachable even if a row had existed. Nothing ever inserted
+  one either. Both ends are wired now: "Yangi vazifa" uploads a handout to
+  `materials/<lesson_id>/` and records the row, and the student's homework
+  card lists the handouts for that lesson. `ol_materials.url` therefore holds
+  **two kinds of thing** — an ordinary link on a hand-written row, an object
+  path on an uploaded one — so open it through
+  `LessonsRepository.materialLink`, never `launchUrl` directly, or the path
+  goes to the browser as a relative URL and nothing happens.
 - **Homework that could only be typed.** Half of what this school sets is a
   photograph of an exercise book or a recording of somebody reading aloud.
   `file_url` has been in the schema from the first migration and
@@ -638,9 +649,6 @@ Roughly in the order they matter:
    progress; there is no player. Recordings want a bucket of their own rather
    than a third folder in `uploads` — they are large, they are written by the
    server and not by a person, and nobody should be able to delete one.
-   **Lesson materials** are the smaller half of the same job: the `materials/`
-   policies are already written and applied, and no screen uploads to them
-   yet.
 4. **Quizzes.** `ol_quizzes` is read and drawn; there is no screen for
    setting one and no screen for taking one. Homework is done — see §7 — but
    a quiz is a different shape and still has nothing behind it.

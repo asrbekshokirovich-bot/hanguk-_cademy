@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
@@ -11,6 +10,7 @@ import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import 'material_link.dart';
 
 /// "Dars tafsiloti" — a recording with its materials, quiz and homework.
 ///
@@ -397,7 +397,7 @@ class _SideColumn extends ConsumerWidget {
   }
 }
 
-class _MaterialRow extends StatelessWidget {
+class _MaterialRow extends ConsumerWidget {
   const _MaterialRow({required this.material});
 
   final LessonMaterial material;
@@ -410,7 +410,7 @@ class _MaterialRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         Container(
@@ -442,13 +442,18 @@ class _MaterialRow extends StatelessWidget {
         ),
         IconButton(
           tooltip: 'Yuklab olish',
+          // Through the helper, not `launchUrl` directly: a row written by
+          // the set-homework dialog holds an object path in a private
+          // bucket, and launching that string at the browser does nothing
+          // visible at all.
           onPressed: material.url.isEmpty
               ? null
-              : () {
-                  final uri = Uri.tryParse(material.url);
-                  if (uri != null) {
-                    launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
+              : () async {
+                  final error = await openLessonMaterial(ref, material.url);
+                  if (error == null || !context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(error)),
+                  );
                 },
           icon: const Icon(
             Icons.download_rounded,

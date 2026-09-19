@@ -13,6 +13,7 @@ import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../../../core/env.dart';
+import 'material_link.dart';
 import 'submit_assignment_dialog.dart';
 import '../../../core/clock.dart';
 
@@ -158,6 +159,11 @@ class _HomeworkRow extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+        // What the teacher handed out with it. `ol_materials` has been read
+        // by the recording screen since the first migration and there are no
+        // recordings, so a worksheet was effectively invisible; this is the
+        // screen a student is actually looking at when they do the homework.
+        if (a.lessonId != null) _TeacherMaterials(lessonId: a.lessonId!),
         // What they attached, named back to them. An upload with no
         // acknowledgement is a student wondering whether the photograph went
         // and sending it a second time to be sure.
@@ -254,6 +260,85 @@ class _HomeworkRow extends ConsumerWidget {
                 Wrap(spacing: 10, children: trailing),
               ],
             ),
+    );
+  }
+}
+
+/// The teacher's handouts for the lesson this homework belongs to.
+///
+/// Silent in every state but one: no spinner while it loads and no error row
+/// if it fails, because it hangs under a card whose real subject is the
+/// homework. A worksheet that cannot be fetched should not turn a piece of
+/// homework into an error message.
+class _TeacherMaterials extends ConsumerWidget {
+  const _TeacherMaterials({required this.lessonId});
+
+  final String lessonId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final materials = ref.watch(materialsProvider(lessonId)).value ?? const [];
+    if (materials.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final m in materials) ...[
+          const SizedBox(height: 6),
+          _MaterialLine(material: m),
+        ],
+      ],
+    );
+  }
+}
+
+/// One handout: named, and openable when there is something behind it.
+///
+/// Not a button when the row has no file — the demo fixtures have none, and
+/// so does any row somebody created without a URL. A control that cannot do
+/// anything is worse than a line of text that does not claim it can.
+class _MaterialLine extends ConsumerWidget {
+  const _MaterialLine({required this.material});
+
+  final LessonMaterial material;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final openable = material.url.isNotEmpty;
+
+    final line = Row(
+      children: [
+        Icon(
+          material.icon,
+          size: 14,
+          color: openable ? HkColors.lime : HkColors.textTertiary,
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            material.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: openable
+                ? HkType.body.copyWith(fontSize: 12.5, color: HkColors.lime)
+                : HkType.muted,
+          ),
+        ),
+      ],
+    );
+
+    if (!openable) return line;
+
+    return InkWell(
+      onTap: () async {
+        final error = await openLessonMaterial(ref, material.url);
+        if (error == null || !context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: line,
     );
   }
 }

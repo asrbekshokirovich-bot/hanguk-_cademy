@@ -201,22 +201,31 @@ abstract final class DemoData {
         ),
       ];
 
-  static List<LessonMaterial> materials() => const [
-        LessonMaterial(
-          id: 'm1',
-          name: 'Dars taqdimoti.pdf',
-          kind: MaterialKind.pdf,
-          url: '',
-          sizeBytes: 2411724,
-        ),
-        LessonMaterial(
-          id: 'm2',
-          name: "Yangi so'zlar lug'ati",
-          kind: MaterialKind.doc,
-          url: '',
-          sizeBytes: 184320,
-        ),
-      ];
+  /// Handouts belong to one lesson, so the fixtures answer for one lesson.
+  ///
+  /// They used to answer the same two files for every id, which was harmless
+  /// while only the recording screen asked — and stopped being harmless the
+  /// moment the homework card started asking too, because then every piece of
+  /// homework in the demo claimed the same worksheet.
+  static List<LessonMaterial> materials(String lessonId) =>
+      lessonId == 'd2' ? _materials : const [];
+
+  static const _materials = [
+    LessonMaterial(
+      id: 'm1',
+      name: 'Dars taqdimoti.pdf',
+      kind: MaterialKind.pdf,
+      url: '',
+      sizeBytes: 2411724,
+    ),
+    LessonMaterial(
+      id: 'm2',
+      name: "Yangi so'zlar lug'ati",
+      kind: MaterialKind.doc,
+      url: '',
+      sizeBytes: 184320,
+    ),
+  ];
 
   static const quiz = LessonQuiz(
     id: 'q1',

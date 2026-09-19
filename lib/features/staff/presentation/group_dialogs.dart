@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/dropdown_field.dart';
 import '../../../design_system/widgets/glass.dart';
@@ -65,7 +66,7 @@ class _AssignGroupDialogState extends ConsumerState<_AssignGroupDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = '$e';
+          _error = hkErrorMessage(e);
         });
       }
     }
@@ -168,7 +169,7 @@ class _GroupFormDialogState extends ConsumerState<_GroupFormDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = '$e';
+          _error = hkErrorMessage(e);
         });
       }
     }
@@ -185,9 +186,15 @@ class _GroupFormDialogState extends ConsumerState<_GroupFormDialog> {
           level: _level,
         );
       } else {
+        final teacherId = _teacherId;
+        if (teacherId == null) {
+          // The dropdown's validator normally catches this; the guard is here
+          // because a crash is a much worse way to say "pick a teacher".
+          throw StateError('O‘qituvchini tanlang.');
+        }
         await repo.createGroup(
           name: _name.text,
-          teacherId: _teacherId!,
+          teacherId: teacherId,
           level: _level,
         );
       }

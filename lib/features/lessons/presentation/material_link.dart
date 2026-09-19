@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/errors.dart';
 import '../data/lessons_repository.dart';
 
 /// Opens whatever `ol_materials.url` holds, and says what went wrong.
@@ -26,6 +27,6 @@ Future<String?> openLessonMaterial(WidgetRef ref, String url) async {
     // thrown, and doing nothing quietly is how a button comes to look dead.
     return opened ? null : 'Faylni ochib bo‘lmadi.';
   } catch (e) {
-    return '$e';
+    return hkErrorMessage(e);
   }
 }

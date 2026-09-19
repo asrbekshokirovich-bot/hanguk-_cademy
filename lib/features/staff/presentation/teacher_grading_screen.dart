@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors.dart';
 import '../../../core/clock.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
@@ -339,7 +340,7 @@ class _SubmissionRowState extends ConsumerState<_SubmissionRow> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
+        SnackBar(content: Text(hkErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _busy = false);

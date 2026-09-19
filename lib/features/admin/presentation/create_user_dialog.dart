@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/data/username.dart';
@@ -121,7 +122,7 @@ class _CreateUserDialogState extends ConsumerState<_CreateUserDialog> {
       Navigator.of(context).pop(account);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e');
+      setState(() => _error = hkErrorMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

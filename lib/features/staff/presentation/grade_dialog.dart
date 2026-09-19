@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/presentation/auth_scaffold.dart';
@@ -263,7 +264,7 @@ class _AttachmentState extends ConsumerState<_Attachment> {
       if (!mounted) return;
       setState(() {
         _opening = false;
-        _error = '$e';
+        _error = hkErrorMessage(e);
       });
     }
   }

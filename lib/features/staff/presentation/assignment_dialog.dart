@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/clock.dart';
+import '../../../core/errors.dart';
 import '../../../core/file_pick.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/dropdown_field.dart';
@@ -126,7 +127,20 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
       _error = null;
     });
     try {
-      final lessonId = _lessonId!;
+      final lessonId = _lessonId;
+      if (lessonId == null) {
+        // Reachable: when the teacher has no lessons the picker is a
+        // sentence, not a dropdown, so there is no field for the form to
+        // refuse — `validate()` passes and this used to be `_lessonId!`,
+        // which threw "Null check operator used on a null value" at somebody
+        // whose real problem was that nobody had given them a lesson.
+        setState(() {
+          _saving = false;
+          _error = 'Avval darsni tanlang. Ro‘yxat bo‘sh bo‘lsa, '
+              'administrator sizga dars biriktirishi kerak.';
+        });
+        return;
+      }
 
       // The handout goes first and is recorded against the lesson rather
       // than the assignment: `ol_materials` is where the app already looks
@@ -161,7 +175,7 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = '$e';
+        _error = hkErrorMessage(e);
       });
     }
   }
@@ -169,6 +183,9 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
   @override
   Widget build(BuildContext context) {
     final lessons = ref.watch(assignableLessonsProvider);
+    // Nothing to attach homework to: the button would only produce an error
+    // message, and a button that cannot work should not look like one.
+    final noLessons = lessons.value?.isEmpty ?? false;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -260,7 +277,7 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
                 LimeButton(
                   label: _saving ? 'Saqlanmoqda…' : 'Vazifani berish',
                   expand: true,
-                  onPressed: _saving ? null : _save,
+                  onPressed: _saving || noLessons ? null : _save,
                 ),
               ],
             ),

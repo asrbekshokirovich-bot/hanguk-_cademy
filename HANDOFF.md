@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 133 tests
+flutter test             # 138 tests
 flutter build linux --release
 ```
 
@@ -607,6 +607,17 @@ office ends up with two lists of the same people.
   the grade dialog showed a name and a title and asked for a mark out of 100
   on writing the teacher had no way of seeing. It shows the answer now, above
   the box the mark goes in.
+- **`'$e'` straight into the error line.** Every dialog printed the raw
+  exception, so a duplicate group name read `PostgrestException(message:
+  duplicate key value violates unique constraint "ol_groups_name_key", code:
+  23505...)` and a null in our own code read `Null check operator used on a
+  null value` — English, addressed to nobody in the building. `hkErrorMessage`
+  (lib/core/errors.dart) is the one translator; the repositories keep throwing
+  `StateError` with Uzbek text and it passes those through untouched. That
+  null was real: when a teacher has no lessons, the picker is a sentence
+  rather than a dropdown, so `validate()` had no field to refuse and
+  `_lessonId!` threw. Guard the value and disable the button — a form whose
+  field is conditional cannot rely on its validator.
 - **The teacher could not see the homework they had set.** "Baholash" is
   built on `ol_v_submissions`, which has a row only once a student has handed
   something in — so setting homework changed nothing on screen, and *saved

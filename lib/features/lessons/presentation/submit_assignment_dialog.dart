@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/file_pick.dart';
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/file_row.dart';
 import '../../../design_system/widgets/glass.dart';
@@ -109,7 +110,7 @@ class _SubmitDialogState extends ConsumerState<_SubmitDialog> {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _error = '$e';
+        _error = hkErrorMessage(e);
       });
     }
   }

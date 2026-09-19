@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/dropdown_field.dart';
 import '../../../design_system/widgets/glass.dart';
@@ -104,7 +105,7 @@ class _PaymentDialogState extends ConsumerState<_PaymentDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = '$e';
+          _error = hkErrorMessage(e);
         });
       }
     }

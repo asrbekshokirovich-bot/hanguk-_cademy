@@ -538,6 +538,17 @@ office ends up with two lists of the same people.
   does not zero a lesson. **Students only.** A teacher is present by
   definition and averaging their perfect attendance in with the class would
   lift every figure on the dashboard for no reason.
+- **Nothing had ever created a notification.** `ol_notifications` is what the
+  bell, the red dot and the whole panel are built on, and no trigger, no RPC
+  and no line of client code had ever inserted a row — so against the real
+  database the bell was permanently empty and the three notices on screen
+  came from the fixtures. Staff actions announce themselves now: setting
+  homework tells everyone enrolled in that lesson, marking it tells the one
+  student. Sent from the client because `ol_notifications_insert` already
+  admits `ol_is_staff()`, and best-effort because an announcement that fails
+  must not fail the thing it was announcing. The wording follows what
+  happened — a teacher fixing a typo a week later does not tell twenty
+  students they have new homework.
 
 ---
 

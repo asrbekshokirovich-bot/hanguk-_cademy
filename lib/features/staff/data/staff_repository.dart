@@ -104,6 +104,18 @@ class StaffRepository {
         })
         .eq('assignment_id', assignmentId)
         .eq('student_id', studentId);
+
+    // The student is told, because otherwise they have to keep checking.
+    try {
+      await _db.from('ol_notifications').insert({
+        'user_id': studentId,
+        'title': 'Vazifangiz baholandi',
+        'body': '$grade ball',
+        'kind': 'homework',
+      });
+    } catch (_) {
+      // Best-effort, as above. The mark is saved either way.
+    }
   }
 
   /// Sets, or rewrites, the homework on a lesson.
@@ -145,6 +157,58 @@ class StaffRepository {
           .from('ol_assignments')
           .update(row)
           .eq('id', existing['id'] as String);
+    }
+
+    // Worded by what actually happened. A teacher fixing a typo a week later
+    // should not tell twenty students they have new homework.
+    await _notifyLesson(
+      lessonId,
+      title: existing == null
+          ? 'Yangi uy vazifasi'
+          : 'Uy vazifasi yangilandi',
+      body: title.trim(),
+      kind: 'homework',
+    );
+  }
+
+  /// Tells everyone enrolled in a lesson that something happened on it.
+  ///
+  /// `ol_notifications` has been in the schema since the first migration and
+  /// the bell, the red dot and the whole panel are built on it — and nothing,
+  /// in the app or in SQL, had ever created a row. Against the real database
+  /// the bell was permanently empty; the three notices on screen come from
+  /// the demo fixtures.
+  ///
+  /// Sent from the client because the policy already allows it
+  /// (`ol_notifications_insert` admits `ol_is_staff()`), and because the
+  /// events worth announcing are the ones a member of staff performs. It is
+  /// best-effort: a lesson whose students could not be told still has its
+  /// homework set.
+  Future<void> _notifyLesson(
+    String lessonId, {
+    required String title,
+    String? body,
+    String kind = 'info',
+  }) async {
+    try {
+      final enrolled = await _db
+          .from('ol_enrollments')
+          .select('student_id')
+          .eq('lesson_id', lessonId);
+      if (enrolled.isEmpty) return;
+
+      await _db.from('ol_notifications').insert([
+        for (final row in enrolled)
+          {
+            'user_id': row['student_id'],
+            'title': title,
+            'body': body,
+            'kind': kind,
+            'lesson_id': lessonId,
+          },
+      ]);
+    } catch (_) {
+      // Announcements are not the work. The homework is set either way.
     }
   }
 

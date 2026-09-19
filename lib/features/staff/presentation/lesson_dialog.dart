@@ -18,11 +18,22 @@ import '../data/staff_repository.dart';
 ///
 /// Only an admin reaches this — the schedule gates the buttons on the profile
 /// role, and `ol_lessons` RLS rejects the write regardless.
-Future<bool?> showLessonDialog(BuildContext context, {Lesson? lesson}) {
+/// [initialTeacherId] preselects the teacher on a new lesson. A teacher
+/// creating their own lesson is the case it exists for: the point of that
+/// lesson is that it is theirs, and leaving the field empty for them to fill
+/// in is how it ends up belonging to somebody else.
+Future<bool?> showLessonDialog(
+  BuildContext context, {
+  Lesson? lesson,
+  String? initialTeacherId,
+}) {
   return showDialog<bool>(
     context: context,
     barrierColor: const Color(0xB3000000),
-    builder: (_) => _LessonDialog(lesson: lesson),
+    builder: (_) => _LessonDialog(
+      lesson: lesson,
+      initialTeacherId: initialTeacherId,
+    ),
   );
 }
 
@@ -38,9 +49,10 @@ const _categories = [
 const _durations = [30, 45, 60, 75, 90, 120];
 
 class _LessonDialog extends ConsumerStatefulWidget {
-  const _LessonDialog({this.lesson});
+  const _LessonDialog({this.lesson, this.initialTeacherId});
 
   final Lesson? lesson;
+  final String? initialTeacherId;
 
   @override
   ConsumerState<_LessonDialog> createState() => _LessonDialogState();
@@ -61,7 +73,8 @@ class _LessonDialogState extends ConsumerState<_LessonDialog> {
   late int _duration = _durations.contains(widget.lesson?.durationMinutes)
       ? widget.lesson!.durationMinutes
       : 60;
-  late String? _teacherId = widget.lesson?.teacher?.id;
+  late String? _teacherId =
+      widget.lesson?.teacher?.id ?? widget.initialTeacherId;
   late String? _groupId = widget.lesson?.groupId;
   late bool _autoRecord = widget.lesson?.autoRecord ?? true;
 

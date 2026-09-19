@@ -12,8 +12,10 @@ import '../../../design_system/widgets/glass.dart';
 import '../../auth/presentation/auth_scaffold.dart';
 import '../../lessons/data/lessons_repository.dart';
 import '../../lessons/domain/models.dart';
+import '../../lessons/data/providers.dart';
 import '../data/staff_providers.dart';
 import '../data/staff_repository.dart';
+import 'lesson_dialog.dart';
 
 /// "Yangi vazifa" — sets the homework on one of this teacher's lessons.
 ///
@@ -294,7 +296,7 @@ class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
 /// states are genuinely different: still loading, nothing to attach to, and
 /// a choice. A dropdown that renders empty while it loads reads as "you have
 /// no lessons", which for a teacher is alarming and wrong.
-class _LessonPicker extends StatelessWidget {
+class _LessonPicker extends ConsumerWidget {
   const _LessonPicker({
     required this.lessons,
     required this.value,
@@ -306,7 +308,7 @@ class _LessonPicker extends StatelessWidget {
   final ValueChanged<String?> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return lessons.when(
       loading: () => const SizedBox(
         height: 56,
@@ -330,14 +332,41 @@ class _LessonPicker extends StatelessWidget {
       ),
       data: (all) {
         if (all.isEmpty) {
-          // Both ways of having no lesson point at the same person, so the
-          // sentence names both: the timetable may be empty, or it may have
-          // lessons with somebody else's name against them.
-          return Text(
-            'Sizga biriktirilgan dars yo‘q. Vazifa darsga biriktiriladi — '
-            'administrator darsni yaratib, o‘qituvchi qilib sizni '
-            'biriktirishi kerak.',
-            style: HkType.body.copyWith(fontSize: 12.5),
+          // Homework hangs off a lesson, so with no lesson there is nothing
+          // to hang it on — and telling a teacher to go and ask somebody was
+          // not a fix, it was the same dead end with better manners. They can
+          // make the lesson here: `ol_lessons_write` admits any staff
+          // account, and the one they need is nearly always their own next
+          // class with their own group.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sizga biriktirilgan dars yo‘q. Vazifa darsga biriktiriladi '
+                '— avval dars yarating (yoki administrator sizni mavjud '
+                'darsga biriktirsin).',
+                style: HkType.body.copyWith(fontSize: 12.5),
+              ),
+              const SizedBox(height: 12),
+              LimeButton(
+                label: 'Dars yaratish',
+                expand: true,
+                onPressed: () async {
+                  final saved = await showLessonDialog(
+                    context,
+                    // Theirs by default: the whole point of this lesson is
+                    // that the homework will be theirs to mark.
+                    initialTeacherId:
+                        ref.read(myTeacherIdProvider).value,
+                  );
+                  if (saved == true) {
+                    ref.invalidate(assignableLessonsProvider);
+                    ref.invalidate(weekLessonsProvider);
+                    ref.invalidate(upcomingLessonsByGroupProvider);
+                  }
+                },
+              ),
+            ],
           );
         }
         final format = DateFormat('d-MMM, HH:mm', 'uz');

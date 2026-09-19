@@ -63,10 +63,19 @@ void main() {
 
     expect(find.textContaining('Sizga biriktirilgan dars yo‘q'), findsOneWidget);
 
+    // The way out is offered rather than the teacher being sent to find
+    // somebody: homework needs a lesson, so the dialog can make one.
+    expect(find.text('Dars yaratish'), findsOneWidget);
+
     // The save button is there but does nothing: pressing it could only ever
     // produce an error, and before this it produced a crash.
-    final button = tester.widget<LimeButton>(find.byType(LimeButton));
-    expect(button.onPressed, isNull);
+    final save = tester.widget<LimeButton>(
+      find.ancestor(
+        of: find.text('Vazifani berish'),
+        matching: find.byType(LimeButton),
+      ),
+    );
+    expect(save.onPressed, isNull);
 
     await tester.tap(find.text('Vazifani berish'), warnIfMissed: false);
     await tester.pump();

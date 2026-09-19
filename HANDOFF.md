@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 138 tests
+flutter test             # 140 tests
 flutter build linux --release
 ```
 
@@ -607,6 +607,18 @@ office ends up with two lists of the same people.
   the grade dialog showed a name and a title and asked for a mark out of 100
   on writing the teacher had no way of seeing. It shows the answer now, above
   the box the mark goes in.
+- **A teacher could not put a lesson on the timetable, so could not set any
+  homework.** Homework hangs off `ol_assignments.lesson_id`, scheduling was
+  gated on `UserProfile.isAdmin`, and the app's whole answer to a teacher
+  with an empty timetable was a sentence telling them to go and find an
+  administrator. `ol_lessons_write` admits any staff account, so the gate was
+  the app's alone: a teacher may now add a lesson (from "Jadval", or from the
+  set-homework dialog's empty state, which is where they find out they need
+  one) and may edit **their own**. The timetable is still the
+  administrator's; owning your own class is not the same as rearranging the
+  school. NB `myTeacherId()` answers with the demo teacher's id for anybody
+  in demo mode, so read it only when the profile is staff — otherwise a
+  student is handed an edit pencil by a fixture.
 - **`'$e'` straight into the error line.** Every dialog printed the raw
   exception, so a duplicate group name read `PostgrestException(message:
   duplicate key value violates unique constraint "ol_groups_name_key", code:

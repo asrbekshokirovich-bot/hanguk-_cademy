@@ -7,6 +7,7 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
+import '../../staff/data/staff_providers.dart';
 import '../../staff/presentation/lesson_dialog.dart';
 import '../data/lessons_repository.dart';
 import '../data/providers.dart';
@@ -15,9 +16,12 @@ import '../../../core/env.dart';
 
 /// "Jadval" — the week's lessons, with per-lesson auto-record control.
 ///
-/// Editing (the pencil column, "Yangi dars") is staff-only and is gated on
-/// `UserProfile.isAdmin`; a student sees the same table read-only rather than
-/// buttons that RLS would reject.
+/// Who may change what: an administrator owns the timetable and may edit any
+/// row. A teacher may add a lesson and may edit **their own** — which is not
+/// a loosening for its own sake. Homework attaches to a lesson, so a teacher
+/// with nothing on the timetable could not set any, and the only advice the
+/// app had for them was to go and find an administrator. A student sees the
+/// same table read-only rather than buttons that RLS would reject.
 class ScheduleScreen extends ConsumerWidget {
   const ScheduleScreen({super.key});
 
@@ -30,6 +34,12 @@ class ScheduleScreen extends ConsumerWidget {
     // Scheduling is the admin's job: they own the timetable, teachers teach
     // what is on it. Auto-record stays open to any staff member.
     final isAdmin = profile?.isAdmin ?? false;
+    // Their own row in `ol_teachers`, which is what a lesson's teacher is.
+    // Null for an admin, who is covered by [isAdmin] anyway — and read only
+    // for staff, because the demo build answers with the demo teacher's id
+    // whoever asks, and a student must not be handed a pencil by a fixture.
+    final myTeacherId =
+        isStaff ? ref.watch(myTeacherIdProvider).value : null;
 
     return AppShell(
       title: 'Jadval',
@@ -37,7 +47,11 @@ class ScheduleScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _WeekHeader(weekStart: weekStart, isAdmin: isAdmin),
+          _WeekHeader(
+            canCreate: isStaff,
+            myTeacherId: myTeacherId,
+            weekStart: weekStart,
+          ),
           const SizedBox(height: HkSpace.gridGapWide),
           AsyncSection(
             value: ref.watch(weekLessonsProvider),
@@ -56,6 +70,7 @@ class ScheduleScreen extends ConsumerWidget {
                       lesson: lesson,
                       isStaff: isStaff,
                       isAdmin: isAdmin,
+                      myTeacherId: myTeacherId,
                     ),
                 ],
               ),
@@ -68,10 +83,15 @@ class ScheduleScreen extends ConsumerWidget {
 }
 
 class _WeekHeader extends ConsumerWidget {
-  const _WeekHeader({required this.weekStart, required this.isAdmin});
+  const _WeekHeader({
+    required this.weekStart,
+    required this.canCreate,
+    required this.myTeacherId,
+  });
 
   final DateTime weekStart;
-  final bool isAdmin;
+  final bool canCreate;
+  final String? myTeacherId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -124,13 +144,22 @@ class _WeekHeader extends ConsumerWidget {
             icon: Icons.fiber_manual_record_rounded,
             padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           ),
-        if (isAdmin)
+        if (canCreate)
           SizedBox(
             height: 44,
             child: FilledButton.icon(
               onPressed: () async {
-                final saved = await showLessonDialog(context);
-                if (saved == true) ref.invalidate(weekLessonsProvider);
+                final saved = await showLessonDialog(
+                  context,
+                  // A teacher's new lesson is their own; an admin has no
+                  // teacher row and picks from the list as before.
+                  initialTeacherId: myTeacherId,
+                );
+                if (saved == true) {
+                  ref.invalidate(weekLessonsProvider);
+                  ref.invalidate(assignableLessonsProvider);
+                  ref.invalidate(upcomingLessonsByGroupProvider);
+                }
               },
               style: FilledButton.styleFrom(
                 backgroundColor: HkColors.royalBlue,
@@ -186,11 +215,15 @@ class _LessonRow extends ConsumerStatefulWidget {
     required this.lesson,
     required this.isStaff,
     required this.isAdmin,
+    required this.myTeacherId,
   });
 
   final Lesson lesson;
   final bool isStaff;
   final bool isAdmin;
+
+  /// This account's `ol_teachers.id`, so the row can tell whose lesson it is.
+  final String? myTeacherId;
 
   @override
   ConsumerState<_LessonRow> createState() => _LessonRowState();
@@ -384,7 +417,12 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
           ),
           SizedBox(
             width: 40,
-            child: widget.isAdmin
+            // Theirs to edit if they own it: an admin owns the timetable, a
+            // teacher owns their own class. Anyone else gets no pencil rather
+            // than one the policy would refuse.
+            child: widget.isAdmin ||
+                    (widget.myTeacherId != null &&
+                        widget.lesson.teacher?.id == widget.myTeacherId)
                 ? IconButton(
                     tooltip: 'Tahrirlash',
                     onPressed: () async {

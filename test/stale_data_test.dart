@@ -6,6 +6,8 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/data/providers.dart';
+import 'package:hanguk_online/features/lessons/domain/models.dart';
+import 'package:hanguk_online/features/lessons/presentation/schedule_screen.dart';
 import 'package:hanguk_online/features/staff/data/staff_providers.dart';
 import 'package:hanguk_online/features/staff/data/staff_repository.dart';
 import 'package:hanguk_online/features/staff/domain/staff_models.dart';
@@ -28,6 +30,8 @@ void main() {
   setUpAll(() => initializeDateFormatting('uz'));
 
   group('nothing outlives the screen that opened it', _lifetimes);
+
+  group('putting a lesson on the timetable', _scheduling);
 
   group('a list is re-read when its screen comes back', () {
     test('the teacher roster is not cached for the run', () async {
@@ -158,6 +162,66 @@ void main() {
       expect(find.text('Dars qo‘yilmagan'), findsOneWidget);
       expect(find.text('2 ta'), findsOneWidget);
     });
+  });
+}
+
+/// Who may put a lesson on the timetable.
+///
+/// Homework attaches to a lesson, so a teacher with nothing scheduled could
+/// set none — and the app's only answer was to go and find an administrator.
+/// A teacher may now add one and edit their own; a student sees the same
+/// table with nothing to press.
+void _scheduling() {
+  Future<void> pumpSchedule(
+    WidgetTester tester, {
+    required String role,
+    String? teacherId,
+  }) async {
+    tester.view.physicalSize = const Size(1440, 920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          supabaseClientProvider.overrideWithValue(null),
+          profileProvider.overrideWith(
+            (ref) async => UserProfile(
+              id: 'u1',
+              fullName: 'Test',
+              initials: 'T',
+              role: role,
+            ),
+          ),
+          myTeacherIdProvider.overrideWith((ref) async => teacherId),
+        ],
+        child: MaterialApp.router(
+          theme: hangukTheme,
+          locale: hkLocale,
+          supportedLocales: hkSupportedLocales,
+          localizationsDelegates: hkLocalizationsDelegates,
+          routerConfig: GoRouter(
+            routes: [
+              GoRoute(path: '/', builder: (_, _) => const ScheduleScreen()),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  testWidgets('a teacher can add one', (tester) async {
+    await pumpSchedule(tester, role: 'teacher', teacherId: 'tr-jk');
+    expect(find.text('Yangi dars'), findsOneWidget);
+  });
+
+  testWidgets('a student cannot, and is handed no pencil either',
+      (tester) async {
+    await pumpSchedule(tester, role: 'student');
+    expect(find.text('Yangi dars'), findsNothing);
+    expect(find.byTooltip('Tahrirlash'), findsNothing);
   });
 }
 

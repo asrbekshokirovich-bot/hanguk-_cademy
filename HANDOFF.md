@@ -38,7 +38,7 @@ dock:
 | Role | Sections |
 |---|---|
 | `student` | Asosiy · Jonli · Yozuvlar · Jadval |
-| `teacher` | Asosiy · Darsim · Talabalarim · Baholash · Yozuvlar |
+| `teacher` | Asosiy · Darsim · Talabalarim · Baholash · Jadval · Yozuvlar |
 | `admin` | Boshqaruv · Talabalar · O'qituvchilar · Guruhlar · Jadval · To'lovlar |
 | `superadmin` | the admin's six, plus Jonli · Moliya · Adminlar |
 
@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 107 tests
+flutter test             # 108 tests
 flutter build linux --release
 ```
 
@@ -516,6 +516,14 @@ office ends up with two lists of the same people.
   (there is no unique index to upsert against); and a submission is **text
   only**, because `file_url` still has no storage bucket behind it and an
   upload button would be the play button all over again.
+  Two holes the same size were found on the way and closed with it: the
+  **grade was written where nobody could read it** — the grading dialog has
+  always collected a score and a comment, and no student screen showed
+  either, so a teacher was marking into a void — and a **teacher could not
+  see the timetable at all**. Their dock had no Jadval, so "Bugungi
+  darslarim" was their whole view of the week and "when is my next class" had
+  no answer inside the app. `/schedule` gates its create button on `isAdmin`,
+  so they get it read-only and the router needed no change.
 
 ---
 

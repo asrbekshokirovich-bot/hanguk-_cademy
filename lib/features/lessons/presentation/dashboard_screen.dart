@@ -158,13 +158,33 @@ class _HomeworkRow extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+        if (a.feedback != null && a.feedback!.trim().isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            'O‘qituvchi: ${a.feedback}',
+            style: HkType.body.copyWith(
+              fontSize: 12.5,
+              color: HkColors.lime,
+            ),
+          ),
+        ],
       ],
     );
 
     final trailing = <Widget>[
-      if (a.submitted)
+      // A mark, once there is one. The teacher's grade dialog collects a
+      // score and a comment and wrote them where nobody could read them —
+      // the student's side of that screen did not exist.
+      if (a.isGraded)
+        HkPill(
+          label: '${a.grade} ball',
+          background: const Color(0x26D4E94C),
+          foreground: HkColors.lime,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        )
+      else if (a.submitted)
         const HkPill(
-          label: 'Topshirilgan',
+          label: 'Tekshirilmoqda',
           background: Color(0x2634C77B),
           foreground: HkColors.successBright,
           padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),

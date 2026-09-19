@@ -65,12 +65,27 @@ void main() {
       (tester) async {
     await pumpDashboard(tester);
 
-    // Three fixtures: two open, one submitted. The submitted one shows its
-    // state instead of a button, and the count at the top counts only what
-    // is still owed.
-    expect(find.text('Topshirilgan'), findsOneWidget);
+    // Three fixtures: two open, one already marked. The marked one shows the
+    // score and the teacher's comment instead of a button, and the count at
+    // the top counts only what is still owed.
+    expect(find.text('92 ball'), findsOneWidget);
+    expect(find.textContaining('O‘qituvchi:'), findsOneWidget);
     expect(find.text('Topshirish'), findsNWidgets(2));
     expect(find.text('2 ta topshirilmagan'), findsOneWidget);
+  });
+
+  testWidgets('a mark the student cannot see is a mark made into a void',
+      (tester) async {
+    await pumpDashboard(tester);
+
+    // Regression in spirit: the grade dialog has always written a score and a
+    // comment, and until now nothing on the student's side read either.
+    expect(find.text('92 ball'), findsOneWidget);
+    expect(
+      find.textContaining('Fe’l qo‘shimchalariga'),
+      findsOneWidget,
+      reason: 'the comment is the half of a mark that teaches anything',
+    );
   });
 
   testWidgets('a deadline that has passed says so', (tester) async {

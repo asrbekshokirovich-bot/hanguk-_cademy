@@ -259,6 +259,8 @@ abstract final class DemoData {
         id: 'a3',
         title: 'O‘zini tanishtirish',
         submitted: true,
+        grade: 92,
+        feedback: 'Yaxshi. Fe’l qo‘shimchalariga e’tibor bering.',
         dueAt: now.subtract(const Duration(days: 3)),
         lessonId: 'd1',
         lessonTitle: 'Grammatika · Daraja 2',

@@ -33,6 +33,11 @@ abstract final class HkNav {
     HkDestination('Talabalarim', Icons.people_alt_rounded, '/teacher/students'),
     HkDestination('Baholash', Icons.check_circle_outline_rounded,
         '/teacher/grading'),
+    // Read-only for them — the create button on that screen is gated on
+    // `isAdmin`. It is here because a teacher could otherwise see only today:
+    // "Bugungi darslarim" was their whole view of the timetable, so the
+    // question "when is my next class" had no answer inside the app.
+    HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
     HkDestination('Yozuvlar', Icons.play_circle_outline_rounded, '/recordings'),
   ];
 

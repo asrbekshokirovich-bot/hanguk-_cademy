@@ -320,6 +320,8 @@ class Assignment {
     this.dueAt,
     this.lessonId,
     this.lessonTitle,
+    this.grade,
+    this.feedback,
   });
 
   final String id;
@@ -335,6 +337,15 @@ class Assignment {
   /// assignment is read across lessons rather than inside one.
   final String? lessonId;
   final String? lessonTitle;
+
+  /// The mark out of 100, once a teacher has given one, and what they wrote
+  /// with it. Read by the student: a grade nobody can see is a teacher
+  /// marking into a void, which is the same defect as homework nobody could
+  /// set — just one step further along.
+  final int? grade;
+  final String? feedback;
+
+  bool get isGraded => grade != null;
 
   String get statusLabel => submitted ? 'Topshirilgan' : 'Topshirilmagan';
 
@@ -353,6 +364,8 @@ class Assignment {
             : DateTime.parse(map['due_at'] as String).toLocal(),
         lessonId: map['lesson_id'] as String?,
         lessonTitle: map['lesson_title'] as String?,
+        grade: (map['grade'] as num?)?.round(),
+        feedback: map['feedback'] as String?,
       );
 }
 

@@ -248,18 +248,26 @@ class LessonsRepository {
         .order('due_at', ascending: true, nullsFirst: false);
     if (rows.isEmpty) return const [];
 
+    // The mark comes back with the rest: the policy lets a student read their
+    // own submission, and a grade the student cannot see is a teacher marking
+    // into a void.
     final mine = await _db
         .from('ol_assignment_submissions')
-        .select('assignment_id')
+        .select('assignment_id, grade, feedback')
         .eq('student_id', userId)
         .inFilter('assignment_id', rows.map((r) => r['id'] as String).toList());
-    final submitted = mine.map((r) => r['assignment_id'] as String).toSet();
+    final byAssignment = {
+      for (final r in mine) r['assignment_id'] as String: r,
+    };
 
     return rows.map((r) {
       final lesson = r['ol_lessons'];
+      final submission = byAssignment[r['id'] as String];
       return Assignment.fromMap({
         ...r,
-        'submitted': submitted.contains(r['id']),
+        'submitted': submission != null,
+        'grade': submission?['grade'],
+        'feedback': submission?['feedback'],
         'lesson_title': lesson is Map<String, dynamic> ? lesson['title'] : null,
       });
     }).toList();

@@ -483,18 +483,14 @@ class _QuizCard extends ConsumerWidget {
             '${quiz.questionCount} ta savol',
             style: HkType.body.copyWith(fontSize: 13),
           ),
-          const SizedBox(height: 16),
-          LimeButton(
-            label: quiz.completed ? 'Natijani ko‘rish' : 'Testni boshlash',
-            expand: true,
-            height: 46,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Test moduli keyingi bosqichda ulanadi.'),
-                ),
-              );
-            },
+          const SizedBox(height: 10),
+          // A full-width lime button reads as the thing to press, and this
+          // one only ever produced a snackbar saying the module was not
+          // built. The sentence is the honest version of the same news, and
+          // it does not invite the tap first.
+          Text(
+            'Testni yechish hali mavjud emas.',
+            style: HkType.muted.copyWith(fontSize: 12.5),
           ),
         ],
       ),
@@ -541,34 +537,10 @@ class _HomeworkCard extends ConsumerWidget {
                     '${DateFormat('d-MMMM', 'uz').format(assignment.dueAt!)} gacha',
             style: HkType.body.copyWith(fontSize: 13),
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: OutlinedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content:
-                        Text('Vazifa moduli keyingi bosqichda ulanadi.'),
-                  ),
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: HkGlass.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(HkRadius.cardSmall),
-                ),
-              ),
-              child: const Text(
-                'Vazifani ochish',
-                style: TextStyle(
-                  fontFamily: HkType.family,
-                  fontWeight: FontWeight.w600,
-                  color: HkColors.textPrimary,
-                ),
-              ),
-            ),
+          const SizedBox(height: 10),
+          Text(
+            'Vazifani topshirish hali mavjud emas.',
+            style: HkType.muted.copyWith(fontSize: 12.5),
           ),
         ],
       ),

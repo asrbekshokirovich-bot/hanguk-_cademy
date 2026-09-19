@@ -61,7 +61,6 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
 
   bool _handRaised = false;
   bool _showChat = true;
-  bool _showCaptions = true;
   bool _ending = false;
 
   /// Which room this state has announced itself into, so the heartbeat knows
@@ -309,7 +308,6 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                         Expanded(
                           child: _Stage(
                             lesson: lesson,
-                            showCaptions: _showCaptions,
                             media: _media,
                             hostId: hostId,
                           ),
@@ -331,7 +329,6 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                     height: 360,
                     child: _Stage(
                       lesson: lesson,
-                      showCaptions: _showCaptions,
                       media: _media,
                       hostId: hostId,
                     ),
@@ -354,7 +351,6 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   cameraOn: _cameraOn,
                   handRaised: _handRaised,
                   chatOn: _showChat,
-                  captionsOn: _showCaptions,
                   // Null while there is no media connection. A live-looking
                   // button that cannot reach a microphone is the thing this
                   // screen must never show again.
@@ -370,8 +366,6 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                     _pushPresence();
                   },
                   onChat: () => setState(() => _showChat = !_showChat),
-                  onCaptions: () =>
-                      setState(() => _showCaptions = !_showCaptions),
                   onLeave: _leave,
                 ),
               ],
@@ -585,13 +579,11 @@ class _DeviceErrorNotice extends StatelessWidget {
 class _Stage extends StatefulWidget {
   const _Stage({
     required this.lesson,
-    required this.showCaptions,
     required this.media,
     required this.hostId,
   });
 
   final Lesson lesson;
-  final bool showCaptions;
   final LiveMediaSession media;
 
   /// The teacher's account id, as LiveKit knows them.
@@ -743,35 +735,16 @@ class _StageState extends State<_Stage> {
                   ),
                 ),
               ),
-            // Captions
-            if (widget.showCaptions)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: compact ? 66 : 78,
-                child: Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0x99000000),
-                      borderRadius: BorderRadius.circular(HkRadius.chip),
-                    ),
-                    child: Text(
-                      '오늘은 자기소개를 연습하겠습니다 — Bugun o‘zini tanishtirishni mashq qilamiz.',
-                      textAlign: TextAlign.center,
-                      style: HkType.body.copyWith(
-                        fontSize: 13,
-                        color: HkColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            // No captions.
+            //
+            // There was a band here, on by default, holding one hard-coded
+            // Korean sentence and its Uzbek translation — the same words in
+            // every lesson, for everybody, with a "Subtitrlar" switch beside
+            // the microphone implying that something was listening. In a
+            // language school that is not a placeholder, it is a lesson aid
+            // students would have leant on and been misled by.
+            //
+            // It comes back when there is speech recognition to fill it.
             // Self PiP. Your own camera when it is on — this was a box with
             // "Siz" written in it and nothing else, so the only way to learn
             // whether your camera worked was to ask somebody.
@@ -1330,12 +1303,10 @@ class _ControlBar extends StatelessWidget {
     required this.onScreenShare,
     required this.handRaised,
     required this.chatOn,
-    required this.captionsOn,
     required this.onMic,
     required this.onCamera,
     required this.onHand,
     required this.onChat,
-    required this.onCaptions,
     required this.onLeave,
     required this.onEnd,
     required this.ending,
@@ -1345,7 +1316,6 @@ class _ControlBar extends StatelessWidget {
   final bool cameraOn;
   final bool handRaised;
   final bool chatOn;
-  final bool captionsOn;
 
   final bool screenSharing;
 
@@ -1358,7 +1328,6 @@ class _ControlBar extends StatelessWidget {
   final VoidCallback? onScreenShare;
   final VoidCallback onHand;
   final VoidCallback onChat;
-  final VoidCallback onCaptions;
   final VoidCallback onLeave;
 
   /// Null for a student: they can leave the room, but only staff take the
@@ -1418,12 +1387,6 @@ class _ControlBar extends StatelessWidget {
               active: chatOn,
               tooltip: 'Suhbat',
               onTap: onChat,
-            ),
-            _ControlButton(
-              icon: Icons.closed_caption_outlined,
-              active: captionsOn,
-              tooltip: 'Subtitrlar',
-              onTap: onCaptions,
             ),
             Container(
               width: 1,

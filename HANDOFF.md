@@ -484,6 +484,19 @@ office ends up with two lists of the same people.
   `HkEnv.recordingEnabled`, which is false, and the player surface says so in
   words. Turning the flag on is not enough on its own — there is still no
   decoder behind that surface.
+- **The captions were one sentence, hard-coded.** A band under the live stage
+  held `오늘은 자기소개를 연습하겠습니다` and its Uzbek translation — the same
+  words in every lesson, for every person, with a "Subtitrlar" switch next to
+  the microphone implying that something was listening, on by default. In a
+  language school that is not a harmless placeholder: it is a lesson aid
+  students would have leant on. The band and the switch are gone until there
+  is speech recognition behind them.
+- **Two buttons whose only job was to apologise.** "Testni boshlash" and
+  "Vazifani ochish" were a full-width lime button and an outlined one that
+  did nothing but raise a snackbar saying the module was not built. A control
+  that looks like the thing to press should be the thing to press; both are
+  now a line of text saying the feature is not available yet, which is the
+  same news without the invitation.
 
 ---
 
@@ -494,12 +507,10 @@ Roughly in the order they matter:
 1. **Payment recording UI.** `StaffRepository.recordPayment` and
    `confirmPayment` exist and work; no button is wired to them. The finance
    screen is read-only.
-2. **Live captions.** The one thing left in the live room that pretends. The
-   band under the stage is a single hard-coded Korean sentence with its Uzbek
-   translation, shown to everybody in every lesson, and the control bar has a
-   "Subtitrlar" toggle that reads as if something were transcribing. It is
-   on by default. Either wire real speech-to-text or take the band and the
-   toggle out; leaving it is the most misleading thing on any screen.
+2. **Live captions.** Removed rather than faked — see §7. Bringing them back
+   means real speech recognition: a transcription service, a stream of it per
+   room, and a decision about who pays for it. The band and the toggle can
+   come back the moment there is something to put in them.
 3. **Recording playback.** The library lists recordings and tracks watch
    progress; there is no player and no storage bucket.
 4. **Homework and quizzes.** Grading reads `ol_assignment_submissions`; there

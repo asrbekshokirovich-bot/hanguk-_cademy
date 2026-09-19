@@ -133,6 +133,27 @@ void main() {
 
       expect(find.text('0 dan 100 gacha'), findsOneWidget);
     });
+
+    testWidgets('the grade dialog shows the work it is marking',
+        (tester) async {
+      await pump(tester, const TeacherGradingScreen());
+
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(HkTable),
+              matching: find.text('Baholash'),
+            )
+            .first,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The student's answer is carried from ol_assignment_submissions.note
+      // all the way into Submission.note, and no screen ever read it — a
+      // teacher was asked for a mark out of 100 on work they could not see.
+      expect(find.textContaining('Men Dilshodman'), findsOneWidget);
+    });
   });
 
   group('admin panel', () {

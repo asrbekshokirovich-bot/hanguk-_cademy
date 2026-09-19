@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 109 tests
+flutter test             # 111 tests
 flutter build linux --release
 ```
 
@@ -560,6 +560,24 @@ office ends up with two lists of the same people.
   measured, and the "O'zlashtirish" column goes with it, both behind
   `HkEnv.recordingEnabled`. Attendance, the other half, became real in the
   same pass.
+- **The app declared no localisations at all, and a date picker cannot be
+  built without them.** No `flutter_localizations`, no `supportedLocales`, no
+  delegates — which nothing noticed until the first Material widget that
+  needs `MaterialLocalizations` appeared. `showDatePicker` is one: pressing
+  "Muddat qo'yish" threw while building, and a thrown build is a **white
+  window with nothing written in it**. The three values are named in
+  `main.dart` (`hkLocale`, `hkSupportedLocales`, `hkLocalizationsDelegates`)
+  so `test/assignment_dialog_test.dart` asserts against the ones the app
+  actually uses rather than a copy; empty any of them and that test says "No
+  MaterialLocalizations found". Flutter ships Uzbek material strings, so the
+  picker is in Uzbek.
+- **A teacher was asked to mark work they could not read.** The student's
+  answer goes into `ol_assignment_submissions.note`, through
+  `ol_v_submissions`, into `Submission.note` — and no screen displayed it. So
+  the grade dialog showed a name and a title and asked for a mark out of 100
+  on writing the teacher had no way of seeing. It shows the answer now, above
+  the box the mark goes in. Attaching a **file** is still not possible in
+  either direction: `file_url` has no storage bucket behind it.
 
 ---
 

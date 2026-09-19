@@ -12,6 +12,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Material's own strings and date formats, in Uzbek. Not cosmetic: any
+  # Material widget that needs `MaterialLocalizations` for a locale the app
+  # has not declared simply fails to build, and `showDatePicker` is one —
+  # pressing "Muddat qo'yish" turned the whole window white.
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^3.3.1

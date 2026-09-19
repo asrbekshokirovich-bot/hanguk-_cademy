@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -85,6 +86,25 @@ Future<void> _fillTheScreen() async {
 bool get _isDesktop =>
     !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
+/// The app is Uzbek. English is declared only as the fallback Flutter needs
+/// for anything it has no Uzbek string for.
+///
+/// Named rather than written inline so a test can assert against the same
+/// three values the app uses, instead of a copy that drifts.
+const hkLocale = Locale('uz');
+
+const hkSupportedLocales = [Locale('uz'), Locale('en')];
+
+/// Without these, every Material widget that asks for the localisations of a
+/// locale the app never declared throws while building. `showDatePicker` is
+/// one of them: pressing "Muddat qo'yish" turned the whole window white, with
+/// nothing on screen to say why.
+const hkLocalizationsDelegates = <LocalizationsDelegate<dynamic>>[
+  GlobalMaterialLocalizations.delegate,
+  GlobalWidgetsLocalizations.delegate,
+  GlobalCupertinoLocalizations.delegate,
+];
+
 class HangukOnlineApp extends ConsumerWidget {
   const HangukOnlineApp({super.key});
 
@@ -95,6 +115,14 @@ class HangukOnlineApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: ref.watch(appRouterProvider),
       theme: hangukTheme,
+      // Uzbek first, English as the fallback Flutter needs for anything it
+      // has no Uzbek string for. Without these, every Material widget that
+      // asks for localisations of a locale the app never declared throws
+      // while building — `showDatePicker` did exactly that, and a thrown
+      // build is a white window with no message in it.
+      locale: hkLocale,
+      supportedLocales: hkSupportedLocales,
+      localizationsDelegates: hkLocalizationsDelegates,
       // Wrapped here rather than inside AppShell: the login and
       // change-password screens do not use the shell, and a window that loses
       // its close button on the one screen you reach before signing in is a

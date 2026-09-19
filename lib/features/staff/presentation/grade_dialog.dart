@@ -18,6 +18,7 @@ Future<GradeResult?> showGradeDialog(
   BuildContext context, {
   required String studentName,
   required String assignmentTitle,
+  String? answer,
   int? initialGrade,
 }) {
   return showDialog<GradeResult>(
@@ -26,6 +27,7 @@ Future<GradeResult?> showGradeDialog(
     builder: (_) => _GradeDialog(
       studentName: studentName,
       assignmentTitle: assignmentTitle,
+      answer: answer,
       initialGrade: initialGrade,
     ),
   );
@@ -35,11 +37,21 @@ class _GradeDialog extends StatefulWidget {
   const _GradeDialog({
     required this.studentName,
     required this.assignmentTitle,
+    this.answer,
     this.initialGrade,
   });
 
   final String studentName;
   final String assignmentTitle;
+
+  /// What the student actually handed in.
+  ///
+  /// It was not shown anywhere. `ol_assignment_submissions.note` is written
+  /// by the student, carried all the way through `ol_v_submissions` and into
+  /// `Submission.note` — and then no screen read it, so a teacher opened this
+  /// dialog, saw a name and a title, and was asked for a mark out of 100 on
+  /// work they had no way of reading.
+  final String? answer;
   final int? initialGrade;
 
   @override
@@ -107,7 +119,9 @@ class _GradeDialogState extends State<_GradeDialog> {
                 Text(widget.studentName, style: HkType.cardTitle),
                 const SizedBox(height: 2),
                 Text(widget.assignmentTitle, style: HkType.muted),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                _Answer(text: widget.answer),
+                const SizedBox(height: 16),
                 AuthField(
                   controller: _grade,
                   label: 'Baho (0–100)',
@@ -140,6 +154,44 @@ class _GradeDialogState extends State<_GradeDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The handed-in work, above the box the mark goes in.
+///
+/// Scrollable and capped rather than clipped: a long answer is still the
+/// thing being marked, and a dialog that grows past the window is worse than
+/// one you scroll inside.
+class _Answer extends StatelessWidget {
+  const _Answer({required this.text});
+
+  final String? text;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = (text ?? '').trim();
+
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 180),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(HkRadius.cardSmall),
+        border: Border.all(color: HkGlass.border),
+      ),
+      child: body.isEmpty
+          ? Text(
+              'Talaba matn yozmagan.',
+              style: HkType.muted.copyWith(fontSize: 12.5),
+            )
+          : SingleChildScrollView(
+              child: Text(
+                body,
+                style: HkType.body.copyWith(fontSize: 13),
+              ),
+            ),
     );
   }
 }

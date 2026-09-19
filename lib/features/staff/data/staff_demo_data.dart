@@ -84,6 +84,8 @@ abstract final class StaffDemoData {
         studentName: 'Dilshod Mahmudov',
         assignmentTitle: 'Dialog yozish',
         lessonTitle: '14-dars',
+        note: '안녕하세요! 저는 딜쇼드입니다. 우즈베키스탄에서 왔습니다.\n'
+            'Salom! Men Dilshodman. O‘zbekistondan kelganman.',
         submittedAt: now.subtract(const Duration(days: 2)),
       ),
       Submission(

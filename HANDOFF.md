@@ -378,6 +378,17 @@ server recording. The second is signed by `ol_recording_url()` →
 private**: R2 is one toggle away from world-readable, and a lesson full of
 named children is not a thing to leave on an unlisted URL.
 
+The first two migrations were written without ever being run, and loading
+them into a throwaway Postgres with the LiveKit call stubbed found one
+unauthenticated credential leak and five ways to lose or double a recording
+— none of which any amount of reading had found.
+`20260921160000_livekit_egress_fixes.sql` is the repair, and every item in it
+was reproduced first and re-tested after. **If those two migrations ever ran
+against the live project, rotate the R2 key**: `ol_egress_ping` kept its
+implicit PUBLIC grant, waved a null `auth.uid()` through, and returned
+LiveKit's reply verbatim — and that reply echoes the request, which carries
+the bucket's access key and secret.
+
 Traps, all of them paid for once:
 
 - `pgsql-http`, not `pg_net`. The response has to be visible to debug any of
@@ -390,6 +401,18 @@ Traps, all of them paid for once:
   request carries the bucket's access key.
 - To check the whole chain from the SQL Editor:
   `select (extensions.http_get(ol_s3_presign('<key>'))).status;` → 200.
+- A function is EXECUTE-able by PUBLIC unless revoked. Granting it to
+  `authenticated` does not take that away, and `anon` is a real role holding
+  the key that ships in the app.
+- Never return LiveKit's reply to a caller: `EgressInfo` echoes the request.
+  The `error` column was defended and the return values were not.
+- `do $$ create extension … exception when others …` is **not** a guard: a
+  function declaring `extensions.http_response` fails at CREATE time, and in
+  the SQL Editor's single transaction the whole script rolls back — after a
+  green notice saying it was handled. Check `pg_extension` and raise.
+- There is a Postgres harness for all of this: stub `extensions.http`, drive
+  every branch, and cross-check the signing against Python. It found what
+  three careful readings did not.
 
 ### Live data as of this handoff
 

@@ -1215,18 +1215,16 @@ class _ParticipantRow extends StatelessWidget {
     // how a teacher ends up waiting for an answer from an empty chair.
     // LiveKit knows which audio tracks are actually published, and they stop
     // existing with the connection that published them.
-    final live = media.micOf(p.id);
-    final micOn = live ?? p.micOn;
-
-    // Present in the table, absent from the room. The two lists were treated
-    // as one: `ol_room_presence` is a heartbeat somebody's client writes, and
-    // it keeps saying "here, microphone on" whether or not that client ever
-    // reached LiveKit. A student whose media connection failed — or who
-    // joined a different room — sat in the teacher's list with a lit
-    // microphone, and the teacher waited for an answer from a chair nobody
-    // was in. When we are in the room ourselves and LiveKit has never heard
-    // of somebody, that is worth saying out loud.
-    final absentFromMedia = media.isLive && live == null && !p.isSelf;
+    // The three states are decided in `hkMicState`, where they can be
+    // checked one by one rather than inferred from a rendered pixel.
+    final mic = hkMicState(
+      mediaLive: media.isLive,
+      fromLiveKit: media.micOf(p.id),
+      fromPresence: p.micOn,
+      isSelf: p.isSelf,
+    );
+    final micOn = mic == HkMicState.live;
+    final absentFromMedia = mic == HkMicState.absent;
 
     return Row(
       children: [

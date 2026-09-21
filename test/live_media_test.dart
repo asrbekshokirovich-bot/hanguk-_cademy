@@ -115,6 +115,76 @@ void main() {
     expect(media.deviceError, contains('uzilgan'));
   });
 
+  group('what the microphone beside a name is allowed to claim', () {
+    // Every combination, because the defect was one of eight cases being
+    // folded into another: "LiveKit has never heard of this person" was
+    // treated as "their microphone is off", and the teacher was shown a
+    // participant who could not be heard at all as merely quiet.
+    HkMicState state({
+      required bool mediaLive,
+      required bool? fromLiveKit,
+      required bool fromPresence,
+      bool isSelf = false,
+    }) =>
+        hkMicState(
+          mediaLive: mediaLive,
+          fromLiveKit: fromLiveKit,
+          fromPresence: fromPresence,
+          isSelf: isSelf,
+        );
+
+    test('LiveKit wins over the presence table, both ways', () {
+      // Publishing, whatever the row says.
+      expect(
+        state(mediaLive: true, fromLiveKit: true, fromPresence: false),
+        HkMicState.live,
+      );
+      // Not publishing, whatever the row says. This is the stale `mic_on`
+      // that survived a dropped connection.
+      expect(
+        state(mediaLive: true, fromLiveKit: false, fromPresence: true),
+        HkMicState.muted,
+      );
+    });
+
+    test('unknown to LiveKit, while we are in the room, is its own state', () {
+      expect(
+        state(mediaLive: true, fromLiveKit: null, fromPresence: true),
+        HkMicState.absent,
+      );
+      expect(
+        state(mediaLive: true, fromLiveKit: null, fromPresence: false),
+        HkMicState.absent,
+      );
+    });
+
+    test('our own row is never absent', () {
+      expect(
+        state(
+          mediaLive: true,
+          fromLiveKit: null,
+          fromPresence: true,
+          isSelf: true,
+        ),
+        HkMicState.live,
+        reason: 'if the session is up we are in it; the row is all we have',
+      );
+    });
+
+    test('with no media of our own we do not accuse anybody', () {
+      // A room with no LiveKit configured, or one still connecting: we know
+      // nothing about anybody's audio, so the presence row stands.
+      expect(
+        state(mediaLive: false, fromLiveKit: null, fromPresence: true),
+        HkMicState.live,
+      );
+      expect(
+        state(mediaLive: false, fromLiveKit: null, fromPresence: false),
+        HkMicState.muted,
+      );
+    });
+  });
+
   test('a failure can be cleared so the room may be tried again', () {
     final media = LiveMediaSession();
     addTearDown(media.dispose);

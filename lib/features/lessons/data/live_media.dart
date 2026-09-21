@@ -9,6 +9,44 @@ import 'package:livekit_client/livekit_client.dart';
 
 import '../domain/models.dart' show LiveMediaGrant;
 
+/// What the little microphone beside somebody's name is allowed to claim.
+///
+/// Three states, not two, and the third is the one that was missing: the
+/// participant list is built from `ol_room_presence`, a heartbeat each
+/// client writes about itself, while the audio is LiveKit's. A student whose
+/// media connection failed — or who joined a different room — kept a lit
+/// green microphone in the teacher's list, and the teacher waited for an
+/// answer from a chair nobody was sitting in.
+enum HkMicState {
+  /// Publishing audio right now.
+  live,
+
+  /// In the room, microphone off.
+  muted,
+
+  /// In the presence table and not in the media room. Nobody can hear them,
+  /// whatever their own screen says.
+  absent,
+}
+
+/// The decision itself, kept out of the widget so it can be checked.
+///
+/// [fromLiveKit] is null when the room has never heard of this identity —
+/// which is not the same as "their microphone is off", and was treated as
+/// though it were.
+HkMicState hkMicState({
+  required bool mediaLive,
+  required bool? fromLiveKit,
+  required bool fromPresence,
+  required bool isSelf,
+}) {
+  // Our own row is never "absent": if the media session is up at all, we are
+  // in it, and before it is up there is nothing to compare against.
+  if (mediaLive && fromLiveKit == null && !isSelf) return HkMicState.absent;
+  final on = fromLiveKit ?? fromPresence;
+  return on ? HkMicState.live : HkMicState.muted;
+}
+
 /// Where a room's media connection has got to.
 ///
 /// [unavailable] is not a failure. It is the honest state of a project that

@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 144 tests
+flutter test             # 148 tests
 flutter build linux --release
 ```
 

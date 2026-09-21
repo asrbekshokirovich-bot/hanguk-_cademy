@@ -109,7 +109,15 @@ begin
      set egress_id  = v_id,
          filepath   = v_path,
          status     = case when v_id is null then 'failed' else 'active' end,
-         error      = case when v_id is null then v_res::text end,
+         -- The message only. LiveKit's reply echoes the request it was
+         -- given, and that request carries the bucket's access key — which
+         -- has no business sitting in a column a teacher can read.
+         error      = case
+                        when v_id is null
+                        then left(coalesce(v_res #>> '{body,msg}',
+                                           'status ' || (v_res ->> 'status')),
+                                  300)
+                      end,
          updated_at = now()
    where lesson_id = p_lesson_id;
 
@@ -196,7 +204,9 @@ begin
 
   if v_status <> 'EGRESS_COMPLETE' then
     update ol_lesson_egress
-       set status = 'failed', error = v_info::text, updated_at = now()
+       set status = 'failed',
+           error = left(coalesce(v_info ->> 'error', v_status), 300),
+           updated_at = now()
      where lesson_id = p_lesson_id;
     return jsonb_build_object('failed', v_status, 'info', v_info);
   end if;
@@ -452,6 +462,20 @@ begin
   return v_url;
 end;
 $$;
+
+-- Whether a lesson is being recorded, for anybody in the room.
+--
+-- Everyone in the class is entitled to know they are being recorded, and the
+-- table itself stays staff-only: it carries the egress id and whatever went
+-- wrong, neither of which is a student's business. This carries the one fact
+-- that is.
+create or replace view ol_v_lesson_recording
+with (security_invoker = false)
+as
+select lesson_id, status
+  from ol_lesson_egress;
+
+grant select on ol_v_lesson_recording to authenticated;
 
 revoke execute on function ol_egress_start(uuid) from public, anon, authenticated;
 revoke execute on function ol_egress_stop(uuid) from public, anon, authenticated;

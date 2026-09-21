@@ -45,7 +45,7 @@ class TeacherStudentsScreen extends ConsumerWidget {
 
     return AppShell(
       title: 'Talabalarim',
-      subtitle: HkEnv.recordingEnabled
+      subtitle: HkEnv.watchProgressEnabled
           ? 'Davomat va o‘zlashtirish'
           : 'Davomat va faollik',
       child: AsyncSection(
@@ -117,8 +117,8 @@ class TeacherStudentsScreen extends ConsumerWidget {
                   HkColumn('Davomat', 3),
                   // Watched-recording share. Hidden with everything else that
                   // depends on recordings existing — it reads 0% for the
-                  // whole school until one does. See HkEnv.recordingEnabled.
-                  if (HkEnv.recordingEnabled) HkColumn("O'zlashtirish", 3),
+                  // whole school until one does. See HkEnv.watchProgressEnabled.
+                  if (HkEnv.watchProgressEnabled) HkColumn("O'zlashtirish", 3),
                   HkColumn('Oxirgi faollik', 4),
                   HkColumn('Holat', 3),
                 ],
@@ -177,7 +177,7 @@ class _StudentRow extends StatelessWidget {
                         value: s.attendance,
                       ),
                     ),
-                    if (HkEnv.recordingEnabled) ...[
+                    if (HkEnv.watchProgressEnabled) ...[
                       const SizedBox(width: 16),
                       Expanded(
                         child: _Metric(
@@ -228,7 +228,7 @@ class _StudentRow extends StatelessWidget {
             color: hkRateColor(s.attendance),
           ),
         ),
-        if (HkEnv.recordingEnabled)
+        if (HkEnv.watchProgressEnabled)
           Expanded(
             flex: 3,
             child: HkRateCell(

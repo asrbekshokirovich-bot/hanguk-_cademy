@@ -117,7 +117,7 @@ class TeacherStudent {
   /// no writer, so it reads zero for everybody. Left in the rule, it flagged
   /// **every student in the school** as needing attention, permanently, on a
   /// screen a teacher scans to find the two who actually do. It comes back
-  /// with recording; see `HkEnv.recordingEnabled`.
+  /// with recording; see `HkEnv.watchProgressEnabled`.
   /// Zero is not a low score, it is no score. `ol_v_student_stats` coalesces
   /// a student with no `ol_attendance` rows to 0, and attendance is only
   /// written from inside the live room — so every student taught anywhere
@@ -125,7 +125,7 @@ class TeacherStudent {
   /// only job is finding the two who actually are slipping.
   bool get needsAttention =>
       (attendance > 0 && attendance < 0.8) ||
-      (HkEnv.recordingEnabled && progress < 0.6);
+      (HkEnv.watchProgressEnabled && progress < 0.6);
 
   String get statusLabel => needsAttention ? 'Diqqat' : 'Faol';
 

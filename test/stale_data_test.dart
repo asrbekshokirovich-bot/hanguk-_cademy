@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +31,12 @@ import 'package:hanguk_online/main.dart';
 /// Two halves are covered here: that the lists are re-read, and that the
 /// empty state stops guessing at why it is empty.
 void main() {
-  setUpAll(() => initializeDateFormatting('uz'));
+  setUpAll(() async {
+    initializeDateFormatting('uz');
+    // The bundled fonts: the default test font is about twice as wide and
+    // overflows a table that fits perfectly in the app.
+    await _loadBundledFonts();
+  });
 
   group('nothing outlives the screen that opened it', _lifetimes);
 
@@ -266,4 +274,26 @@ class _CountingStaff extends StaffRepository {
     rosterReads++;
     return super.myStudents();
   }
+}
+
+Future<void> _loadBundledFonts() async {
+  Future<void> load(String family, List<String> paths) async {
+    final loader = FontLoader(family);
+    for (final path in paths) {
+      loader.addFont(
+        File(path).readAsBytes().then((b) => ByteData.sublistView(b)),
+      );
+    }
+    await loader.load();
+  }
+
+  await load('Inter', [
+    for (final w in [400, 500, 600, 700, 800, 900])
+      'assets/fonts/Inter-$w.ttf',
+  ]);
+  await load('JetBrainsMono', ['assets/fonts/JetBrainsMono-600.ttf']);
+  await load('NotoSansKR', [
+    'assets/fonts/NotoSansKR-500.ttf',
+    'assets/fonts/NotoSansKR-700.ttf',
+  ]);
 }

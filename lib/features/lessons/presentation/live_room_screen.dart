@@ -19,7 +19,6 @@ import '../domain/models.dart';
 import 'screen_share_picker.dart';
 import '../../../core/clock.dart';
 import '../../../core/errors.dart';
-import '../../../core/env.dart';
 
 /// "Jonli dars" — the live lesson room.
 ///
@@ -753,7 +752,7 @@ class _DeviceErrorNotice extends StatelessWidget {
   }
 }
 
-class _Stage extends StatefulWidget {
+class _Stage extends ConsumerStatefulWidget {
   const _Stage({
     required this.lesson,
     required this.media,
@@ -773,10 +772,10 @@ class _Stage extends StatefulWidget {
   final String? hostId;
 
   @override
-  State<_Stage> createState() => _StageState();
+  ConsumerState<_Stage> createState() => _StageState();
 }
 
-class _StageState extends State<_Stage> {
+class _StageState extends ConsumerState<_Stage> {
   late Timer _tick;
   Duration _elapsed = Duration.zero;
 
@@ -871,11 +870,14 @@ class _StageState extends State<_Stage> {
                     background: HkColors.danger,
                     foreground: Colors.white,
                   ),
-                  // Only when something is actually recording. The badge
-                  // used to appear on any lesson flagged `auto_record`, with
-                  // a running clock, while nothing recorded anything — see
-                  // HkEnv.recordingEnabled.
-                  if (HkEnv.recordingEnabled && widget.lesson.autoRecord)
+                  // Only when something is actually recording — the
+                  // recorder's own state, not the lesson's `auto_record`
+                  // wish. The badge used to appear on any lesson carrying
+                  // that flag, with a running clock, while nothing recorded
+                  // anything at all.
+                  if (ref.watch(lessonRecordingProvider(widget.lesson.id))
+                          .value ??
+                      false)
                     HkPill(
                       label: 'Yozib olinmoqda · $_clock',
                       dotColor: HkColors.danger,

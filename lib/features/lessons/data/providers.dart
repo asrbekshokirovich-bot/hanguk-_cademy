@@ -153,6 +153,17 @@ final hkRosterTick = Provider<int>((ref) {
   return ref.watch(_rosterTickProvider).value ?? 0;
 });
 
+/// Whether the room is on tape, asked on the same beat as the lesson status.
+///
+/// The badge used to be drawn from `auto_record`, which is a wish rather than
+/// a fact: it said "Yozib olinmoqda" over a room nothing was recording for as
+/// long as that column was true.
+final lessonRecordingProvider =
+    FutureProvider.family<bool, String>((ref, lessonId) {
+  ref.watch(_statusTick);
+  return ref.watch(lessonsRepositoryProvider).isRecording(lessonId);
+}, isAutoDispose: true);
+
 final lessonByIdProvider =
     FutureProvider.family<Lesson?, String>((ref, id) {
   // The live room decides whether it is still a room from this value, so it

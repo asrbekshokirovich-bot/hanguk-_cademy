@@ -346,6 +346,51 @@ Two things have to be true or uploads fail, and they fail differently:
   `42501` — "new row violates row-level security policy". A bucket that exists
   is not a bucket that works; check Storage → uploads → Policies shows four.
 
+### Recording, and where the files live
+
+LiveKit Egress writes each live room to Cloudflare R2, and a `pg_cron` job
+files the result. Two migrations set it up
+(`20260921120000_livekit_egress_step1.sql`, `..._step2.sql`) and both are
+applied.
+
+```
+ol_egress_config     one row: R2 endpoint, region, bucket, key, secret.
+                     RLS on, zero policies — same mechanism as
+                     ol_livekit_config.
+ol_lesson_egress     one row per lesson being (or having been) recorded:
+                     egress_id, filepath, status, error.
+ol_v_lesson_recording  lesson_id + status only, readable by anyone signed
+                     in. Everyone in a room is entitled to know they are
+                     being recorded; nobody else's business is the rest.
+```
+
+The job (`ol_egress_tick`, every minute) does three separable things: starts
+a recording once a live lesson has somebody in the room, stops it when the
+lesson ends, and writes the `ol_recordings` row when LiveKit reports the
+file finished. A **job rather than a trigger** on `ol_lessons.status`,
+because a room-composite egress needs a room and a room exists only after
+somebody joins.
+
+`video_url` therefore holds two shapes: a Supabase Storage path
+(`materials/<lesson>/…`) for a teacher's own upload, and `r2://<key>` for a
+server recording. The second is signed by `ol_recording_url()` →
+`ol_s3_presign()`, AWS SigV4 in SQL, good for an hour. **The bucket stays
+private**: R2 is one toggle away from world-readable, and a lesson full of
+named children is not a thing to leave on an unlisted URL.
+
+Traps, all of them paid for once:
+
+- `pgsql-http`, not `pg_net`. The response has to be visible to debug any of
+  this; pg_net delivers it to a table a moment later.
+- pgcrypto has `hmac(bytea, bytea)` and `hmac(text, text)` and nothing in
+  between, and there is no implicit cast. Every SigV4 argument goes through
+  `convert_to(..., 'UTF8')`.
+- `force_path_style: true`. R2, B2 and Supabase all address buckets by path.
+- Never store LiveKit's reply verbatim: it echoes the request, and the
+  request carries the bucket's access key.
+- To check the whole chain from the SQL Editor:
+  `select (extensions.http_get(ol_s3_presign('<key>'))).status;` → 200.
+
 ### Live data as of this handoff
 
 3 accounts, all created by the owner: `admin` (Asrbek, role admin), `demo`
@@ -693,7 +738,14 @@ Roughly in the order they matter:
    means real speech recognition: a transcription service, a stream of it per
    room, and a decision about who pays for it. The band and the toggle can
    come back the moment there is something to put in them.
-3. **Recording the room on the server.** A lesson is kept today because the
+3. **A player inside the app.** A recording opens in whatever the machine
+   plays video with, because there is no decoder in the app — `pubspec.yaml`
+   declares no `video_player`, no `media_kit`. That is why
+   `ol_recording_progress` still has no writer and why
+   `HkEnv.watchProgressEnabled` is false: a file playing in another program
+   cannot report a position, and every percentage derived from it is zero.
+4. **Was: recording the room on the server.** Done — see §5. Kept here only
+   as a note on what it took: A lesson is kept today because the
    teacher uploads their own capture from "Yozuvlar" — `ol_recordings_write`
    admits `ol_is_staff()`, so the row needs no migration, and the file goes
    to `materials/<lesson_id>/`, which every signed-in account may read. The

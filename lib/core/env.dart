@@ -55,7 +55,7 @@ abstract final class HkEnv {
     defaultValue: 'dev',
   );
 
-  /// Whether lessons are actually recorded. They are not.
+  /// Whether lessons are actually recorded. They are, now.
   ///
   /// The schema has carried `auto_record` since the first migration, and the
   /// screens drew it faithfully: a switch in the lesson dialog, a "Yozib
@@ -67,9 +67,28 @@ abstract final class HkEnv {
   /// Telling a roomful of students they are being recorded when they are not
   /// is worse than a missing feature, and it runs the other way too: a
   /// teacher who believes the class is saved does not take notes. So the
-  /// controls stay behind this until recording exists, at which point this
-  /// becomes true in one place and they all come back.
+  /// controls stayed behind this until recording existed.
   ///
-  ///   flutter run --dart-define=RECORDING_ENABLED=true
-  static const recordingEnabled = bool.fromEnvironment('RECORDING_ENABLED');
+  /// It exists: LiveKit egress writes the room to the bucket and the library
+  /// row is written when the file is finished (see
+  /// `20260921140000_livekit_egress_step2.sql`). Default true, and set it to
+  /// false on a project with no `ol_egress_config` row rather than offering
+  /// a switch that records nothing:
+  ///
+  ///   flutter run --dart-define=RECORDING_ENABLED=false
+  static const recordingEnabled =
+      bool.fromEnvironment('RECORDING_ENABLED', defaultValue: true);
+
+  /// Whether a student's watch progress means anything. It does not.
+  ///
+  /// `ol_recording_progress` still has no writer: the app opens a recording
+  /// in whatever the machine plays video with, and a file playing in another
+  /// program cannot report a position. So every percentage derived from it
+  /// is zero for everybody — which, left in the "Diqqat" rule, flagged the
+  /// whole school.
+  ///
+  /// Split from [recordingEnabled] on the day recording started working,
+  /// because the two are no longer the same question.
+  static const watchProgressEnabled =
+      bool.fromEnvironment('WATCH_PROGRESS_ENABLED');
 }

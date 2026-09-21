@@ -458,6 +458,22 @@ class LessonsRepository {
     });
   }
 
+  /// Whether this lesson is being recorded right now.
+  ///
+  /// From `ol_v_lesson_recording`, which is the recorder's own state rather
+  /// than the lesson's `auto_record` intention. Everyone in the room is
+  /// entitled to know they are being recorded, and equally entitled not to
+  /// be told they are when the recorder failed to start.
+  Future<bool> isRecording(String lessonId) async {
+    if (isDemo) return false;
+    final row = await _db
+        .from('ol_v_lesson_recording')
+        .select('status')
+        .eq('lesson_id', lessonId)
+        .maybeSingle();
+    return row?['status'] == 'active';
+  }
+
   /// A link to a recorded lesson, whichever way it was kept.
   ///
   /// Two kinds live in `ol_recordings.video_url`: a path in Supabase Storage,

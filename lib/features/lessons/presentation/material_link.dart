@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/errors.dart';
 import '../data/lessons_repository.dart';
+import '../domain/models.dart';
 
 /// Opens whatever `ol_materials.url` holds, and says what went wrong.
 ///
@@ -26,6 +27,27 @@ Future<String?> openLessonMaterial(WidgetRef ref, String url) async {
     // A false here is the platform declining the link rather than an error
     // thrown, and doing nothing quietly is how a button comes to look dead.
     return opened ? null : 'Faylni ochib bo‘lmadi.';
+  } catch (e) {
+    return hkErrorMessage(e);
+  }
+}
+
+/// Opens a recorded lesson, and says what went wrong.
+///
+/// A recording is kept one of two ways — a file the teacher uploaded, or one
+/// the server recorded into the bucket — and only the database can sign the
+/// second. Both end up here, and both end up in whatever this machine plays
+/// video with: the app has no decoder of its own, and a door that opens is
+/// worth more than a player that does not exist.
+Future<String?> openRecording(WidgetRef ref, Recording recording) async {
+  try {
+    final link =
+        await ref.read(lessonsRepositoryProvider).recordingLink(recording);
+    final opened = await launchUrl(
+      Uri.parse(link),
+      mode: LaunchMode.externalApplication,
+    );
+    return opened ? null : 'Yozuvni ochib bo‘lmadi.';
   } catch (e) {
     return hkErrorMessage(e);
   }

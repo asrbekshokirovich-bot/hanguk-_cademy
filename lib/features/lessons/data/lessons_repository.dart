@@ -458,6 +458,31 @@ class LessonsRepository {
     });
   }
 
+  /// A link to a recorded lesson, whichever way it was kept.
+  ///
+  /// Two kinds live in `ol_recordings.video_url`: a path in Supabase Storage,
+  /// from a teacher who uploaded their own capture, and an `r2://` key from
+  /// a room the server recorded. The second cannot be signed here — the
+  /// bucket's secret is in the database and belongs nowhere near a client —
+  /// so the database signs it, for an hour, and hands back a URL.
+  Future<String> recordingLink(Recording recording) async {
+    final url = recording.videoUrl ?? '';
+    if (url.isEmpty) {
+      throw StateError('Bu yozuvga fayl biriktirilmagan.');
+    }
+    if (isDemo) {
+      throw StateError('Demo rejimda yozuvni ochib bo‘lmaydi');
+    }
+    if (url.startsWith('r2://')) {
+      final signed = await _db.rpc(
+        'ol_recording_url',
+        params: {'p_recording_id': recording.id},
+      );
+      return signed as String;
+    }
+    return materialLink(url);
+  }
+
   /// Whatever is in `ol_materials.url`, turned into something openable.
   ///
   /// The column predates the bucket and holds both kinds: rows written by

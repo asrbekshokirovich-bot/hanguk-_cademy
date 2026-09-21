@@ -273,6 +273,29 @@ void main() {
     // `ol_recordings` has been in the schema since the first migration and
     // nothing ever wrote a row, so "Yozuvlar" was empty in every build — the
     // policy always allowed staff to insert, there was simply no way in.
+    test('a bucket recording is signed by the database, not the client', () {
+      // Two kinds live in `video_url`: a path in Supabase Storage from a
+      // teacher's own upload, and an `r2://` key from a room the server
+      // recorded. The bucket's secret is in the database and belongs nowhere
+      // near a client, so the second is signed there — the app only asks.
+      final fromBucket = Recording(
+        id: 'r1',
+        title: '14-dars',
+        category: 'Koreys tili',
+        recordedAt: DateTime(2026, 9, 21),
+        durationSeconds: 2700,
+        progress: 0,
+        videoUrl: 'r2://lessons/2026/09/21/abc.mp4',
+      );
+      expect(fromBucket.videoUrl!.startsWith('r2://'), isTrue);
+
+      // And the demo build refuses both kinds, like every other write.
+      expectLater(
+        () => LessonsRepository(null).recordingLink(fromBucket),
+        throwsA(isA<StateError>()),
+      );
+    });
+
     test('demo mode refuses to add one, in Uzbek', () async {
       await expectLater(
         () => LessonsRepository(null).addRecording(

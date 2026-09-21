@@ -286,10 +286,7 @@ class _VideoSurface extends ConsumerWidget {
                         InkWell(
                           borderRadius: BorderRadius.circular(40),
                           onTap: () async {
-                            final error = await openLessonMaterial(
-                              ref,
-                              recording.videoUrl!,
-                            );
+                            final error = await openRecording(ref, recording);
                             if (error == null || !context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(error)),

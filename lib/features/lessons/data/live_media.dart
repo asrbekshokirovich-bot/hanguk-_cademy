@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+// The desktop source list comes from flutter_webrtc rather than LiveKit:
+// LiveKit takes the id, it does not enumerate the windows.
+import 'package:flutter_webrtc/flutter_webrtc.dart'
+    show DesktopCapturerSource, SourceType, ThumbnailSize, desktopCapturer;
 import 'package:livekit_client/livekit_client.dart';
 
 import '../domain/models.dart' show LiveMediaGrant;
@@ -254,16 +258,53 @@ class LiveMediaSession extends ChangeNotifier {
   /// display itself, so there is no source list to build here — but it can
   /// refuse (a browser dialog dismissed, a mobile browser that has no such
   /// API at all), and a refusal has to reach the screen like any other.
-  Future<void> setScreenShare(bool on) async {
+  Future<void> setScreenShare(bool on, {String? sourceId}) async {
     final me = _room?.localParticipant;
     if (me == null) return;
     try {
-      await me.setScreenShareEnabled(on);
+      await me.setScreenShareEnabled(
+        on,
+        // Windows, macOS and Linux have no picker of their own: the platform
+        // is handed a source id or it answers "Unable to getDisplayMedia:
+        // source not found!", which is exactly what a teacher pressing this
+        // button on the school's desktop got. The browser and Android do
+        // have one, and there `null` leaves them to it.
+        screenShareCaptureOptions: sourceId == null
+            ? null
+            : ScreenShareCaptureOptions(
+                sourceId: sourceId,
+                // A lesson slide is not a film. Fifteen frames keeps text
+                // sharp on a school connection, where the default 1080p30
+                // is what starts breaking the audio up.
+                maxFrameRate: 15,
+              ),
+      );
       deviceError = null;
     } catch (e) {
       deviceError = _deviceMessage(e, 'Ekran');
     }
     _changed();
+  }
+
+  /// Whether this platform makes the app find the window to share.
+  ///
+  /// The browser and Android show their own chooser; the desktops do not, and
+  /// asking them to capture "the screen" without saying which one fails.
+  static bool get picksScreenSourceItself =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux);
+
+  /// The windows and displays this machine can share.
+  ///
+  /// Thumbnails included: a list of window titles is not enough to pick from
+  /// when three of them are called "Hanguk Academy".
+  Future<List<DesktopCapturerSource>> screenSources() {
+    return desktopCapturer.getSources(
+      types: const [SourceType.Screen, SourceType.Window],
+      thumbnailSize: ThumbnailSize(320, 180),
+    );
   }
 
   /// Plain Uzbek for the two refusals that actually happen, and the raw text

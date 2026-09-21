@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:hanguk_online/core/clock.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
@@ -128,6 +129,12 @@ void main() {
   });
 
   group('the admin can see the reason a student sees nothing', () {
+    // Pinned, because the fixtures are relative to the wall clock: run this
+    // before nine in the morning and a lesson that is over by lunchtime is
+    // still ahead, which changes the counts this asserts on.
+    setUp(() => hkNow = () => DateTime(2026, 9, 21, 12, 0));
+    tearDown(() => hkNow = DateTime.now);
+
     testWidgets('a group with no lesson ahead of it is marked',
         (tester) async {
       tester.view.physicalSize = const Size(1440, 920);

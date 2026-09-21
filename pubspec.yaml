@@ -27,6 +27,12 @@ dependencies:
   # what makes this work on Windows as well as the phones — the desktop build
   # is the one the school actually teaches from.
   livekit_client: ^2.13.0
+  # Already arrives under livekit_client; declared because live_media.dart
+  # imports it directly. LiveKit takes a screen-share source id but does not
+  # enumerate the windows — on Windows, macOS and Linux that list comes from
+  # flutter_webrtc's desktopCapturer, and without it the platform answers
+  # "Unable to getDisplayMedia: source not found!".
+  flutter_webrtc: ^1.6.2
   intl: ^0.20.2
   # Choosing a file to hand in. Windows, web and Android all need a native
   # picker; this is the one that has all three.

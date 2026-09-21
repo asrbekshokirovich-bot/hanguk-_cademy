@@ -16,6 +16,7 @@ import '../data/lessons_repository.dart';
 import '../data/live_media.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import 'screen_share_picker.dart';
 import '../../../core/clock.dart';
 import '../../../core/env.dart';
 
@@ -210,6 +211,33 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   /// Ordered this way deliberately: ask the device first, publish the result
   /// second. The other way round announces a microphone that may never have
   /// been handed over.
+  /// Starts or stops sharing the screen.
+  ///
+  /// On the desktops the platform will not choose for us: LiveKit is handed a
+  /// source id or `getDisplayMedia` fails with "source not found", which is
+  /// what this button did on Windows for as long as it existed. So we ask
+  /// first, with pictures — three windows called "Hanguk Academy" cannot be
+  /// told apart by title, and sharing the wrong one in front of a class is
+  /// not a mistake you get to take back.
+  Future<void> _toggleScreenShare() async {
+    if (_media.screenSharing) {
+      await _media.setScreenShare(false);
+      return;
+    }
+
+    if (!LiveMediaSession.picksScreenSourceItself) {
+      // The browser and Android show their own chooser.
+      await _media.setScreenShare(true);
+      return;
+    }
+
+    final sources = await _media.screenSources();
+    if (!mounted) return;
+    final sourceId = await showScreenSharePicker(context, sources);
+    if (sourceId == null || !mounted) return;
+    await _media.setScreenShare(true, sourceId: sourceId);
+  }
+
   Future<void> _toggleMic() async {
     await _media.setMicrophone(!_micOn);
     if (!mounted) return;
@@ -400,9 +428,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   onCamera:
                       _media.isLive ? () => _media.setCamera(!_cameraOn) : null,
                   screenSharing: _media.screenSharing,
-                  onScreenShare: _media.isLive
-                      ? () => _media.setScreenShare(!_media.screenSharing)
-                      : null,
+                  onScreenShare: _media.isLive ? _toggleScreenShare : null,
                   onHand: () {
                     setState(() => _handRaised = !_handRaised);
                     _pushPresence();

@@ -4,6 +4,21 @@ import '../../../design_system/tokens.dart';
 
 /// Where a lesson is in its life cycle. Mirrors the `ol_lesson_status` enum in
 /// the database — keep the wire names in step with the migration.
+/// The categories a lesson can be given, in the order the dialog offers them.
+///
+/// One list, because two drifted: the timetable wrote 'Suhbat', 'Talaffuz'
+/// and 'Yozma nutq', and the recordings shelf filtered on 'Koreys tili' —
+/// a name nothing in the app could produce. A lesson filed under the
+/// dialog's own default was reachable only under "Barchasi".
+const kLessonCategories = <String>[
+  'Suhbat',
+  'Grammatika',
+  'Tinglash',
+  'TOPIK',
+  'Talaffuz',
+  'Yozma nutq',
+];
+
 enum LessonStatus {
   scheduled('Rejalashtirilgan'),
   live('Jonli'),
@@ -137,10 +152,16 @@ class Lesson {
   /// everything else is keyed off its category so the week reads at a glance.
   Color get accent {
     if (status == LessonStatus.live) return HkColors.lime;
+    // One colour per category, so a week of rows reads at a glance. All six
+    // are listed: 'Suhbat' is what the dialog offers first, so leaving it to
+    // the fallback made most of the timetable the same blue as 'Grammatika'.
     return switch (category) {
-      'TOPIK' => const Color(0xFFA78BE0),
+      'Suhbat' => const Color(0xFF3FBFA8),
       'Grammatika' => const Color(0xFF6FA0E0),
       'Tinglash' => const Color(0xFFE0A93A),
+      'TOPIK' => const Color(0xFFA78BE0),
+      'Talaffuz' => const Color(0xFFE07AA8),
+      'Yozma nutq' => const Color(0xFF7FC25A),
       _ => const Color(0xFF6FA0E0),
     };
   }
@@ -150,7 +171,7 @@ class Lesson {
     return Lesson(
       id: map['id'] as String,
       title: (map['title'] as String?) ?? '—',
-      category: (map['category'] as String?) ?? 'Koreys tili',
+      category: (map['category'] as String?) ?? kLessonCategories.first,
       startsAt: DateTime.parse(map['starts_at'] as String).toLocal(),
       durationMinutes: (map['duration_minutes'] as num?)?.toInt() ?? 60,
       status: LessonStatus.fromWire(map['status'] as String?),
@@ -238,7 +259,7 @@ class Recording {
     return Recording(
       id: map['id'] as String,
       title: (map['title'] as String?) ?? '—',
-      category: (map['category'] as String?) ?? 'Koreys tili',
+      category: (map['category'] as String?) ?? kLessonCategories.first,
       recordedAt: DateTime.parse(map['recorded_at'] as String).toLocal(),
       durationSeconds: (map['duration_seconds'] as num?)?.toInt() ?? 0,
       progress: ((map['progress'] as num?) ?? 0).toDouble().clamp(0, 1),

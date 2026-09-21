@@ -498,10 +498,16 @@ class _MaterialRow extends ConsumerWidget {
                     SnackBar(content: Text(error)),
                   );
                 },
-          icon: const Icon(
+          icon: Icon(
             Icons.download_rounded,
             size: 18,
-            color: HkColors.textSecondary,
+            // Dimmed when there is nothing behind it. The hard-coded colour
+            // overrode `IconButton`'s disabled shade, so a row with no file
+            // drew a button at full strength that did nothing when pressed
+            // — four times, in the scan that found this.
+            color: material.url.isEmpty
+                ? HkColors.textTertiary.withValues(alpha: 0.4)
+                : HkColors.textSecondary,
           ),
         ),
       ],

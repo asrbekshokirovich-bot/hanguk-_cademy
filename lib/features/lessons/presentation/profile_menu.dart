@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../auth/data/auth_repository.dart';
@@ -107,7 +108,7 @@ class _ProfileDialog extends ConsumerWidget {
                       await auth.signOut();
                     } catch (e) {
                       messenger.showSnackBar(
-                        SnackBar(content: Text('Chiqib bo‘lmadi: $e')),
+                        SnackBar(content: Text('Chiqib bo‘lmadi: ${hkErrorMessage(e)}')),
                       );
                     }
                   },

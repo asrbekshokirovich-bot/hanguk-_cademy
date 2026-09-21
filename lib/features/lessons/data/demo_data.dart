@@ -64,7 +64,7 @@ abstract final class DemoData {
           id: 'd2',
           groupId: 'g-2a',
           title: 'Koreys tili · Suhbat amaliyoti',
-          category: 'Koreys tili',
+          category: 'Suhbat',
           description:
               "Bugungi darsda kundalik suhbat iboralari, savol berish "
               "shakllari va tinglab tushunish mashqlari ko'rib chiqiladi.",
@@ -128,7 +128,7 @@ abstract final class DemoData {
           id: 'd6',
           groupId: 'g-2a',
           title: 'Suhbat amaliyoti',
-          category: 'Koreys tili',
+          category: 'Suhbat',
           startsAt: _dayAt(1, 15, 0),
           durationMinutes: 90,
           status: LessonStatus.scheduled,
@@ -144,7 +144,7 @@ abstract final class DemoData {
           id: 'r1',
           lessonId: 'd2',
           title: 'Suhbat amaliyoti · 8-dars',
-          category: 'Koreys tili',
+          category: 'Suhbat',
           recordedAt: DateTime(2026, 6, 22),
           durationSeconds: 3588, // 59:48
           progress: 0.65,
@@ -191,7 +191,7 @@ abstract final class DemoData {
           id: 'r5',
           lessonId: 'd2',
           title: 'Suhbat amaliyoti · 7-dars',
-          category: 'Koreys tili',
+          category: 'Suhbat',
           recordedAt: DateTime(2026, 6, 15),
           durationSeconds: 3680, // 61:20
           progress: 1,

@@ -57,3 +57,7 @@ test/golden/failures/
 android/key.properties
 *.jks
 *.keystore
+
+# Diff output from a failed store screenshot run. Same reason as
+# test/golden/failures/ above: generated, and stale the moment it is fixed.
+test/failures/

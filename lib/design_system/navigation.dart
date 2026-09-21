@@ -51,6 +51,11 @@ abstract final class HkNav {
     // Taking a student's fee is front-desk work; reading the month's takings
     // is not. This is the first, "Moliya" is the second.
     HkDestination('To‘lovlar', Icons.receipt_long_rounded, '/admin/payments'),
+    // The library had no entry in this dock at all. The owner's account is an
+    // administrator's, so "why is the recording not in Yozuvlar" was asked by
+    // the one person who could not open Yozuvlar — his only ways in were the
+    // student dashboard's quick action and the search sheet.
+    HkDestination('Yozuvlar', Icons.play_circle_outline_rounded, '/recordings'),
   ];
 
   /// The admin's dock plus the two screens that are the top tier's alone.
@@ -76,6 +81,7 @@ abstract final class HkNav {
     HkDestination('Guruhlar', Icons.groups_2_rounded, '/admin/groups'),
     HkDestination('Jadval', Icons.calendar_month_rounded, '/schedule'),
     HkDestination('To‘lovlar', Icons.receipt_long_rounded, '/admin/payments'),
+    HkDestination('Yozuvlar', Icons.play_circle_outline_rounded, '/recordings'),
     HkDestination('Moliya', Icons.payments_rounded, '/admin/finance'),
     HkDestination('Adminlar', Icons.admin_panel_settings_rounded, '/super'),
   ];

@@ -139,8 +139,11 @@ class CompactNavBar extends StatelessWidget {
     final scrolls = destinations.length > 4;
 
     return Container(
+      // Opaque on purpose. There is no blur behind this bar, so the 94%
+      // alpha it used to carry let the list scroll visibly *through* the
+      // tab labels — text crossing text. A bottom bar is chrome, not glass.
       decoration: const BoxDecoration(
-        color: Color(0xF00A0F22),
+        color: Color(0xFF0A0F22),
         border: Border(top: BorderSide(color: HkGlass.border)),
       ),
       child: SafeArea(

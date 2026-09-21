@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/env.dart';
+import '../../../core/errors.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
@@ -13,15 +15,11 @@ import '../data/providers.dart';
 import '../domain/models.dart';
 import 'add_recording_dialog.dart';
 
-/// Categories offered as filter chips. Kept as a constant rather than derived
-/// from the data so the row doesn't reshuffle as the archive grows.
-const kRecordingCategories = <String?>[
-  null, // Barchasi
-  'Koreys tili',
-  'TOPIK',
-  'Grammatika',
-  'Tinglash',
-];
+/// Categories offered as filter chips: "Barchasi" and then the same list the
+/// timetable writes, so every recording the school can produce has a chip
+/// that finds it. Constant rather than derived from the data, so the row does
+/// not reshuffle as the archive grows.
+const kRecordingCategories = <String?>[null, ...kLessonCategories];
 
 class RecordingsScreen extends ConsumerWidget {
   const RecordingsScreen({super.key});
@@ -48,6 +46,11 @@ class RecordingsScreen extends ConsumerWidget {
                 onPressed: () async {
                   final saved = await showAddRecordingDialog(context);
                   if (saved == true) {
+                    // The chip first. A recording takes its lesson's
+                    // category, so uploading one while the shelf is filtered
+                    // to another lands it out of sight — and the upload then
+                    // reads as having failed.
+                    ref.read(recordingsFilterProvider.notifier).state = null;
                     ref.invalidate(recordingsProvider);
                     ref.invalidate(recentRecordingsProvider);
                   }
@@ -220,25 +223,32 @@ class RecordingCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: HkProgressBar(
-                        value: recording.progress,
-                        color: recording.progressColor,
+                // Only where the number means something. A recording opens
+                // in whatever the machine plays video with, and a file
+                // playing in another program cannot report a position — so
+                // `ol_recording_progress` has no writer and every card read
+                // 0% / "Yangi" for everybody, including a lesson they had
+                // watched twice. See HkEnv.watchProgressEnabled.
+                if (HkEnv.watchProgressEnabled)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: HkProgressBar(
+                          value: recording.progress,
+                          color: recording.progressColor,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      recording.progressLabel,
-                      style: HkType.chip.copyWith(
-                        color: recording.isUnstarted
-                            ? HkColors.textTertiary
-                            : recording.progressColor,
+                      const SizedBox(width: 10),
+                      Text(
+                        recording.progressLabel,
+                        style: HkType.chip.copyWith(
+                          color: recording.isUnstarted
+                              ? HkColors.textTertiary
+                              : recording.progressColor,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -319,7 +329,36 @@ class _RecorderStatus extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final jobs = ref.watch(recordingJobsProvider).value ?? const [];
+    final async = ref.watch(recordingJobsProvider);
+    // A refused or failed read used to render as "nothing is wrong", which
+    // is the one answer this strip exists not to give.
+    if (async.hasError) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: HkSpace.gridGapWide),
+        child: GlassPanel(
+          radius: HkRadius.cardSmall,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 16,
+                color: HkColors.dangerBright,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Yozuvchining holatini o‘qib bo‘lmadi: '
+                  '${hkErrorMessage(async.error!)}',
+                  style: HkType.body.copyWith(fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final jobs = async.value ?? const [];
     if (jobs.isEmpty) return const SizedBox.shrink();
 
     return Padding(

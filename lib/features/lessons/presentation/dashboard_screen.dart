@@ -9,6 +9,7 @@ import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
+import '../../../design_system/widgets/stat_card.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
@@ -43,7 +44,7 @@ class DashboardScreen extends ConsumerWidget {
             value: ref.watch(dashboardStatsProvider),
             onRetry: () => ref.invalidate(dashboardStatsProvider),
             loadingHeight: 120,
-            builder: (stats) => _StatRow(stats: stats, layout: layout),
+            builder: (stats) => _StatRow(stats: stats),
           ),
           // Above the timetable, because it is the thing with a deadline on
           // it. Homework used to live only on the recording-detail page,
@@ -559,140 +560,52 @@ class _NoLiveBanner extends StatelessWidget {
   }
 }
 
+/// The four numbers across the top of the student's home.
+///
+/// Drawn with the design system's own card. There was a second, private copy
+/// of [HkStatCard] here — the exact drift that widget's comment says it
+/// exists to prevent — and it had already fallen a fix behind: on a phone
+/// every label on this screen still read "O'rtacha davo…" after the shared
+/// one had been widened.
 class _StatRow extends StatelessWidget {
-  const _StatRow({required this.stats, required this.layout});
+  const _StatRow({required this.stats});
 
   final DashboardStats stats;
-  final HkLayout layout;
 
   @override
   Widget build(BuildContext context) {
-    final cards = <Widget>[
-      _StatCard(
-        label: 'Bugungi darslar',
-        value: '${stats.lessonsToday}',
-        icon: Icons.event_note_rounded,
-        delta: 'Bugun rejalashtirilgan',
-      ),
-      _StatCard(
-        label: 'Faol talabalar',
-        value: '${stats.activeStudents}',
-        icon: Icons.people_alt_rounded,
-        delta: "So'nggi 30 kun",
-      ),
-      _StatCard(
-        label: "O'rtacha davomat",
-        value: '${(stats.averageAttendance * 100).round()}%',
-        icon: Icons.trending_up_rounded,
-        delta: 'Yakunlangan darslar bo‘yicha',
-        highlight: true,
-      ),
-      _StatCard(
-        label: 'Yozuvlar',
-        value: '${stats.recordingCount}',
-        icon: Icons.video_library_rounded,
-        delta: 'Arxivda mavjud',
-      ),
-    ];
-
-    return GridView(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      // A fixed height on compact rather than a ratio. A ratio ties the tile's
-      // height to the phone's width, and the tile's contents — a label, a
-      // number in the display face, a note — do not get shorter on a narrower
-      // phone. At 1.45 a 390pt screen gave them 118pt for 135pt of text.
-      gridDelegate: layout.isCompact
-          ? const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: HkSpace.gridGap,
-              crossAxisSpacing: HkSpace.gridGap,
-              mainAxisExtent: 140,
-            )
-          : SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: layout.statColumns,
-              mainAxisSpacing: HkSpace.gridGap,
-              crossAxisSpacing: HkSpace.gridGap,
-              childAspectRatio: 1.75,
-            ),
-      children: cards,
+    return HkStatRow(
+      cards: [
+        HkStatCard(
+          label: 'Bugungi darslar',
+          value: '${stats.lessonsToday}',
+          icon: Icons.event_note_rounded,
+          note: 'Bugun rejalashtirilgan',
+        ),
+        HkStatCard(
+          label: 'Faol talabalar',
+          value: '${stats.activeStudents}',
+          icon: Icons.people_alt_rounded,
+          note: "So'nggi 30 kun",
+        ),
+        HkStatCard(
+          label: "O'rtacha davomat",
+          value: '${(stats.averageAttendance * 100).round()}%',
+          icon: Icons.trending_up_rounded,
+          note: 'Yakunlangan darslar bo\u2018yicha',
+          highlight: true,
+        ),
+        HkStatCard(
+          label: 'Yozuvlar',
+          value: '${stats.recordingCount}',
+          icon: Icons.video_library_rounded,
+          note: 'Arxivda mavjud',
+        ),
+      ],
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.delta,
-    this.highlight = false,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final String delta;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassPanel(
-      padding: const EdgeInsets.all(18),
-      tint: highlight ? const Color(0x1AD4E94C) : null,
-      borderColor: highlight ? const Color(0x3DD4E94C) : null,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: HkType.body.copyWith(fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: highlight
-                      ? const Color(0x33D4E94C)
-                      : const Color(0x14FFFFFF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: highlight ? HkColors.lime : HkColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: HkType.display.copyWith(
-                color: highlight ? HkColors.lime : HkColors.textPrimary,
-              ),
-            ),
-          ),
-          Text(
-            delta,
-            style: HkType.muted,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _TodayScheduleCard extends ConsumerWidget {
   const _TodayScheduleCard();
@@ -734,6 +647,17 @@ class _ScheduleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final live = lesson.status == LessonStatus.live;
+    // On a phone the row has ~240pt left after the time column and the accent
+    // bar. A status pill such as "Rejalashtirilgan" eats 110 of them from the
+    // trailing edge, which cut the lesson title down to "Koreys tili · Suhb…".
+    // The title is the one thing the row exists to show, so on compact the
+    // pill drops to the second line and shares it with the teacher's name.
+    final compact = HkLayout.of(context).isCompact;
+    final pill = HkPill(
+      label: lesson.status.label,
+      background: lesson.status.pillBackground,
+      foreground: lesson.status.pillForeground,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -769,25 +693,40 @@ class _ScheduleRow extends StatelessWidget {
                 Text(
                   lesson.title,
                   style: HkType.cardTitle,
-                  maxLines: 1,
+                  // Two lines on a phone. Even with the whole row to itself
+                  // a 320pt screen leaves about 140pt for the title, and
+                  // "Koreys tili · Suhbat amaliyoti" needs 190 — so one line
+                  // is an ellipsis whatever else is on the row.
+                  maxLines: compact ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  lesson.teacher?.fullName ?? '—',
-                  style: HkType.muted,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                if (compact)
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          lesson.teacher?.fullName ?? '—',
+                          style: HkType.muted,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      pill,
+                    ],
+                  )
+                else
+                  Text(
+                    lesson.teacher?.fullName ?? '—',
+                    style: HkType.muted,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          HkPill(
-            label: lesson.status.label,
-            background: lesson.status.pillBackground,
-            foreground: lesson.status.pillForeground,
-          ),
+          if (!compact) ...[const SizedBox(width: 10), pill],
         ],
       ),
     );

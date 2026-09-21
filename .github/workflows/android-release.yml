@@ -76,7 +76,14 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
-      - run: flutter build appbundle --release
+      # The commit and the date go into the binary and print under the login
+      # card, as they do for Windows. Without it the store build reports
+      # "Build dev" and nothing on screen says which one a tester is running.
+      - name: Build with the commit stamped into it
+        run: |
+          stamp="$(echo "$GITHUB_SHA" | cut -c1-7)·$(date -u '+%d.%m %H:%M')"
+          echo "BUILD_STAMP=$stamp"
+          flutter build appbundle --release --dart-define="BUILD_STAMP=$stamp"
 
       - name: Check the bundle is not debug-signed
         run: |

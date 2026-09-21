@@ -176,7 +176,12 @@ final lessonByIdProvider =
 }, isAutoDispose: true);
 
 /// Which filter chip is active in the recordings library. `null` = "Barchasi".
-final recordingsFilterProvider = StateProvider<String?>((ref) => null);
+/// Auto-disposing, so the chip does not outlive the screen. It was kept for
+/// the run: tapping "Tinglash" once meant every later visit opened filtered,
+/// and a recording that arrived in another category read as "nothing here"
+/// for the rest of the day.
+final recordingsFilterProvider =
+    StateProvider<String?>(isAutoDispose: true, (ref) => null);
 
 /// The library, re-read on the roster beat.
 ///
@@ -186,14 +191,20 @@ final recordingsFilterProvider = StateProvider<String?>((ref) => null);
 /// exists, until the app is restarted. That is exactly the shape of defect
 /// the rosters had.
 final recordingsProvider = FutureProvider<List<Recording>>((ref) {
-  ref.watch(hkRosterTick);
+  // On the status beat, not the roster's. A recording is written by the
+  // server a minute or two after the lesson ends, and the owner's complaint
+  // was the wait: the cron job takes up to a minute to stop the egress and
+  // another to file it, so a further minute of ours made three. Twenty
+  // seconds is the shortest leg we control, and the screen is open while
+  // somebody is waiting for exactly this row.
+  ref.watch(_statusTick);
   final category = ref.watch(recordingsFilterProvider);
   return ref.watch(lessonsRepositoryProvider).recordings(category: category);
 }, isAutoDispose: true);
 
 /// The three most recent recordings, for the dashboard's "So'nggi yozuvlar".
 final recentRecordingsProvider = FutureProvider<List<Recording>>((ref) async {
-  ref.watch(hkRosterTick);
+  ref.watch(_statusTick);
   final all = await ref.watch(lessonsRepositoryProvider).recordings();
   return all.take(3).toList();
 }, isAutoDispose: true);
@@ -202,7 +213,7 @@ final recentRecordingsProvider = FutureProvider<List<Recording>>((ref) async {
 /// just be empty.
 final recordingJobsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) {
-  ref.watch(hkRosterTick);
+  ref.watch(_statusTick);
   return ref.watch(lessonsRepositoryProvider).recordingJobs();
 }, isAutoDispose: true);
 

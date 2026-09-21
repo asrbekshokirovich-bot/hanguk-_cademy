@@ -220,33 +220,37 @@ class _StudentRow extends StatelessWidget {
                 if (s.phone != null)
                   Text(s.phone!, style: HkType.monoTime.copyWith(fontSize: 12)),
                 const SizedBox(height: 10),
-                Row(
+                // A wrap: "To‘lov kutilmoqda" beside "Davomat 100%" is 4pt
+                // too wide for a 320pt phone, and a row that does not fit
+                // hides the end of whichever fact came last.
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     HkPill(
                       label: s.paymentStatus.label,
                       background: s.paymentStatus.background,
                       foreground: s.paymentStatus.color,
                     ),
-                    const SizedBox(width: 12),
                     Text(
                       'Davomat ${hkPercent(s.attendance)}',
                       style: HkType.muted.copyWith(
                         color: hkRateColor(s.attendance),
                       ),
                     ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Guruhga biriktirish',
-                      onPressed: onAssign,
-                      icon: const Icon(
-                        Icons.group_add_outlined,
-                        size: 18,
-                        color: HkColors.textTertiary,
-                      ),
-                    ),
                   ],
                 ),
               ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Guruhga biriktirish',
+            onPressed: onAssign,
+            icon: const Icon(
+              Icons.group_add_outlined,
+              size: 18,
+              color: HkColors.textTertiary,
             ),
           ),
         ],

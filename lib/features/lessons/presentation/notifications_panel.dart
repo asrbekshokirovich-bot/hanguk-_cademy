@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
@@ -127,7 +128,7 @@ class _MarkAllReadButtonState extends ConsumerState<_MarkAllReadButton> {
                 ref.invalidate(notificationsProvider);
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Saqlanmadi: $e')),
+                  SnackBar(content: Text('Saqlanmadi: ${hkErrorMessage(e)}')),
                 );
               } finally {
                 if (mounted) setState(() => _busy = false);

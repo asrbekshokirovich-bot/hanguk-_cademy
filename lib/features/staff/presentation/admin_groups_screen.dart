@@ -208,26 +208,32 @@ class _GroupRow extends StatelessWidget {
                   style: HkType.muted,
                 ),
                 const SizedBox(height: 10),
-                Row(
+                // A wrap, not a row. The three facts are a level pill, a head
+                // count and "Dars qo‘yilmagan" — together 83pt wider than a
+                // 360pt phone gives them, and the one that was squeezed was
+                // the badge that explains why the group's week is empty.
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     level,
-                    const SizedBox(width: 12),
                     Text('${g.memberCount} ta talaba', style: HkType.muted),
-                    const SizedBox(width: 12),
-                    Flexible(child: schedule),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Tahrirlash',
-                      onPressed: onEdit,
-                      icon: const Icon(
-                        Icons.edit_outlined,
-                        size: 18,
-                        color: HkColors.textTertiary,
-                      ),
-                    ),
+                    schedule,
                   ],
                 ),
               ],
+            ),
+          ),
+          // Outside the column so it keeps its own tap target instead of
+          // competing with the badges for what is left of the line.
+          IconButton(
+            tooltip: 'Tahrirlash',
+            onPressed: onEdit,
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: HkColors.textTertiary,
             ),
           ),
         ],

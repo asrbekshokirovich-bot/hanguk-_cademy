@@ -330,13 +330,21 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     try {
       await _media.leave();
       await setLessonStatus(ref, lesson.id, LessonStatus.ended);
+      // The recorder is what the teacher asks about next. Nothing has been
+      // written yet — the server stops the egress on its own minute — but
+      // dropping the cached answers now means the library and the recorder
+      // strip are asking from the moment the lesson is over rather than
+      // from whenever their last read happened to be.
+      ref.invalidate(recordingJobsProvider);
+      ref.invalidate(recordingsProvider);
+      ref.invalidate(recentRecordingsProvider);
       if (!mounted) return;
       context.go('/');
     } catch (e) {
       if (!mounted) return;
       setState(() => _ending = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Darsni tugatib bo‘lmadi: $e')),
+        SnackBar(content: Text('Darsni tugatib bo‘lmadi: ${hkErrorMessage(e)}')),
       );
     }
   }
@@ -385,7 +393,13 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     return AppShell(
       title: 'Jonli dars',
       subtitle: lesson?.title ?? 'Hozir efirda dars yo‘q',
-      scrollable: layout.isCompact,
+      // Scrollable anywhere but the widest layout. Between 760 and 1180
+      // the room stacked a 360pt stage, a 420pt rail and the control bar
+      // into a box that could not hold them: everything below the fold —
+      // the microphone, and "Chiqish" — was unreachable, because the page
+      // did not scroll either. A student on half a laptop screen could not
+      // mute themselves or leave the lesson.
+      scrollable: !layout.isExpanded,
       child: lesson == null
           ? const _NoLiveLesson()
           : Column(
@@ -1428,9 +1442,13 @@ class _ChatComposerState extends ConsumerState<_ChatComposer> {
           .sendChatMessage(widget.lessonId, text);
     } catch (e) {
       if (!mounted) return;
-      _field.text = text;
+      // Only if they have not started typing again. Putting the old message
+      // back over a new one loses what they wrote; putting it in front of
+      // one produces "Salom" + "Salom bolalar" in a single line, which is
+      // what the scan caught.
+      if (_field.text.isEmpty) _field.text = text;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Xabar yuborilmadi: $e')),
+        SnackBar(content: Text('Xabar yuborilmadi: ${hkErrorMessage(e)}')),
       );
     } finally {
       if (mounted) setState(() => _sending = false);

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors.dart';
 import '../../../core/clock.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
@@ -175,7 +176,7 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Darsni boshlab bo‘lmadi: $e')),
+        SnackBar(content: Text('Darsni boshlab bo‘lmadi: ${hkErrorMessage(e)}')),
       );
     }
   }
@@ -185,6 +186,30 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
     final lesson = widget.lesson;
     final live = lesson.status == LessonStatus.live;
     final scheduled = lesson.status == LessonStatus.scheduled;
+    // "Darsni boshlash" is 140pt wide and the row has 214 to give on a 320pt
+    // phone, so on a narrow screen the button gets a line of its own instead
+    // of pushing the lesson title off the right-hand edge. Full width there
+    // too: it is the one thing a teacher opens this screen to press.
+    final compact = HkLayout.of(context).isCompact;
+    final Widget action = live
+        ? LimeButton(
+            label: 'Darsga kirish',
+            height: 38,
+            expand: compact,
+            onPressed: () => context.go('/live/${lesson.id}'),
+          )
+        : scheduled
+            ? LimeButton(
+                label: _busy ? 'Boshlanmoqda…' : 'Darsni boshlash',
+                height: 38,
+                expand: compact,
+                onPressed: _busy ? null : _start,
+              )
+            : HkPill(
+                label: lesson.status.label,
+                background: lesson.status.pillBackground,
+                foreground: lesson.status.pillForeground,
+              );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -195,71 +220,69 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
           color: live ? const Color(0x47D4E94C) : const Color(0x0FFFFFFF),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 52,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  DateFormat('HH:mm').format(lesson.startsAt),
-                  style: HkType.monoTime,
+          Row(
+            children: [
+              SizedBox(
+                width: 52,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('HH:mm').format(lesson.startsAt),
+                      style: HkType.monoTime,
+                    ),
+                    const SizedBox(height: 2),
+                    Text('${lesson.durationMinutes} daq', style: HkType.muted),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text('${lesson.durationMinutes} daq', style: HkType.muted),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            width: 3,
-            height: 36,
-            decoration: BoxDecoration(
-              color: lesson.accent,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  lesson.title,
-                  style: HkType.cardTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 3,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: lesson.accent,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  '${lesson.category} · ${lesson.enrolledCount} talaba',
-                  style: HkType.muted,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      lesson.title,
+                      style: HkType.cardTitle,
+                      // Same reason as the student's timetable row: on a
+                      // phone one line is an ellipsis, whatever is beside it.
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${lesson.category} · ${lesson.enrolledCount} talaba',
+                      style: HkType.muted,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              if (!compact) ...[const SizedBox(width: 10), action],
+            ],
           ),
-          const SizedBox(width: 10),
-          if (live)
-            LimeButton(
-              label: 'Darsga kirish',
-              height: 38,
-              onPressed: () => context.go('/live/${lesson.id}'),
-            )
-          else if (scheduled)
-            LimeButton(
-              label: _busy ? 'Boshlanmoqda…' : 'Darsni boshlash',
-              height: 38,
-              onPressed: _busy ? null : _start,
-            )
-          else
-            HkPill(
-              label: lesson.status.label,
-              background: lesson.status.pillBackground,
-              foreground: lesson.status.pillForeground,
-            ),
+          if (compact) ...[
+            const SizedBox(height: 10),
+            // A button fills the line; a status pill would look absurd
+            // stretched across it, so that one keeps its own width.
+            if (live || scheduled)
+              action
+            else
+              Align(alignment: Alignment.centerLeft, child: action),
+          ],
         ],
       ),
     );

@@ -221,11 +221,24 @@ overlaid the first paragraph of every screen, two of the admin's six
 sections were unreachable, and the stat tiles overflowed. `phone_golden_test`
 renders at 390×844 with a notch and is now part of the check.
 
+**Two sizes cannot see the sizes in between either.** `layout_stress_test`
+pumps every screen at sixteen widths — 320 to 1440, including the pixel on
+each side of the 760 and 1180 breakpoints — and fails on any overflow. It
+found five that both golden sizes missed: the teacher's "Darsni boshlash"
+pushing the lesson title off a 320pt row, the admin group row overflowing by
+83pt at 360, the student row by 4 at 320, the dock printing over the logo
+between 760 and 1024, and a title cut to "Koreys tili · Suhb…" on every
+phone. It also checks what an overflow cannot: that text is not silently
+ellipsised, that nothing is painted past the window's edge (a `Wrap` or a
+`Stack` that does not fit says nothing at all), that every role's dock can
+reach the library, and that the desktop heading's backdrop fades in when the
+page scrolls under it.
+
 Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 148 tests
+flutter test             # 202 tests
 flutter build linux --release
 ```
 

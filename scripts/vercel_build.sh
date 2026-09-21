@@ -53,4 +53,19 @@ git config --global --add safe.directory "$PWD" || true
 
 flutter --version
 flutter pub get
-flutter build web --release
+
+# The commit and the date go into the binary and print under the login card,
+# the same way the Windows release does it. Without it every deploy reports
+# "Build dev", which is worse than blank — it reads like a local build.
+stamp="$(echo "${VERCEL_GIT_COMMIT_SHA:-local}" | cut -c1-7)·$(date -u '+%d.%m %H:%M')"
+echo "BUILD_STAMP=$stamp"
+
+# --no-web-resources-cdn: serve CanvasKit from our own origin. By default the
+# loader fetches ~7MB of it from www.gstatic.com, which is not reliably
+# reachable from Uzbekistan — and there is no fallback, so a blocked host is
+# a blank page rather than a slow one. The files are already deployed under
+# build/web/canvaskit and vercel.json caches them for a year; this flag is
+# what makes the page actually ask for them.
+flutter build web --release \
+  --no-web-resources-cdn \
+  --dart-define="BUILD_STAMP=$stamp"

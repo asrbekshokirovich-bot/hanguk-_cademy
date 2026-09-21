@@ -37,15 +37,6 @@ Future<bool?> showLessonDialog(
   );
 }
 
-const _categories = [
-  'Suhbat',
-  'Grammatika',
-  'Tinglash',
-  'TOPIK',
-  'Talaffuz',
-  'Yozma nutq',
-];
-
 const _durations = [30, 45, 60, 75, 90, 120];
 
 class _LessonDialog extends ConsumerStatefulWidget {
@@ -64,9 +55,9 @@ class _LessonDialogState extends ConsumerState<_LessonDialog> {
   late final _description =
       TextEditingController(text: widget.lesson?.description ?? '');
 
-  late String _category = _categories.contains(widget.lesson?.category)
+  late String _category = kLessonCategories.contains(widget.lesson?.category)
       ? widget.lesson!.category
-      : _categories.first;
+      : kLessonCategories.first;
   late DateTime _date = _dateOnly(widget.lesson?.startsAt ?? _nextHour());
   late TimeOfDay _time =
       TimeOfDay.fromDateTime(widget.lesson?.startsAt ?? _nextHour());
@@ -275,7 +266,7 @@ class _LessonDialogState extends ConsumerState<_LessonDialog> {
                     label: 'Yo‘nalish',
                     icon: Icons.category_outlined,
                     items: [
-                      for (final c in _categories)
+                      for (final c in kLessonCategories)
                         DropdownMenuItem(value: c, child: Text(c)),
                     ],
                     onChanged: (v) => setState(() => _category = v!),

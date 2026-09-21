@@ -19,7 +19,7 @@ import 'glass.dart';
 ///
 /// On [HkLayout.compact] the floating chrome is replaced by a normal app bar
 /// plus a bottom navigation bar — see [CompactNavBar] for why.
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     super.key,
     required this.title,
@@ -35,8 +35,52 @@ class AppShell extends ConsumerWidget {
   /// Live room manages its own height and must not scroll.
   final bool scrollable;
 
+  /// The band behind the floating page heading. Named so a test can read how
+  /// far it has faded in; there is no other way to see a gradient's alpha.
+  static const headingScrimKey = ValueKey('hk-heading-scrim');
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  /// How far the scrim behind the page heading has faded in, 0 to 1.
+  ///
+  /// On a desktop the heading floats over the page in a `Stack`, with the
+  /// scroller filling the whole of it — so once the reader scrolls, whatever
+  /// is in the page travels up through the heading's line and prints behind
+  /// it. A phone does not have this: its header is the first row of a column
+  /// and pushes the content down.
+  ///
+  /// A notifier rather than `setState`: this changes on every scrolled pixel
+  /// and only the scrim needs to hear about it, not the whole shell.
+  final _scrim = ValueNotifier<double>(0);
+
+  /// Over how many scrolled pixels the scrim arrives. Short enough that text
+  /// never reaches the heading unshielded, long enough not to flash.
+  static const _scrimRamp = 40.0;
+
+  @override
+  void dispose() {
+    _scrim.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    // Depth 0 is the page's own scroller; a list inside the page has its own
+    // offset and must not move the heading's backdrop.
+    if (notification.depth == 0 &&
+        notification.metrics.axis == Axis.vertical) {
+      _scrim.value =
+          (notification.metrics.pixels / _scrimRamp).clamp(0.0, 1.0);
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.title;
+    final subtitle = widget.subtitle;
     final layout = HkLayout.of(context);
     final liveActive = ref.watch(liveLessonProvider).value != null;
     final profile = ref.watch(profileProvider).value;
@@ -67,10 +111,10 @@ class AppShell extends ConsumerWidget {
             ? 36 + 62 + MediaQuery.viewPaddingOf(context).bottom
             : 36,
       ),
-      child: child,
+      child: widget.child,
     );
 
-    final scroller = scrollable
+    final scroller = widget.scrollable
         ? SingleChildScrollView(primary: true, child: content)
         : content;
 
@@ -95,20 +139,23 @@ class AppShell extends ConsumerWidget {
                   Expanded(child: scroller),
                 ],
               )
-            : Stack(
-                children: [
-                  Positioned.fill(child: scroller),
-                  ..._floatingChrome(
-                    context,
-                    layout,
-                    destinations,
-                    current,
-                    liveActive,
-                    profile,
-                    unread,
-                    go,
-                  ),
-                ],
+            : NotificationListener<ScrollNotification>(
+                onNotification: _onScroll,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: scroller),
+                    ..._floatingChrome(
+                      context,
+                      layout,
+                      destinations,
+                      current,
+                      liveActive,
+                      profile,
+                      unread,
+                      go,
+                    ),
+                  ],
+                ),
               ),
       ),
       bottomNavigationBar: layout.isCompact
@@ -133,26 +180,87 @@ class AppShell extends ConsumerWidget {
     ValueChanged<HkDestination> go,
   ) {
     return [
-      const Positioned(top: 24, left: 28, child: LogoCapsule()),
+      // First in the list, so every other piece of chrome paints over it.
+      //
+      // The heading below floats over the page: the scroller fills the whole
+      // stack behind it, so the moment the reader scrolls, paragraphs travel
+      // up through the heading's line and print behind its letters. A phone
+      // does not have this — its header is the first row of a column and
+      // pushes the page down — and the desktop was simply never scrolled
+      // while anybody looked at the top of it.
       Positioned(
-        top: 24,
+        top: 0,
         left: 0,
         right: 0,
-        child: Center(
-          // Centred on the window, but not allowed to grow into the two
-          // things sharing this row with it. The superadmin's dock carries
-          // nine sections and is half as wide again as the admin's: at full
-          // size it printed over the logo capsule on one side and had its
-          // last item — "Adminlar" — covered by the user cluster on the
-          // other, where it could be neither read nor tapped.
-          //
-          // Scaled down rather than scrolled or trimmed: a dock item you have
-          // to find is not navigation. Nothing else reaches this width, so
-          // every other role's dock is untouched.
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: _dockMaxWidth(context, layout),
+        height: layout.contentTopPadding,
+        child: IgnorePointer(
+          child: ValueListenableBuilder<double>(
+            valueListenable: _scrim,
+            builder: (context, t, _) => DecoratedBox(
+              key: AppShell.headingScrimKey,
+              // A gradient rather than a flat fill: the canvas behind it is
+              // itself a gradient with blurred orbs in it, and a hard edge
+              // across the page would read as a seam. Invisible at rest, so
+              // the screen as drawn is untouched until something actually
+              // scrolls under the heading.
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    HkColors.canvasTop.withValues(alpha: 0.94 * t),
+                    HkColors.canvasTop.withValues(alpha: 0),
+                  ],
+                  stops: const [0.62, 1],
+                ),
+              ),
             ),
+          ),
+        ),
+      ),
+      const Positioned(top: 24, left: 28, child: LogoCapsule()),
+      // Centred on the window at the design width, where the gutters either
+      // side are wide enough for the logo capsule and the user cluster. The
+      // superadmin's dock carries nine sections and is half as wide again as
+      // the admin's: at full size it printed over the logo on one side and
+      // had its last item — "Adminlar" — covered by the user cluster on the
+      // other, where it could be neither read nor tapped. It is scaled down
+      // rather than scrolled or trimmed: a dock item you have to find is not
+      // navigation.
+      if (layout.isExpanded)
+        Positioned(
+          top: 24,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width - 2 * _wideGutter,
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: CommandDock(
+                  destinations: destinations,
+                  current: current,
+                  onSelect: go,
+                  liveActive: liveActive,
+                ),
+              ),
+            ),
+          ),
+        )
+      // Narrower than that, centring is what breaks it: the window is not
+      // wide enough for a gutter the logo fits in, so a centred dock slides
+      // straight over it — at 760 "Hanguk Academy" read "Hanguk A". Here the
+      // dock is given the band that is left between the logo and the right
+      // edge instead, and centred inside that. There is no user cluster at
+      // this width, so the band is all its own.
+      else
+        Positioned(
+          top: 24,
+          left: _logoBand,
+          right: 28,
+          child: Align(
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: CommandDock(
@@ -164,7 +272,6 @@ class AppShell extends ConsumerWidget {
             ),
           ),
         ),
-      ),
       // The user cluster is the first thing to go when the window narrows —
       // at `medium` the dock and the logo capsule would otherwise overlap it.
       if (layout.isExpanded)
@@ -181,28 +288,33 @@ class AppShell extends ConsumerWidget {
             onProfile: () => showHkProfileMenu(context),
           ),
         ),
+      // Last, so it sits above the scrim. It keeps its own loose constraints
+      // rather than living inside the scrim's box: a heading laid out in a
+      // 150pt band lays its two lines out fractionally differently, and the
+      // only thing that is supposed to have changed here is what is behind
+      // them.
       Positioned(
         top: 92,
         left: 30,
-        child: PageHeading(title: title, subtitle: subtitle),
+        child: PageHeading(title: widget.title, subtitle: widget.subtitle),
       ),
     ];
   }
 
-  /// How wide the dock may be before it is scaled down.
+  /// The gutter the centred dock leaves itself at the design's width.
   ///
-  /// At the design's width the logo capsule reaches about 242 from the left
-  /// and the user cluster about 256 in from the right, so 260 a side is the
-  /// gutter they occupy plus a little air. It is symmetric because the dock
-  /// is centred on the window, not on the gap: an uneven pair would slide it
-  /// off centre for every role, to buy width only one of them needs.
-  ///
-  /// Below `expanded` the cluster is not drawn and the window itself is the
-  /// only limit — `Center` already supplies that, and this adds nothing.
-  static double _dockMaxWidth(BuildContext context, HkLayout layout) {
-    if (!layout.isExpanded) return double.infinity;
-    return MediaQuery.sizeOf(context).width - 2 * 260;
-  }
+  /// The logo capsule reaches about 244 from the left and the user cluster
+  /// about 256 in from the right, so 260 a side is what they occupy plus a
+  /// little air. It is symmetric because the dock is centred on the window,
+  /// not on the gap: an uneven pair would slide it off centre for every
+  /// role, to buy width only one of them needs.
+  static const _wideGutter = 260.0;
+
+  /// Where the logo capsule ends: 28 of margin, about 216 of capsule, and
+  /// 16 of air. Below `expanded` the dock starts here rather than at the
+  /// window's edge, so it cannot reach the logo however few or many sections
+  /// the account's role has.
+  static const _logoBand = 260.0;
 }
 
 class _CompactHeader extends StatelessWidget {

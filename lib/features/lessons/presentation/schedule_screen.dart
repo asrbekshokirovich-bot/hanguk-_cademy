@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/errors.dart';
 import '../../../design_system/layout.dart';
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
@@ -249,7 +250,7 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
       if (!mounted) return;
       setState(() => _autoRecord = previous);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saqlanmadi: $e')),
+        SnackBar(content: Text('Saqlanmadi: ${hkErrorMessage(e)}')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -266,6 +267,12 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
       color: live ? const Color(0x14D4E94C) : Colors.transparent,
       borderRadius: BorderRadius.circular(HkRadius.cardSmall),
     );
+
+    // Theirs to edit if they own it: an admin owns the timetable, a teacher
+    // owns their own class.
+    final canEdit = widget.isAdmin ||
+        (widget.myTeacherId != null &&
+            widget.lesson.teacher?.id == widget.myTeacherId);
 
     if (!layout.isExpanded) {
       return Container(
@@ -303,6 +310,35 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
                 value: _autoRecord,
                 enabled: widget.isStaff && !_saving,
                 onChanged: _toggleAutoRecord,
+              ),
+            ],
+            // The pencil lived only in the wide branch, so an administrator
+            // on a laptop under 1180 — or on any phone — could not edit a
+            // single lesson, and nothing said why.
+            if (canEdit) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final saved = await showLessonDialog(
+                      context,
+                      lesson: widget.lesson,
+                    );
+                    if (saved == true) ref.invalidate(weekLessonsProvider);
+                  },
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text(
+                    'Tahrirlash',
+                    style: TextStyle(
+                      fontFamily: HkType.family,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: HkColors.textSecondary,
+                  ),
+                ),
               ),
             ],
           ],
@@ -417,12 +453,9 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
           ),
           SizedBox(
             width: 40,
-            // Theirs to edit if they own it: an admin owns the timetable, a
-            // teacher owns their own class. Anyone else gets no pencil rather
-            // than one the policy would refuse.
-            child: widget.isAdmin ||
-                    (widget.myTeacherId != null &&
-                        widget.lesson.teacher?.id == widget.myTeacherId)
+            // Anyone else gets no pencil rather than one the policy would
+            // refuse.
+            child: canEdit
                 ? IconButton(
                     tooltip: 'Tahrirlash',
                     onPressed: () async {
@@ -465,8 +498,14 @@ class _AutoRecordToggle extends StatelessWidget {
           child: Switch(
             value: value,
             onChanged: enabled ? onChanged : null,
-            activeThumbColor: HkColors.ink,
-            activeTrackColor: HkColors.lime,
+            // Dimmed when it cannot be moved. The explicit colours overrode
+            // the disabled shade, so a student saw a switch at full lime
+            // strength — pixel-identical to a teacher's — and pressing it
+            // did nothing and said nothing.
+            activeThumbColor: enabled ? HkColors.ink : HkColors.textTertiary,
+            activeTrackColor: enabled
+                ? HkColors.lime
+                : HkColors.lime.withValues(alpha: 0.28),
             inactiveThumbColor: HkColors.textTertiary,
             inactiveTrackColor: const Color(0x14FFFFFF),
           ),

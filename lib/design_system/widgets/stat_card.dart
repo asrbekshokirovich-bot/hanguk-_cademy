@@ -33,6 +33,49 @@ class HkStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // On a phone the icon moves down beside the number, and the words take
+    // the tile's full width.
+    //
+    // Two cards to a row leave about 95pt beside a 30pt icon, and the words
+    // want 120: every tile on the teacher's home read "Bugungi dar…",
+    // "Tekshirilma…", "O'rtacha da…" — on the one screenshot the Play
+    // listing opens with. Widened rather than wrapped, because wrapping at
+    // 95pt broke "Tekshirilmagan" after the thirteenth letter.
+    final compact = HkLayout.of(context).isCompact;
+
+    final iconBox = Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        color: highlight ? const Color(0x33D4E94C) : const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        icon,
+        size: 16,
+        color: highlight ? HkColors.lime : HkColors.textSecondary,
+      ),
+    );
+
+    final caption = Text(
+      label,
+      style: HkType.body.copyWith(fontSize: 13),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    final number = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        value,
+        style: HkType.display.copyWith(
+          color:
+              valueColor ?? (highlight ? HkColors.lime : HkColors.textPrimary),
+        ),
+      ),
+    );
+
     return GlassPanel(
       padding: const EdgeInsets.all(18),
       tint: highlight ? const Color(0x1AD4E94C) : null,
@@ -41,49 +84,26 @@ class HkStatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: HkType.body.copyWith(fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: highlight
-                      ? const Color(0x33D4E94C)
-                      : const Color(0x14FFFFFF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: highlight ? HkColors.lime : HkColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: HkType.display.copyWith(
-                color: valueColor ??
-                    (highlight ? HkColors.lime : HkColors.textPrimary),
-              ),
-            ),
-          ),
+          if (compact)
+            caption
+          else
+            Row(children: [Expanded(child: caption), iconBox]),
+          if (compact)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(child: number),
+                const SizedBox(width: 10),
+                iconBox,
+              ],
+            )
+          else
+            number,
           if (note != null)
             Text(
               note!,
               style: HkType.muted,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
         ],
@@ -108,12 +128,19 @@ class HkStatRow extends StatelessWidget {
       // height to the phone's width, and the tile's contents — a label, a
       // number in the display face, a note — do not get shorter on a narrower
       // phone. At 1.45 a 390pt screen gave them 118pt for 135pt of text.
+      //
+      // 160 rather than 140: the label and the note are allowed two lines
+      // here, because at two tiles to a row one line cut most of them short.
+      //
+      // Multiplied by the reader's text size, because a fixed height is a
+      // promise about text that the phone's font slider can break: at the
+      // 1.3 setting the same three lines want 208.
       gridDelegate: layout.isCompact
-          ? const SliverGridDelegateWithFixedCrossAxisCount(
+          ? SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: HkSpace.gridGap,
               crossAxisSpacing: HkSpace.gridGap,
-              mainAxisExtent: 140,
+              mainAxisExtent: 160 * MediaQuery.textScalerOf(context).scale(1),
             )
           : SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: layout.statColumns,

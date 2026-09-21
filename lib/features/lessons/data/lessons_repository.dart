@@ -91,10 +91,45 @@ class LessonsRepository {
         .from('ol_v_lessons')
         .select()
         .eq('status', 'live')
-        .order('starts_at', ascending: false)
-        .limit(1);
+        .order('starts_at', ascending: false);
+    if (rows.isEmpty) return null;
 
-    return rows.isEmpty ? null : Lesson.fromMap(rows.first);
+    final live = rows.map(Lesson.fromMap).toList();
+    final userId = _db.auth.currentUser?.id;
+    if (userId == null) return live.first;
+
+    // Whose room is it? `ol_v_lessons` shows the whole school's timetable to
+    // everyone, so "the most recent live lesson" was somebody's class picked
+    // at random. With two lessons on air, a student pressing "Jonli" joined
+    // whichever had started last — a different LiveKit room from their own
+    // teacher's, where nobody could hear them and they were in nobody's
+    // participant list. Mine first: enrolled in it, or teaching it.
+    final ids = [for (final l in live) l.id];
+    final results = await Future.wait([
+      _db
+          .from('ol_enrollments')
+          .select('lesson_id')
+          .eq('student_id', userId)
+          .inFilter('lesson_id', ids),
+      _db.from('ol_teachers').select('id').eq('user_id', userId).limit(1),
+    ]);
+
+    final enrolled = {
+      for (final r in results[0]) r['lesson_id'] as String,
+    };
+    final teacherId =
+        results[1].isEmpty ? null : results[1].first['id'] as String?;
+
+    bool mine(Lesson l) =>
+        enrolled.contains(l.id) ||
+        (teacherId != null && l.teacher?.id == teacherId);
+
+    return live.firstWhere(
+      mine,
+      // An administrator is in neither list and still needs to be able to
+      // walk into any room, so the old answer stands as the fallback.
+      orElse: () => live.first,
+    );
   }
 
   Future<Lesson?> lessonById(String id) async {

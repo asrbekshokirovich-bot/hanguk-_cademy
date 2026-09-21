@@ -101,4 +101,30 @@ void main() {
     );
     expect(media.deviceError, isNull);
   });
+
+  test('a mic press after the room has dropped says so', () async {
+    final media = LiveMediaSession();
+    addTearDown(media.dispose);
+
+    // What a disconnect leaves behind: the session believed it was connected
+    // and the room is gone. The button used to look live and do nothing.
+    media.status = LiveMediaStatus.connected;
+    await media.setMicrophone(true);
+
+    expect(media.micOn, isFalse);
+    expect(media.deviceError, contains('uzilgan'));
+  });
+
+  test('a failure can be cleared so the room may be tried again', () {
+    final media = LiveMediaSession();
+    addTearDown(media.dispose);
+
+    media.fail('Token olinmadi');
+    expect(media.status, LiveMediaStatus.failed);
+    expect(media.error, 'Token olinmadi');
+
+    media.reset();
+    expect(media.status, LiveMediaStatus.idle);
+    expect(media.error, isNull);
+  });
 }

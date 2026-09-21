@@ -183,7 +183,28 @@ class LiveMediaSession extends ChangeNotifier {
         ..on<TrackPublishedEvent>((_) => _changed())
         ..on<TrackUnpublishedEvent>((_) => _changed())
         ..on<LocalTrackPublishedEvent>((_) => _changed())
-        ..on<LocalTrackUnpublishedEvent>((_) => _changed());
+        ..on<LocalTrackUnpublishedEvent>((_) => _changed())
+        // The three that were missing, and they are the reason a student
+        // could talk for a whole lesson into nothing. A dropped socket, an
+        // expired token or a blip of Wi-Fi tears the engine down — LiveKit
+        // unpublishes every local track and empties the remote list — while
+        // this object went on reporting `connected`. The mic button stayed
+        // lit, the control bar stayed live, and the only thing that changed
+        // was that nobody could hear them.
+        ..on<RoomDisconnectedEvent>((e) {
+          status = LiveMediaStatus.failed;
+          error = 'Ulanish uzildi (${e.reason?.name ?? 'sabab noma’lum'}).';
+          _changed();
+        })
+        ..on<RoomReconnectingEvent>((_) {
+          status = LiveMediaStatus.connecting;
+          _changed();
+        })
+        ..on<RoomReconnectedEvent>((_) {
+          status = LiveMediaStatus.connected;
+          error = null;
+          _changed();
+        });
       status = LiveMediaStatus.connected;
       // Asked for immediately, because on every platform but a browser it
       // simply works and the notice must not appear where it is not needed.
@@ -197,6 +218,29 @@ class LiveMediaSession extends ChangeNotifier {
       status = LiveMediaStatus.failed;
       error = '$e';
     }
+    _changed();
+  }
+
+  /// Reports a failure that happened before there was a room to fail in.
+  ///
+  /// A token that could not be minted is not the same thing as a project with
+  /// no LiveKit configured, and the screen used to say the second when it
+  /// meant the first — to one student, while everyone else's room worked.
+  void fail(String message) {
+    status = LiveMediaStatus.failed;
+    error = message;
+    _changed();
+  }
+
+  /// Clears a failure so the room may be joined again.
+  ///
+  /// A transient refusal at join — a slow handshake, a lesson that went live
+  /// a second later — used to cost the whole lesson's audio, because nothing
+  /// ever tried a second time.
+  void reset() {
+    if (status == LiveMediaStatus.connected) return;
+    status = LiveMediaStatus.idle;
+    error = null;
     _changed();
   }
 
@@ -226,7 +270,19 @@ class LiveMediaSession extends ChangeNotifier {
   /// beside their name, and nobody hears a word.
   Future<void> setMicrophone(bool on) async {
     final me = _room?.localParticipant;
-    if (me == null) return;
+    if (me == null) {
+      // Said out loud only when we thought we were connected: a torn-down
+      // engine nulls the local participant while this object still reports
+      // `connected`, and the button then looked live and did nothing —
+      // exactly the state the paragraph above says must never happen. Where
+      // there is no media at all the button is already disabled, and a
+      // "connection dropped" there would be a second lie.
+      if (status == LiveMediaStatus.connected) {
+        deviceError = 'Mikrofon — audio ulanish uzilgan. Qaytadan ulaning.';
+        _changed();
+      }
+      return;
+    }
     try {
       await me.setMicrophoneEnabled(on);
       deviceError = null;

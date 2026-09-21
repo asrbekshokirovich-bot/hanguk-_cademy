@@ -18,6 +18,7 @@ import '../data/providers.dart';
 import '../domain/models.dart';
 import 'screen_share_picker.dart';
 import '../../../core/clock.dart';
+import '../../../core/errors.dart';
 import '../../../core/env.dart';
 
 /// "Jonli dars" — the live lesson room.
@@ -109,8 +110,19 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     );
   }
 
+  /// The last microphone state pushed to `ol_room_presence`, so a change
+  /// that nobody pressed still reaches the other screens.
+  bool? _pushedMic;
+
   void _onMediaChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    // A mic can go off without anybody touching the button: the connection
+    // drops and every local track is unpublished, or the room mutes you. The
+    // presence row used to be written on a button press only, so it went on
+    // announcing a live microphone — a lit icon beside a student nobody could
+    // hear, for the rest of the lesson.
+    if (_joinedLessonId != null && _micOn != _pushedMic) _pushPresence();
   }
 
   @override
@@ -161,15 +173,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
 
     // Media is asked for separately and is allowed to fail. Presence and chat
     // are what make the room usable; video is what makes it good.
-    unawaited(() async {
-      try {
-        final grant = await repo.liveMediaGrant(lesson.id);
-        if (!mounted || _joinedLessonId != lesson.id) return;
-        await _media.connect(grant);
-      } catch (_) {
-        if (mounted) await _media.connect(null);
-      }
-    }());
+    unawaited(_joinMedia(lesson.id));
 
     if (_countsAttendance) {
       unawaited(() async {
@@ -183,13 +187,38 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     // Half the 75-second cutoff, so one dropped request is not enough to make
     // someone vanish from the list they are sitting in.
     _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
-      repo.enterRoom(lesson.id);
+      // With the mic state, not without it: a row that only says "still
+      // here" leaves whatever was last claimed standing.
+      repo.enterRoom(lesson.id, micOn: _micOn, handRaised: _handRaised);
+      _pushedMic = _micOn;
       // Banked on the beat as well as on the way out, because the way out is
       // the half that does not happen — laptops close and tabs are killed.
       if (_sittingFrom != null) {
         repo.recordAttendance(lesson.id, _attendedSeconds);
       }
     });
+  }
+
+  /// Fetches the token and joins the media room.
+  ///
+  /// Separate from [_ensureJoined] so it can be run again: a refusal here
+  /// used to cost the whole lesson's audio, because nothing ever tried a
+  /// second time and the notice had no button on it.
+  Future<void> _joinMedia(String lessonId) async {
+    final repo = ref.read(lessonsRepositoryProvider);
+    try {
+      final grant = await repo.liveMediaGrant(lessonId);
+      if (!mounted || _joinedLessonId != lessonId) return;
+      await _media.connect(grant);
+    } catch (e) {
+      if (!mounted) return;
+      // The error used to be thrown away and the screen said "video is not
+      // configured on this project" — which is a lie told to one student
+      // while everybody else's room works. `ol_livekit_join` refuses for
+      // per-caller reasons: the lesson was not live at that instant, the
+      // session had expired, the request timed out.
+      _media.fail(hkErrorMessage(e));
+    }
   }
 
   /// Mirrors the room's actual state into `ol_room_presence`, so the other
@@ -201,6 +230,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   void _pushPresence() {
     final id = _joinedLessonId;
     if (id == null) return;
+    _pushedMic = _micOn;
     ref
         .read(lessonsRepositoryProvider)
         .enterRoom(id, micOn: _micOn, handRaised: _handRaised);
@@ -362,7 +392,19 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _MediaNotice(media: _media),
+                _MediaNotice(
+                  media: _media,
+                  onRetry: () {
+                    final id = _joinedLessonId;
+                    if (id == null) return;
+                    _media.reset();
+                    unawaited(_joinMedia(id));
+                  },
+                ),
+                _MicOffNotice(
+                  show: _media.isLive && !_micOn,
+                  onEnable: _toggleMic,
+                ),
                 _AudioBlockedNotice(media: _media),
                 _DeviceErrorNotice(media: _media),
                 const SizedBox(height: 14),
@@ -489,9 +531,14 @@ class _NoLiveLesson extends StatelessWidget {
 /// nobody has switched a camera on (nothing is wrong at all). Shown only when
 /// there is something to say — a connected room gets its screen back.
 class _MediaNotice extends StatelessWidget {
-  const _MediaNotice({required this.media});
+  const _MediaNotice({required this.media, required this.onRetry});
 
   final LiveMediaSession media;
+
+  /// Offered on a failure only. One refusal at join used to cost the whole
+  /// lesson's audio, because nothing tried again and the notice was a
+  /// sentence with nothing to press.
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -540,7 +587,69 @@ class _MediaNotice extends StatelessWidget {
           Expanded(
             child: Text(text, style: HkType.body.copyWith(fontSize: 12.5)),
           ),
+          if (media.status == LiveMediaStatus.failed) ...[
+            const SizedBox(width: 12),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text(
+                'Qaytadan ulanish',
+                style: TextStyle(
+                  fontFamily: HkType.family,
+                  fontSize: 12.5,
+                  color: HkColors.lime,
+                ),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// "Your microphone is off" — said out loud, because nobody can tell you.
+///
+/// Joining does not turn anybody's microphone on, which is right: a class
+/// should not broadcast your kitchen. But the only sign of it was a small
+/// round button in a row of five identical ones, and a student who did not
+/// spot it was simply never heard — while the teacher's participant list
+/// showed them present and waiting. The teacher hears nothing and assumes
+/// shyness; the student hears everyone and assumes they are being heard.
+class _MicOffNotice extends StatelessWidget {
+  const _MicOffNotice({required this.show, required this.onEnable});
+
+  final bool show;
+  final VoidCallback onEnable;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!show) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: GlassPanel(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        radius: HkRadius.cardSmall,
+        tint: const Color(0x1AE08600),
+        borderColor: const Color(0x33E08600),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.mic_off_rounded,
+              size: 18,
+              color: HkColors.warningBright,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Mikrofoningiz o‘chiq — sizni hech kim eshitmaydi.',
+                style: HkType.body.copyWith(fontSize: 12.5),
+              ),
+            ),
+            const SizedBox(width: 12),
+            LimeButton(label: 'Mikrofonni yoqish', onPressed: onEnable),
+          ],
+        ),
       ),
     );
   }
@@ -1104,7 +1213,19 @@ class _ParticipantRow extends StatelessWidget {
     // how a teacher ends up waiting for an answer from an empty chair.
     // LiveKit knows which audio tracks are actually published, and they stop
     // existing with the connection that published them.
-    final micOn = media.micOf(p.id) ?? p.micOn;
+    final live = media.micOf(p.id);
+    final micOn = live ?? p.micOn;
+
+    // Present in the table, absent from the room. The two lists were treated
+    // as one: `ol_room_presence` is a heartbeat somebody's client writes, and
+    // it keeps saying "here, microphone on" whether or not that client ever
+    // reached LiveKit. A student whose media connection failed — or who
+    // joined a different room — sat in the teacher's list with a lit
+    // microphone, and the teacher waited for an answer from a chair nobody
+    // was in. When we are in the room ourselves and LiveKit has never heard
+    // of somebody, that is worth saying out loud.
+    final absentFromMedia = media.isLive && live == null && !p.isSelf;
+
     return Row(
       children: [
         HkAvatar(initials: p.initials, size: 32),
@@ -1133,6 +1254,15 @@ class _ParticipantRow extends StatelessWidget {
             background: Color(0x26D4E94C),
             foreground: HkColors.lime,
             padding: EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          )
+        else if (absentFromMedia)
+          Tooltip(
+            message: 'Ovoz ulanmagan — bu talabani eshitib bo‘lmaydi',
+            child: Icon(
+              Icons.volume_off_rounded,
+              size: 16,
+              color: HkColors.textTertiary,
+            ),
           )
         else
           Icon(

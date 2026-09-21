@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:hanguk_online/core/clock.dart';
 import 'package:hanguk_online/features/lessons/data/lessons_repository.dart';
 import 'package:hanguk_online/features/lessons/data/providers.dart';
 import 'package:hanguk_online/features/lessons/domain/models.dart';
@@ -35,6 +36,13 @@ UserProfile _profile(String role) => UserProfile(
 
 void main() {
   setUpAll(() => initializeDateFormatting('uz'));
+
+  // Pinned. The demo day is built around the wall clock, and "may this lesson
+  // be started yet" is a question about the hour it is — so left alone these
+  // tests would pass in the evening and fail in the morning. 18:20 is ten
+  // minutes inside the window of the demo teacher's 18:30 class.
+  setUp(() => hkNow = () => DateTime(2026, 9, 21, 18, 20));
+  tearDown(() => hkNow = DateTime.now);
 
   Future<void> pump(
     WidgetTester tester,
@@ -104,6 +112,48 @@ void main() {
       // used to be the same one: "Darsni boshlash" was shown *only* on a
       // lesson that was already live, where it did nothing but navigate.
       expect(find.text('Darsni boshlash'), findsWidgets);
+      expect(find.text('Darsga kirish'), findsOneWidget);
+    });
+  });
+
+  group('a lesson cannot be put on air hours before its hour', () {
+    // "Bugungi darslarim" lists the whole day, and every scheduled row in it
+    // carried a live "Darsni boshlash". The evening class was therefore one
+    // tap away all morning, directly under the one that was actually next —
+    // and starting it is not a harmless mistake: the room goes on air, the
+    // recorder starts, and the students who do turn up at half past six find
+    // a lesson the system already believes has been taught.
+    testWidgets('in the morning it says when the button opens',
+        (tester) async {
+      hkNow = () => DateTime(2026, 9, 21, 12, 0);
+      await pump(tester, const TeacherDashboardScreen(), 'teacher');
+
+      expect(find.text('Darsni boshlash'), findsNothing);
+      expect(find.text('18:15 da ochiladi'), findsOneWidget);
+    });
+
+    testWidgets('a quarter of an hour before, it opens', (tester) async {
+      hkNow = () => DateTime(2026, 9, 21, 18, 15);
+      await pump(tester, const TeacherDashboardScreen(), 'teacher');
+
+      expect(find.text('Darsni boshlash'), findsOneWidget);
+      expect(find.text('18:15 da ochiladi'), findsNothing);
+    });
+
+    testWidgets('one minute earlier it does not', (tester) async {
+      // The boundary itself, from the wrong side of it.
+      hkNow = () => DateTime(2026, 9, 21, 18, 14);
+      await pump(tester, const TeacherDashboardScreen(), 'teacher');
+
+      expect(find.text('Darsni boshlash'), findsNothing);
+    });
+
+    testWidgets('a lesson already on air is never held back', (tester) async {
+      // The window governs starting, not joining: a teacher whose class is
+      // running must be able to walk back into it at any hour.
+      hkNow = () => DateTime(2026, 9, 21, 12, 0);
+      await pump(tester, const TeacherDashboardScreen(), 'teacher');
+
       expect(find.text('Darsga kirish'), findsOneWidget);
     });
   });

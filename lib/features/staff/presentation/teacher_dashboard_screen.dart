@@ -158,6 +158,15 @@ class _LessonRow extends ConsumerStatefulWidget {
 class _LessonRowState extends ConsumerState<_LessonRow> {
   bool _busy = false;
 
+  /// How long before its hour a lesson may be put on air.
+  ///
+  /// There was no such limit: "Darsni boshlash" was live for every one of
+  /// today's scheduled rows, so the eight o'clock class could be broadcast at
+  /// ten in the morning, one tap away from the one that was actually next.
+  /// Fifteen minutes is enough to open the room and check the microphone
+  /// before the students arrive.
+  static const _opensBefore = Duration(minutes: 15);
+
   /// Puts this lesson on air and walks the teacher into the room.
   ///
   /// The navigation only happens once the write has come back. Going first
@@ -191,6 +200,16 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
     // of pushing the lesson title off the right-hand edge. Full width there
     // too: it is the one thing a teacher opens this screen to press.
     final compact = HkLayout.of(context).isCompact;
+
+    // Not yet its turn. The row re-reads on the twenty-second status beat, so
+    // the button appears on its own without anybody refreshing anything.
+    final opensAt = lesson.startsAt.subtract(_opensBefore);
+    final tooEarly = scheduled && hkNow().isBefore(opensAt);
+
+    // A button fills the line on a phone; a label saying when it opens keeps
+    // its own width, like the status pill it stands in for.
+    final isButton = live || (scheduled && !tooEarly);
+
     final Widget action = live
         ? LimeButton(
             label: 'Darsga kirish',
@@ -198,18 +217,27 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
             expand: compact,
             onPressed: () => context.go('/live/${lesson.id}'),
           )
-        : scheduled
-            ? LimeButton(
-                label: _busy ? 'Boshlanmoqda…' : 'Darsni boshlash',
-                height: 38,
-                expand: compact,
-                onPressed: _busy ? null : _start,
+        : tooEarly
+            ? Tooltip(
+                message: 'Dars ${DateFormat('HH:mm').format(lesson.startsAt)}'
+                    ' da boshlanadi. Tugma 15 daqiqa oldin ochiladi.',
+                child: HkPill(
+                  label: '${DateFormat('HH:mm').format(opensAt)} da ochiladi',
+                  icon: Icons.schedule_rounded,
+                ),
               )
-            : HkPill(
-                label: lesson.status.label,
-                background: lesson.status.pillBackground,
-                foreground: lesson.status.pillForeground,
-              );
+            : scheduled
+                ? LimeButton(
+                    label: _busy ? 'Boshlanmoqda…' : 'Darsni boshlash',
+                    height: 38,
+                    expand: compact,
+                    onPressed: _busy ? null : _start,
+                  )
+                : HkPill(
+                    label: lesson.status.label,
+                    background: lesson.status.pillBackground,
+                    foreground: lesson.status.pillForeground,
+                  );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -278,7 +306,7 @@ class _LessonRowState extends ConsumerState<_LessonRow> {
             const SizedBox(height: 10),
             // A button fills the line; a status pill would look absurd
             // stretched across it, so that one keeps its own width.
-            if (live || scheduled)
+            if (isButton)
               action
             else
               Align(alignment: Alignment.centerLeft, child: action),

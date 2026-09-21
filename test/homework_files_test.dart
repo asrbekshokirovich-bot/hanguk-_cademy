@@ -269,6 +269,25 @@ void main() {
     });
   });
 
+  group('a lesson that was recorded', () {
+    // `ol_recordings` has been in the schema since the first migration and
+    // nothing ever wrote a row, so "Yozuvlar" was empty in every build — the
+    // policy always allowed staff to insert, there was simply no way in.
+    test('demo mode refuses to add one, in Uzbek', () async {
+      await expectLater(
+        () => LessonsRepository(null).addRecording(
+          lessonId: 'd2',
+          title: '14-dars',
+          videoUrl: 'materials/d2/dars.mp4',
+        ),
+        throwsA(
+          isA<StateError>()
+              .having((e) => e.message, 'message', contains('Demo rejimda')),
+        ),
+      );
+    });
+  });
+
   group('a storage refusal is explained to the person who can fix it', () {
     // The likeliest failure here is neither the student's doing nor a bug in
     // this code: a bucket made in the dashboard arrives with no policies at

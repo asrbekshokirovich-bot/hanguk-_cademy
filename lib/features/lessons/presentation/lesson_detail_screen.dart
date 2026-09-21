@@ -236,13 +236,13 @@ class _Tab extends StatelessWidget {
   }
 }
 
-class _VideoSurface extends StatelessWidget {
+class _VideoSurface extends ConsumerWidget {
   const _VideoSurface({required this.recording});
 
   final Recording recording;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     String fmt(Duration d) {
       final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
       final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -270,14 +270,59 @@ class _VideoSurface extends StatelessWidget {
               //
               // It was a lime circle with a play triangle in it and no tap
               // handler at all: it could be clicked for ever and nothing
-              // would happen, and nothing on the screen explained why. The
-              // scrubber underneath it was the same story told twice — a
-              // position and a duration for a video that cannot be opened.
-              //
-              // This says so instead. When a player and a storage bucket
-              // exist, this is the block to replace; the flag alone is not
-              // enough, because there is still no decoder behind it.
-              Center(
+              // would happen. There is a file behind some of these rows now
+              // — a teacher's own capture, uploaded from "Yozuvlar" — and
+              // where there is one it opens, handed to whatever the machine
+              // plays video with. The app still has no decoder of its own,
+              // so this is a door rather than a screen, and it says which.
+              if (recording.videoUrl != null &&
+                  recording.videoUrl!.isNotEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(40),
+                          onTap: () async {
+                            final error = await openLessonMaterial(
+                              ref,
+                              recording.videoUrl!,
+                            );
+                            if (error == null || !context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(error)),
+                            );
+                          },
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            decoration: const BoxDecoration(
+                              color: HkColors.lime,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              size: 32,
+                              color: HkColors.ink,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Ochish',
+                          style: HkType.body.copyWith(
+                            fontSize: 12.5,
+                            color: HkColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
@@ -304,8 +349,8 @@ class _VideoSurface extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Darslar hozircha yozib olinmaydi. Yozuvlar '
-                        'ulangach, shu yerdan ko‘rish mumkin bo‘ladi.',
+                        'Bu yozuvga fayl biriktirilmagan. O‘qituvchi uni '
+                        '“Yozuvlar” bo‘limidan qo‘shishi mumkin.',
                         textAlign: TextAlign.center,
                         style: HkType.body.copyWith(
                           fontSize: 12.5,

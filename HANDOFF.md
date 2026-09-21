@@ -225,7 +225,7 @@ Full check before pushing:
 
 ```bash
 flutter analyze          # must be "No issues found!"
-flutter test             # 142 tests
+flutter test             # 143 tests
 flutter build linux --release
 ```
 
@@ -693,10 +693,20 @@ Roughly in the order they matter:
    means real speech recognition: a transcription service, a stream of it per
    room, and a decision about who pays for it. The band and the toggle can
    come back the moment there is something to put in them.
-3. **Recording playback.** The library lists recordings and tracks watch
-   progress; there is no player. Recordings want a bucket of their own rather
-   than a third folder in `uploads` — they are large, they are written by the
-   server and not by a person, and nobody should be able to delete one.
+3. **Recording the room on the server.** A lesson is kept today because the
+   teacher uploads their own capture from "Yozuvlar" — `ol_recordings_write`
+   admits `ol_is_staff()`, so the row needs no migration, and the file goes
+   to `materials/<lesson_id>/`, which every signed-in account may read. The
+   app has no decoder, so the play button hands the file to the machine.
+   Doing it properly means **LiveKit egress**: the API key and secret are
+   already in `ol_livekit_config` and `ol_jwt_hs256` can already sign a
+   `roomRecord` token, so the only missing capability in the database is an
+   outbound HTTP request. That needs `pg_net` enabled, a migration (an egress
+   config table, start/stop functions, and a `pg_cron` poll to insert the row
+   when egress completes) and S3-compatible storage. Prove it by hand from
+   the LiveKit dashboard before writing any of it. **Do not** revive the Edge
+   Function route (§7) and do not try `flutter_webrtc`'s MediaRecorder: it is
+   not implemented on Windows at all and is single-track where it exists.
 4. **Quizzes.** `ol_quizzes` is read and drawn; there is no screen for
    setting one and no screen for taking one. Homework is done — see §7 — but
    a quiz is a different shape and still has nothing behind it.

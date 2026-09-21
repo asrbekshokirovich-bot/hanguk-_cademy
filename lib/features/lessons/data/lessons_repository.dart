@@ -416,6 +416,48 @@ class LessonsRepository {
     return path;
   }
 
+  /// Puts a recorded lesson in the library.
+  ///
+  /// `ol_recordings` has been in the schema since the first migration and
+  /// nothing has ever written a row, so "Yozuvlar" has been empty in every
+  /// build — the policy has always allowed it (`ol_recordings_write` admits
+  /// `ol_is_staff()`), there was simply no way in.
+  ///
+  /// The file goes to `materials/<lesson_id>/`, which every signed-in account
+  /// may read: a recording nobody can open is not a recording. [videoUrl] is
+  /// the object path that comes back from [uploadMaterialFile], read through
+  /// [materialLink] like any other.
+  ///
+  /// This is the teacher's own capture — Windows' recorder, OBS, whatever
+  /// they use. Recording the room on the server is a different thing
+  /// entirely: LiveKit egress, S3 credentials and a database that can make
+  /// an outbound request. Until that exists, this is how a lesson is kept.
+  Future<void> addRecording({
+    required String lessonId,
+    required String title,
+    required String videoUrl,
+    String? category,
+    String? teacherId,
+    DateTime? recordedAt,
+    int durationSeconds = 0,
+    int attendeeCount = 0,
+  }) async {
+    if (isDemo) {
+      throw StateError('Demo rejimda yozuv qo‘shib bo‘lmaydi');
+    }
+    await _db.from('ol_recordings').insert({
+      'lesson_id': lessonId,
+      'title': title.trim(),
+      if (category != null && category.trim().isNotEmpty)
+        'category': category.trim(),
+      'teacher_id': teacherId,
+      'recorded_at': (recordedAt ?? hkNow()).toUtc().toIso8601String(),
+      'duration_seconds': durationSeconds,
+      'attendee_count': attendeeCount,
+      'video_url': videoUrl,
+    });
+  }
+
   /// Whatever is in `ol_materials.url`, turned into something openable.
   ///
   /// The column predates the bucket and holds both kinds: rows written by

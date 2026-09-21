@@ -8,8 +8,10 @@ import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/app_shell.dart';
 import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
+import '../../../design_system/widgets/section_intro.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import 'add_recording_dialog.dart';
 
 /// Categories offered as filter chips. Kept as a constant rather than derived
 /// from the data so the row doesn't reshuffle as the archive grows.
@@ -28,6 +30,9 @@ class RecordingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = HkLayout.of(context);
     final active = ref.watch(recordingsFilterProvider);
+    // Staff put recordings here; students watch them. The library has been
+    // empty in every build because nothing could write to it.
+    final isStaff = ref.watch(profileProvider).value?.isStaff ?? false;
 
     return AppShell(
       title: 'Yozuvlar',
@@ -35,6 +40,37 @@ class RecordingsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isStaff) ...[
+            HkSectionIntro(
+              text: 'Dars yozuvini shu yerdan qo‘shasiz — talabalar uni '
+                  'shu bo‘limda ochadi.',
+              action: FilledButton.icon(
+                onPressed: () async {
+                  final saved = await showAddRecordingDialog(context);
+                  if (saved == true) {
+                    ref.invalidate(recordingsProvider);
+                    ref.invalidate(recentRecordingsProvider);
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: HkColors.royalBlue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(HkRadius.control),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                ),
+                icon: const Icon(Icons.video_call_rounded, size: 18),
+                label: const Text(
+                  'Yozuv qo‘shish',
+                  style: TextStyle(
+                    fontFamily: HkType.family,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: HkSpace.gridGapWide),
+          ],
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(

@@ -187,7 +187,14 @@ declare
   v_cfg  ol_egress_config%rowtype;
   v_live jsonb;
 begin
-  if not ol_is_admin() then
+  -- An administrator from the app, or somebody typing into the SQL Editor.
+  --
+  -- The editor runs as the database owner with no JWT at all, so `auth.uid()`
+  -- is null there and an admin-only guard refuses the one person who is
+  -- allowed to do anything — which is how this first failed. A null uid
+  -- cannot reach here from the app: `anon` has no execute grant, and an
+  -- `authenticated` call always carries a subject.
+  if auth.uid() is not null and not ol_is_admin() then
     raise exception 'Faqat administrator' using errcode = '42501';
   end if;
 

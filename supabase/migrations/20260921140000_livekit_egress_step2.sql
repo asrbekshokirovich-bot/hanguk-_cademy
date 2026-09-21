@@ -399,11 +399,21 @@ begin
         || v_scope || E'\n'
         || encode(extensions.digest(v_canon, 'sha256'), 'hex');
 
-  v_key := extensions.hmac(v_date, ('AWS4' || v_s3.s3_secret)::bytea, 'sha256');
-  v_key := extensions.hmac(v_s3.s3_region, v_key, 'sha256');
-  v_key := extensions.hmac('s3', v_key, 'sha256');
-  v_key := extensions.hmac('aws4_request', v_key, 'sha256');
-  v_sig := encode(extensions.hmac(v_sts, v_key, 'sha256'), 'hex');
+  -- `convert_to`, not a cast: pgcrypto has hmac(bytea, bytea) and
+  -- hmac(text, text) and nothing in between, and there is no implicit cast
+  -- from text to bytea. Mixing them is a function that does not exist.
+  v_key := extensions.hmac(
+    convert_to(v_date, 'UTF8'),
+    convert_to('AWS4' || v_s3.s3_secret, 'UTF8'),
+    'sha256'
+  );
+  v_key := extensions.hmac(convert_to(v_s3.s3_region, 'UTF8'), v_key, 'sha256');
+  v_key := extensions.hmac(convert_to('s3', 'UTF8'), v_key, 'sha256');
+  v_key := extensions.hmac(convert_to('aws4_request', 'UTF8'), v_key, 'sha256');
+  v_sig := encode(
+    extensions.hmac(convert_to(v_sts, 'UTF8'), v_key, 'sha256'),
+    'hex'
+  );
 
   return 'https://' || v_host || v_path || '?' || v_query
          || '&X-Amz-Signature=' || v_sig;

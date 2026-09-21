@@ -70,6 +70,7 @@ class RecordingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: HkSpace.gridGapWide),
+            const _RecorderStatus(),
           ],
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -94,7 +95,12 @@ class RecordingsScreen extends ConsumerWidget {
             onRetry: () => ref.invalidate(recordingsProvider),
             loadingHeight: 280,
             isEmpty: (r) => r.isEmpty,
-            emptyMessage: 'Bu bo‘limda hali yozuv yo‘q',
+            // Naming the filter, because a chip left on "Tinglash" is the
+            // commonest reason this looks empty when it is not.
+            emptyMessage: active == null
+                ? 'Hali yozuv yo‘q. Dars tugagach, yozuv bir-ikki daqiqada '
+                    'shu yerda paydo bo‘ladi.'
+                : '“$active” turkumida yozuv yo‘q — “Barchasi”ni tanlang.',
             builder: (recordings) => GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -297,6 +303,65 @@ class _Thumbnail extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// What the recorder is doing, and what it could not do.
+///
+/// Staff only, and silent when there is nothing to say. A lesson that ended
+/// with nothing to show for it is the one question this screen could not
+/// answer: it drew the same empty box whether the room was never recorded,
+/// the recording is still being written, or the bucket refused it.
+class _RecorderStatus extends ConsumerWidget {
+  const _RecorderStatus();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final jobs = ref.watch(recordingJobsProvider).value ?? const [];
+    if (jobs.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: HkSpace.gridGapWide),
+      child: GlassPanel(
+        radius: HkRadius.cardSmall,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final job in jobs) ...[
+              Row(
+                children: [
+                  Icon(
+                    job['status'] == 'failed'
+                        ? Icons.error_outline_rounded
+                        : Icons.fiber_manual_record_rounded,
+                    size: 16,
+                    color: job['status'] == 'failed'
+                        ? HkColors.dangerBright
+                        : HkColors.warningBright,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      switch (job['status'] as String?) {
+                        'starting' => 'Yozuv boshlanmoqda…',
+                        'active' => 'Dars yozib olinmoqda',
+                        'stopping' => 'Yozuv yakunlanmoqda…',
+                        'failed' => 'Yozib bo‘lmadi: '
+                            '${job['error'] ?? 'sabab noma’lum'}',
+                        _ => '${job['status']}',
+                      },
+                      style: HkType.body.copyWith(fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ),
+              if (job != jobs.last) const SizedBox(height: 8),
+            ],
+          ],
+        ),
       ),
     );
   }

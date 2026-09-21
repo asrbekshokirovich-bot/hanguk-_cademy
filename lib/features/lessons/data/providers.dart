@@ -178,19 +178,36 @@ final lessonByIdProvider =
 /// Which filter chip is active in the recordings library. `null` = "Barchasi".
 final recordingsFilterProvider = StateProvider<String?>((ref) => null);
 
+/// The library, re-read on the roster beat.
+///
+/// A recording arrives a minute or two after the lesson ends, written by the
+/// server rather than by anybody looking at this screen — so a list fetched
+/// once at launch shows "Bu bo‘limda hali yozuv yo‘q" over a recording that
+/// exists, until the app is restarted. That is exactly the shape of defect
+/// the rosters had.
 final recordingsProvider = FutureProvider<List<Recording>>((ref) {
+  ref.watch(hkRosterTick);
   final category = ref.watch(recordingsFilterProvider);
   return ref.watch(lessonsRepositoryProvider).recordings(category: category);
-});
+}, isAutoDispose: true);
 
 /// The three most recent recordings, for the dashboard's "So'nggi yozuvlar".
 final recentRecordingsProvider = FutureProvider<List<Recording>>((ref) async {
+  ref.watch(hkRosterTick);
   final all = await ref.watch(lessonsRepositoryProvider).recordings();
   return all.take(3).toList();
-});
+}, isAutoDispose: true);
+
+/// What the recorder is doing, for the staff screen that would otherwise
+/// just be empty.
+final recordingJobsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) {
+  ref.watch(hkRosterTick);
+  return ref.watch(lessonsRepositoryProvider).recordingJobs();
+}, isAutoDispose: true);
 
 final recordingByIdProvider =
-    FutureProvider.family<Recording?, String>((ref, id) {
+    FutureProvider.family<Recording?, String>(isAutoDispose: true, (ref, id) {
   return ref.watch(lessonsRepositoryProvider).recordingById(id);
 });
 

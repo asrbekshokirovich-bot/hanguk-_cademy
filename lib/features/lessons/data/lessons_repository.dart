@@ -474,6 +474,23 @@ class LessonsRepository {
     return row?['status'] == 'active';
   }
 
+  /// Lessons the recorder is working on, or gave up on.
+  ///
+  /// Staff only, by policy. It is the answer to "the lesson ended, where is
+  /// the recording" — which otherwise reads as an empty screen, and an empty
+  /// screen cannot tell anybody that the room had nobody in it, or that the
+  /// bucket refused the upload.
+  Future<List<Map<String, dynamic>>> recordingJobs() async {
+    if (isDemo) return const [];
+    final rows = await _db
+        .from('ol_lesson_egress')
+        .select('lesson_id, status, error, updated_at')
+        .neq('status', 'complete')
+        .order('updated_at', ascending: false)
+        .limit(5);
+    return rows.cast<Map<String, dynamic>>();
+  }
+
   /// A link to a recorded lesson, whichever way it was kept.
   ///
   /// Two kinds live in `ol_recordings.video_url`: a path in Supabase Storage,

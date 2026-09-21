@@ -16,6 +16,7 @@ import '../data/lessons_repository.dart';
 import '../data/live_media.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import 'audio_device_picker.dart';
 import 'screen_share_picker.dart';
 import '../../../core/clock.dart';
 import '../../../core/errors.dart';
@@ -273,6 +274,16 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     _pushPresence();
   }
 
+  /// Which microphone the room is listening to.
+  ///
+  /// There was no way to ask, let alone to change it: the app took the
+  /// operating system's default and said nothing about what that was. A
+  /// virtual cable or a voice changer sitting in front of the real device is
+  /// mixed in before the app ever sees the signal, so the whole room hears
+  /// whatever it does — and the person speaking is the one who cannot tell.
+  Future<void> _pickAudioDevices() =>
+      showAudioDevicePicker(context, _media);
+
   /// Leaves deliberately, as opposed to closing the window. Distinct from
   /// [_end]: this takes *you* out of the room and leaves the lesson running.
   Future<void> _leave() async {
@@ -489,6 +500,12 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                     _pushPresence();
                   },
                   onChat: () => setState(() => _showChat = !_showChat),
+                  // Desktop only: the browser and phones do not let an app
+                  // choose the input, and a button that cannot work is the
+                  // thing this screen must never show.
+                  onAudioDevices: LiveMediaSession.canPickAudioDevice
+                      ? _pickAudioDevices
+                      : null,
                   onLeave: _leave,
                 ),
               ],
@@ -1523,6 +1540,7 @@ class _ControlBar extends StatelessWidget {
     required this.onCamera,
     required this.onHand,
     required this.onChat,
+    required this.onAudioDevices,
     required this.onLeave,
     required this.onEnd,
     required this.ending,
@@ -1544,6 +1562,9 @@ class _ControlBar extends StatelessWidget {
   final VoidCallback? onScreenShare;
   final VoidCallback onHand;
   final VoidCallback onChat;
+
+  /// Null where the platform chooses the microphone for us.
+  final VoidCallback? onAudioDevices;
   final VoidCallback onLeave;
 
   /// Null for a student: they can leave the room, but only staff take the
@@ -1592,6 +1613,13 @@ class _ControlBar extends StatelessWidget {
                       : 'Ekranni ulashish'),
               onTap: onScreenShare,
             ),
+            if (onAudioDevices != null)
+              _ControlButton(
+                icon: Icons.tune_rounded,
+                active: false,
+                tooltip: 'Mikrofon va dinamikni tanlash',
+                onTap: onAudioDevices,
+              ),
             _ControlButton(
               icon: Icons.pan_tool_alt_outlined,
               active: handRaised,

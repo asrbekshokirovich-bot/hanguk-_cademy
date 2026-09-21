@@ -401,6 +401,45 @@ class LiveMediaSession extends ChangeNotifier {
     );
   }
 
+  /// Whether this platform lets the app choose the microphone.
+  ///
+  /// Only the desktops: `Hardware.selectAudioInput` refuses on the browser
+  /// and on phones, where the input follows the system's own choice.
+  static bool get canPickAudioDevice =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux);
+
+  /// The microphones this machine offers.
+  ///
+  /// The room used to take whatever Windows called the default, with no way
+  /// to see which that was or to change it without leaving the lesson. That
+  /// is fine until the default is not a microphone: a virtual audio cable, a
+  /// voice changer or a "meeting assistant" sits in front of the real device,
+  /// and whatever it does to the signal — including a trial version speaking
+  /// its own name over the top — is what the whole room hears, because it is
+  /// mixed in before the app ever sees it.
+  Future<List<MediaDevice>> audioInputs() => Hardware.instance.audioInputs();
+
+  Future<List<MediaDevice>> audioOutputs() => Hardware.instance.audioOutputs();
+
+  MediaDevice? get audioInput => Hardware.instance.selectedAudioInput;
+
+  MediaDevice? get audioOutput => Hardware.instance.selectedAudioOutput;
+
+  /// Switches the microphone mid-lesson. LiveKit republishes the track, so
+  /// the room hears the new device without anybody rejoining.
+  Future<void> selectAudioInput(MediaDevice device) async {
+    await Hardware.instance.selectAudioInput(device);
+    _changed();
+  }
+
+  Future<void> selectAudioOutput(MediaDevice device) async {
+    await Hardware.instance.selectAudioOutput(device);
+    _changed();
+  }
+
   /// Plain Uzbek for the two refusals that actually happen, and the raw text
   /// for everything else — a message nobody can act on is worse than one that
   /// at least names what went wrong.

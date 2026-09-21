@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hanguk_online/features/lessons/data/live_media.dart';
@@ -182,6 +183,40 @@ void main() {
         state(mediaLive: false, fromLiveKit: null, fromPresence: false),
         HkMicState.muted,
       );
+    });
+  });
+
+  group('choosing the microphone', () {
+    // The room took whatever the operating system called the default and
+    // offered no way to see which that was. That is fine until the default is
+    // not a microphone: a virtual audio cable, a voice changer or a "meeting
+    // assistant" installs itself in front of the real device and is mixed in
+    // before the app sees the signal — so the whole room hears whatever it
+    // does, and the person speaking is the one who cannot tell.
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('offered on the desktops, where LiveKit can switch it', () {
+      for (final platform in [
+        TargetPlatform.windows,
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        expect(LiveMediaSession.canPickAudioDevice, isTrue, reason: '$platform');
+      }
+    });
+
+    test('not on a phone, where the system chooses', () {
+      // `Hardware.selectAudioInput` logs a warning and does nothing there, so
+      // a button would be a promise the platform refuses to keep.
+      for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+        debugDefaultTargetPlatformOverride = platform;
+        expect(
+          LiveMediaSession.canPickAudioDevice,
+          isFalse,
+          reason: '$platform',
+        );
+      }
     });
   });
 

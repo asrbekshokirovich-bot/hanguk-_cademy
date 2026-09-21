@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -155,6 +156,40 @@ void main() {
       await pump(tester, const TeacherDashboardScreen(), 'teacher');
 
       expect(find.text('Darsga kirish'), findsOneWidget);
+    });
+  });
+
+  group('the room says which microphone it is listening to', () {
+    // The control bar could mute and unmute, and nothing else. Which device
+    // it was muting was the operating system's business — which is fine until
+    // the default is a virtual cable or a voice changer, whose output the
+    // whole room hears and the speaker cannot.
+    //
+    // The override is put back inside the test body, in a `finally`: the
+    // binding checks the foundation's debug variables the moment the body
+    // returns, which is before either `tearDown` or `addTearDown` would run.
+    Future<void> onPlatform(
+      WidgetTester tester,
+      TargetPlatform platform,
+      Matcher expected,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      try {
+        await pump(tester, const LiveRoomScreen(), 'teacher');
+        expect(find.byTooltip('Mikrofon va dinamikni tanlash'), expected);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    }
+
+    testWidgets('on a desktop the chooser is offered', (tester) async {
+      await onPlatform(tester, TargetPlatform.windows, findsOneWidget);
+    });
+
+    testWidgets('on a phone it is not', (tester) async {
+      // `Hardware.selectAudioInput` refuses there, so the button would be a
+      // promise the platform does not keep.
+      await onPlatform(tester, TargetPlatform.android, findsNothing);
     });
   });
 

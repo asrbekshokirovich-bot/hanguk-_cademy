@@ -84,9 +84,19 @@ begin
   values (p_lesson_id, 'starting')
   on conflict (lesson_id) do update
      set status = 'starting', error = null, egress_id = null,
-         updated_at = now()
-   where ol_lesson_egress.status = 'failed'
-     and ol_lesson_egress.egress_id is null;
+         started_at = now(), updated_at = now()
+   where (ol_lesson_egress.status = 'failed'
+          and ol_lesson_egress.egress_id is null)
+      -- Or the class is on air again after this row finished. The recording
+      -- it produced keeps its own row in `ol_recordings`; this one is the
+      -- new session's.
+      or (ol_lesson_egress.status in ('complete', 'failed')
+          and exists (
+            select 1 from ol_lessons l
+             where l.id = p_lesson_id
+               and l.status = 'live'
+               and l.updated_at > ol_lesson_egress.updated_at
+          ));
 
   if not found then
     return jsonb_build_object('skipped', 'already claimed');
@@ -227,7 +237,16 @@ begin
     -- LiveKit does not keep finished egress info for ever. Left alone, the
     -- job sat at 'stopping' re-listing once a minute with nothing written
     -- anywhere, and the lesson was lost in silence.
-    if v_row.updated_at < now() - interval '30 minutes' then
+    --
+    -- Measured from `started_at`, not `updated_at`. Every tick writes
+    -- `updated_at` — `ol_egress_stop` does it on the refused branch too, and
+    -- it runs once a minute for as long as the row says 'active' — so an
+    -- egress LiveKit will neither stop nor list was always "updated a moment
+    -- ago" and never reached thirty minutes. Proved on a local Postgres: an
+    -- egress two hours old, three ticks, still `active`, updated_at = now(),
+    -- no recording, and the staff banner reading "Dars yozib olinmoqda" for
+    -- a lesson that finished at lunchtime.
+    if v_row.started_at < now() - interval '30 minutes' then
       update ol_lesson_egress
          set status = 'failed',
              error = 'LiveKit bu yozuvni endi ko''rsatmayapti',
@@ -266,9 +285,18 @@ begin
   values (
     p_lesson_id,
     coalesce(v_lesson.title, 'Dars yozuvi'),
-    coalesce(v_lesson.category, 'Koreys tili'),
+    -- 'Suhbat' is what the lesson dialog offers first. 'Koreys tili' was a
+    -- category nothing in the app could produce and the shelf's chips could
+    -- not filter to, so a recording filed under it was reachable only under
+    -- "Barchasi".
+    coalesce(v_lesson.category, 'Suhbat'),
     v_lesson.teacher_id,
-    coalesce(v_lesson.starts_at, now()),
+    -- When the camera actually started, not when the timetable said it
+    -- would. The shelf is ordered by this column, so a lesson taught out of
+    -- its slot — rescheduled, or a make-up of an older row — sorted to
+    -- wherever its timetable date put it, which for a backfilled lesson is
+    -- below the fold and out of "So'nggi yozuvlar" entirely.
+    coalesce(v_row.started_at, v_lesson.starts_at, now()),
     greatest(v_secs, 0),
     'r2://' || coalesce(v_file ->> 'filename', v_row.filepath),
     -- Who was actually there. It counted enrolments, which is the register
@@ -309,14 +337,23 @@ begin
           where p.lesson_id = l.id
             and p.last_seen_at > now() - interval '2 minutes'
        )
-       -- A clean failure ages out and is tried again. Anything that got as
-       -- far as an egress id stays claimed for good.
+       -- A clean failure ages out and is tried again, and a lesson that has
+       -- been put back on air is recorded again: the row is keyed by lesson,
+       -- so a teacher who ended a class by accident and restarted it got no
+       -- second egress, no error, and nothing in the library for the second
+       -- half. `ol_lessons.updated_at` moves when the status does, so a
+       -- finished egress older than the lesson's last status change is a
+       -- recording of a session that is over.
        and not exists (
          select 1 from ol_lesson_egress e
           where e.lesson_id = l.id
-            and not (e.status = 'failed'
-                     and e.egress_id is null
-                     and e.updated_at < now() - interval '3 minutes')
+            and not (
+              (e.status = 'failed'
+               and e.egress_id is null
+               and e.updated_at < now() - interval '3 minutes')
+              or (e.status in ('complete', 'failed')
+                  and l.updated_at > e.updated_at)
+            )
        )
   loop
     begin
@@ -491,3 +528,55 @@ revoke execute on function ol_egress_harvest(uuid) from public, anon, authentica
 revoke execute on function ol_egress_tick() from public, anon, authenticated;
 revoke execute on function ol_s3_presign(text, integer) from public, anon, authenticated;
 revoke execute on function ol_uri_escape(text) from public, anon;
+
+-- ------------------------------------------------- and that it is running ---
+
+-- Everything above is a function nothing calls on its own. The minute job is
+-- what calls them, and step 2 scheduled it inside
+--
+--     do $$ begin ... exception when others then raise notice ... end $$;
+--
+-- which is not a guard: on a project where pg_cron is not available that
+-- block prints a green notice saying it was handled and schedules nothing.
+-- The whole feature is then installed, correct, and dead — which is exactly
+-- what "the recording never appears and nothing says why" looks like.
+--
+-- So: schedule it again here (idempotent — `cron.schedule` replaces a job of
+-- the same name), and then *check*. If the job is not there when this line
+-- runs, the migration fails and says so, rather than reporting success over
+-- a feature that cannot work.
+do $$
+begin
+  perform cron.schedule('ol-egress-tick', '* * * * *', 'select ol_egress_tick();');
+exception when others then
+  raise notice 'cron.schedule: %', sqlerrm;
+end $$;
+
+do $$
+declare
+  v_http boolean;
+  v_job  boolean;
+begin
+  select exists (
+    select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'extensions' and p.proname = 'http'
+  ) into v_http;
+
+  select exists (select 1 from cron.job where jobname = 'ol-egress-tick' and active)
+    into v_job;
+
+  if not v_http then
+    raise exception
+      'pgsql-http yoqilmagan — Supabase > Database > Extensions > "http" ni yoqing, keyin shu faylni qayta ishga tushiring'
+      using errcode = '0A000';
+  end if;
+
+  if not v_job then
+    raise exception
+      'pg_cron ishlamayapti — "ol-egress-tick" vazifasi yaratilmadi. Supabase > Database > Extensions > "pg_cron" ni yoqing, keyin shu faylni qayta ishga tushiring'
+      using errcode = '0A000';
+  end if;
+
+  raise notice 'ol-egress-tick har daqiqada ishlaydi, http yoqilgan';
+end $$;

@@ -5,28 +5,71 @@ import 'package:flutter_webrtc/flutter_webrtc.dart'
 import '../../../design_system/tokens.dart';
 import '../../../design_system/widgets/glass.dart';
 
-/// Which window or display to share.
+/// What "Ulashish" put on the room's stage.
 ///
-/// Windows, macOS and Linux have no chooser of their own — the platform is
-/// handed a source id or it refuses with "source not found". The browser and
-/// Android do have one, so this is never shown there.
+/// One button now covers two different things a teacher can put in front of
+/// the class — a window or display, and the whiteboard — because to a
+/// student watching, both are the same event: the camera is gone and
+/// something else is on screen instead. A second button next to the first
+/// was two controls for one idea, and it was the idea this screen used to
+/// get wrong: "Doska" lived as its own toggle, so the room could show a
+/// shared window *and* believe the board was still the thing on stage,
+/// which it plainly was not.
+class ShareChoice {
+  const ShareChoice.board()
+      : sourceId = null,
+        isBoard = true;
+
+  /// [id] is null on the browser and Android: there is no specific window to
+  /// name, only "start the operating system's own chooser".
+  const ShareChoice.source([this.sourceId])
+      : isBoard = false;
+
+  final String? sourceId;
+  final bool isBoard;
+}
+
+/// What to share: a window, a display, or the board.
 ///
-/// Returns the chosen source id, or null if the teacher changed their mind.
-Future<String?> showScreenSharePicker(
-  BuildContext context,
-  List<DesktopCapturerSource> sources,
-) {
-  return showDialog<String>(
+/// Windows, macOS and Linux have no chooser of their own for a window or
+/// display — the platform is handed a source id or it refuses with "source
+/// not found" — so [sources] carries the machine's own list there. The
+/// browser and Android pick the window themselves once sharing starts, so
+/// [sources] arrives empty and this dialog offers only the board, or nothing
+/// at all when [canDrawBoard] is also false.
+///
+/// Returns the choice made, or null if the teacher changed their mind.
+Future<ShareChoice?> showSharePicker(
+  BuildContext context, {
+  required List<DesktopCapturerSource> sources,
+  required bool canDrawBoard,
+  required bool canPickSource,
+}) {
+  return showDialog<ShareChoice>(
     context: context,
     barrierColor: const Color(0xB3000000),
-    builder: (_) => _Picker(sources: sources),
+    builder: (_) => _Picker(
+      sources: sources,
+      canDrawBoard: canDrawBoard,
+      canPickSource: canPickSource,
+    ),
   );
 }
 
 class _Picker extends StatelessWidget {
-  const _Picker({required this.sources});
+  const _Picker({
+    required this.sources,
+    required this.canDrawBoard,
+    required this.canPickSource,
+  });
 
   final List<DesktopCapturerSource> sources;
+  final bool canDrawBoard;
+
+  /// False on the browser and Android: there the operating system's own
+  /// chooser runs instead of this grid, so choosing "the screen" here means
+  /// only "start that native chooser", not a specific window.
+  final bool canPickSource;
 
   @override
   Widget build(BuildContext context) {
@@ -67,38 +110,141 @@ class _Picker extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Talabalar faqat shu tanlangan oynani ko‘radi.',
+                'Talabalar faqat shu tanlangan narsani ko‘radi.',
                 style: HkType.muted,
               ),
               const SizedBox(height: 18),
-              if (sources.isEmpty)
-                Text(
-                  'Ulashish uchun oyna topilmadi.',
-                  style: HkType.body.copyWith(fontSize: 13),
-                )
-              else
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (screens.isNotEmpty) ...[
-                          Text('Ekran', style: HkType.label),
-                          const SizedBox(height: 10),
-                          _Grid(sources: screens),
-                          const SizedBox(height: 18),
-                        ],
-                        if (windows.isNotEmpty) ...[
-                          Text('Oynalar', style: HkType.label),
-                          const SizedBox(height: 10),
-                          _Grid(sources: windows),
-                        ],
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (canDrawBoard) ...[
+                        Text('Doska', style: HkType.label),
+                        const SizedBox(height: 10),
+                        _BoardCard(
+                          onTap: () => Navigator.of(context)
+                              .pop(const ShareChoice.board()),
+                        ),
+                        const SizedBox(height: 18),
                       ],
-                    ),
+                      if (canPickSource) ...[
+                        if (sources.isEmpty)
+                          Text(
+                            'Ulashish uchun oyna topilmadi.',
+                            style: HkType.body.copyWith(fontSize: 13),
+                          )
+                        else ...[
+                          if (screens.isNotEmpty) ...[
+                            Text('Ekran', style: HkType.label),
+                            const SizedBox(height: 10),
+                            _Grid(sources: screens),
+                            const SizedBox(height: 18),
+                          ],
+                          if (windows.isNotEmpty) ...[
+                            Text('Oynalar', style: HkType.label),
+                            const SizedBox(height: 10),
+                            _Grid(sources: windows),
+                          ],
+                        ],
+                      ] else
+                        // The browser/Android path: there is nothing here to
+                        // pick from, only a door into the OS's own chooser.
+                        _BrowserShareCard(
+                          onTap: () => Navigator.of(context)
+                              .pop(const ShareChoice.source()),
+                        ),
+                    ],
                   ),
                 ),
+              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The tile that puts the board on stage instead of a window.
+class _BoardCard extends StatelessWidget {
+  const _BoardCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 200,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(HkRadius.cardSmall),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 112,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0x1AD4E94C),
+                borderRadius: BorderRadius.circular(HkRadius.cardSmall),
+                border: Border.all(color: const Color(0x33D4E94C)),
+              ),
+              child: const Icon(
+                Icons.draw_outlined,
+                size: 26,
+                color: HkColors.lime,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // No caption: the section header just above already says
+            // "Doska", and a lone tile repeating its own section's name is
+            // the word doubled for nothing — which is also, verbatim, what
+            // tripped up the first widget test written against this screen.
+            Text(
+              'Yozib ko‘rsatish uchun',
+              style: HkType.muted.copyWith(fontSize: 11.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The one tile shown where the platform picks the window itself.
+class _BrowserShareCard extends StatelessWidget {
+  const _BrowserShareCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 200,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(HkRadius.cardSmall),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 112,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0x14FFFFFF),
+                borderRadius: BorderRadius.circular(HkRadius.cardSmall),
+                border: Border.all(color: HkGlass.border),
+              ),
+              child: const Icon(
+                Icons.screen_share_outlined,
+                size: 24,
+                color: HkColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text('Ekran', style: HkType.body.copyWith(fontSize: 12.5)),
+          ],
         ),
       ),
     );
@@ -138,7 +284,8 @@ class _SourceCard extends StatelessWidget {
       width: 200,
       child: InkWell(
         borderRadius: BorderRadius.circular(HkRadius.cardSmall),
-        onTap: () => Navigator.of(context).pop(source.id),
+        onTap: () =>
+            Navigator.of(context).pop(ShareChoice.source(source.id)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

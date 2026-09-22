@@ -150,6 +150,7 @@ void main() {
                   },
                   onUndo: () {},
                   onClear: () {},
+                  onError: (_) {},
                 ),
               ),
             ),

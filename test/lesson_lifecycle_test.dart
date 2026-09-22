@@ -193,24 +193,50 @@ void main() {
     });
   });
 
-  group('the board is the teacher’s to put on screen', () {
-    // It appears on everybody's screen at once, so a student who could open
-    // it could take the class off the video mid-sentence. The policy refuses
-    // their writing anyway; this is the half of that rule the room shows.
-    testWidgets('the teacher taking the lesson is offered it', (tester) async {
+  group('one button puts either a window or the board on stage', () {
+    // Two buttons used to mean two things could each believe they were the
+    // one showing: a shared window running while a separate "Doska" toggle
+    // still read "open" — a state the room can never actually be in, since
+    // only one thing is ever on the stage in place of the camera. There is
+    // one "Ulashish" control now, and the choice of what to put up is inside
+    // it, not beside it.
+    //
+    // No test here ever gets a real LiveKit connection — the harness has no
+    // network — so `_media.isLive` is false throughout. That is exactly the
+    // case the button has to survive without: opening the board is a
+    // database write, not a published track, and a teacher whose camera or
+    // microphone failed to connect must still be able to put it up.
+    testWidgets('the teacher taking the lesson has it although media failed',
+        (tester) async {
       await pump(tester, const LiveRoomScreen(), 'teacher');
-      expect(find.byTooltip('Doskani ochish'), findsOneWidget);
+      expect(find.byTooltip('Ulashish'), findsOneWidget);
     });
 
-    testWidgets('a student is not', (tester) async {
+    testWidgets('opening it offers that teacher the board', (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'teacher');
+      await tester.tap(find.byTooltip('Ulashish'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Doska'), findsOneWidget);
+    });
+
+    testWidgets('a student with no live media has no control at all',
+        (tester) async {
+      // Sharing a window needs the room connection a student does not have
+      // here either, and drawing was never theirs to begin with — nothing is
+      // left to offer.
       await pump(tester, const LiveRoomScreen(), 'student');
-      expect(find.byTooltip('Doskani ochish'), findsNothing);
-      expect(find.byTooltip('Doskani yopish'), findsNothing);
+      expect(find.byTooltip('Ulashish'), findsNothing);
+      expect(
+        find.byTooltip('Ulashish mavjud emas — video ulanmagan'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('nor is a teacher whose lesson this is not', (tester) async {
+    testWidgets('nor does a teacher whose lesson this is not', (tester) async {
       await pump(tester, const LiveRoomScreen(), 'teacher', teacherId: 'ar');
-      expect(find.byTooltip('Doskani ochish'), findsNothing);
+      expect(find.byTooltip('Ulashish'), findsNothing);
     });
   });
 

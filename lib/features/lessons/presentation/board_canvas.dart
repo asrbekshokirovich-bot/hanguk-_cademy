@@ -149,6 +149,7 @@ class HkBoardEditor extends StatefulWidget {
     required this.onStroke,
     required this.onUndo,
     required this.onClear,
+    required this.onError,
   });
 
   final List<BoardStroke> strokes;
@@ -159,6 +160,10 @@ class HkBoardEditor extends StatefulWidget {
       onStroke;
   final VoidCallback onUndo;
   final VoidCallback onClear;
+
+  /// A stroke failed to save — most often a dropped connection. The surface
+  /// has already taken the mark back off itself by the time this fires.
+  final void Function(Object error) onError;
 
   @override
   State<HkBoardEditor> createState() => _HkBoardEditorState();
@@ -177,6 +182,25 @@ class _HkBoardEditorState extends State<HkBoardEditor> {
   /// trip happens.
   final List<_Pending> _pending = [];
 
+  /// The box being drawn on, read fresh on every pointer event rather than
+  /// trusted from the event itself.
+  ///
+  /// A raw `PointerEvent.localPosition` is computed once, against the
+  /// transform in effect the moment the pointer went *down*, and Flutter
+  /// keeps using that same transform for every `move` that follows — it does
+  /// not re-hit-test mid-gesture. The room sits a stack of banners above the
+  /// board (a mic warning, an audio-blocked notice, a device error) that
+  /// come and go on their own timers, and each one that appears or
+  /// disappears while somebody is mid-stroke pushes the board up or down by
+  /// its height. The pointer's cached position does not move with it, so the
+  /// ink drifts away from the actual pen the longer the stroke runs — which
+  /// is "uchib ketadi": it looks like the letter takes off from under the
+  /// hand writing it. Converting from the event's *global* position against
+  /// this box's *current* transform, on every single event, is the fix used
+  /// for exactly this in every drawing surface built on `Listener`: it cannot
+  /// go stale because nothing is cached across events.
+  final _boardKey = GlobalKey();
+
   Color get _colour => _erasing ? kBoardBackground : _pen;
   double get _thickness => _erasing ? kBoardEraserWidth : _width;
 
@@ -188,17 +212,30 @@ class _HkBoardEditorState extends State<HkBoardEditor> {
     _pending.removeWhere((p) => p.id != null && known.contains(p.id));
   }
 
-  Offset _normalise(Offset local, Size size) => Offset(
-        (local.dx / size.width).clamp(0.0, 1.0),
-        (local.dy / size.height).clamp(0.0, 1.0),
-      );
+  /// The board-space fraction under a global (screen) point, or null while
+  /// the box has not been laid out yet.
+  Offset? _fractionAt(Offset global) {
+    final box = _boardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    final local = box.globalToLocal(global);
+    return Offset(
+      (local.dx / box.size.width).clamp(0.0, 1.0),
+      (local.dy / box.size.height).clamp(0.0, 1.0),
+    );
+  }
 
-  void _start(Offset at) => setState(() => _live
-    ..clear()
-    ..add(at));
+  void _start(Offset global) {
+    final at = _fractionAt(global);
+    if (at == null) return;
+    setState(() => _live
+      ..clear()
+      ..add(at));
+  }
 
-  void _extend(Offset at) {
+  void _extend(Offset global) {
     if (_live.isEmpty) return;
+    final at = _fractionAt(global);
+    if (at == null) return;
     // Points closer together than this add nothing a reader can see, and a
     // minute of writing would otherwise be tens of thousands of coordinates
     // on the wire.
@@ -230,11 +267,13 @@ class _HkBoardEditorState extends State<HkBoardEditor> {
       final id = await widget.onStroke(colour.toARGB32(), thickness, points);
       if (!mounted) return;
       setState(() => pending.id = id);
-    } catch (_) {
-      // The stroke never landed, so it must not keep pretending it did.
+    } catch (e) {
+      // The stroke never landed, so it must not keep pretending it did — and
+      // silently dropping it is its own bug: the mark the teacher just made
+      // would appear to vanish with no explanation the moment the pen lifts.
       if (!mounted) return;
       setState(() => _pending.remove(pending));
-      rethrow;
+      widget.onError(e);
     }
   }
 
@@ -265,20 +304,20 @@ class _HkBoardEditorState extends State<HkBoardEditor> {
             aspectRatio: kBoardAspect,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final size = constraints.biggest;
                 // `Listener` rather than a gesture recogniser: a board has to
                 // take a mouse, a trackpad and a finger the same way, and the
                 // raw pointer stream is the one place all three arrive alike.
                 return Listener(
-                  onPointerDown: (e) =>
-                      _start(_normalise(e.localPosition, size)),
-                  onPointerMove: (e) =>
-                      _extend(_normalise(e.localPosition, size)),
+                  onPointerDown: (e) => _start(e.position),
+                  onPointerMove: (e) => _extend(e.position),
                   onPointerUp: (_) => _finish(),
                   onPointerCancel: (_) => setState(_live.clear),
                   child: MouseRegion(
                     cursor: SystemMouseCursors.precise,
-                    child: HkBoardView(strokes: drawn),
+                    child: KeyedSubtree(
+                      key: _boardKey,
+                      child: HkBoardView(strokes: drawn),
+                    ),
                   ),
                 );
               },

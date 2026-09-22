@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show DesktopCapturerSource;
 import 'package:livekit_client/livekit_client.dart'
     show VideoTrack, VideoTrackRenderer, VideoViewFit;
 
@@ -250,23 +251,51 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   /// first, with pictures — three windows called "Hanguk Academy" cannot be
   /// told apart by title, and sharing the wrong one in front of a class is
   /// not a mistake you get to take back.
-  Future<void> _toggleScreenShare() async {
+  /// Puts something other than the camera on the room's stage, or takes it
+  /// back off.
+  ///
+  /// One button for a shared window and the board, because to everybody
+  /// watching they are the same event: the camera is gone and something else
+  /// is up. Two buttons used to mean two things could each believe they were
+  /// the one on stage — a shared window running while the board's own toggle
+  /// still read "open" — which is exactly the state the room cannot actually
+  /// be in, since only one thing is ever shown.
+  Future<void> _toggleShare(
+    String lessonId, {
+    required bool boardOpen,
+    required bool canDrawBoard,
+  }) async {
     if (_media.screenSharing) {
       await _media.setScreenShare(false);
       return;
     }
-
-    if (!LiveMediaSession.picksScreenSourceItself) {
-      // The browser and Android show their own chooser.
-      await _media.setScreenShare(true);
+    if (boardOpen) {
+      await _toggleBoard(lessonId, false);
       return;
     }
 
-    final sources = await _media.screenSources();
+    // A shared window needs a published track, which needs the room
+    // connection this account may not have.
+    final canPickSource =
+        _media.isLive && LiveMediaSession.picksScreenSourceItself;
+    final sources = canPickSource
+        ? await _media.screenSources()
+        : const <DesktopCapturerSource>[];
     if (!mounted) return;
-    final sourceId = await showScreenSharePicker(context, sources);
-    if (sourceId == null || !mounted) return;
-    await _media.setScreenShare(true, sourceId: sourceId);
+
+    final choice = await showSharePicker(
+      context,
+      sources: sources,
+      canDrawBoard: canDrawBoard,
+      canPickSource: canPickSource,
+    );
+    if (choice == null || !mounted) return;
+
+    if (choice.isBoard) {
+      await _toggleBoard(lessonId, true);
+      return;
+    }
+    await _media.setScreenShare(true, sourceId: choice.sourceId);
   }
 
   Future<void> _toggleMic() async {
@@ -368,6 +397,12 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                 ),
         onUndo: () => _undoBoard(lesson.id),
         onClear: () => _clearBoard(lesson.id),
+        onError: (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Chiziq saqlanmadi: ${hkErrorMessage(e)}')),
+          );
+        },
       );
     }
     return Center(
@@ -614,20 +649,28 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   onMic: _media.isLive ? _toggleMic : null,
                   onCamera:
                       _media.isLive ? () => _media.setCamera(!_cameraOn) : null,
-                  screenSharing: _media.screenSharing,
-                  onScreenShare: _media.isLive ? _toggleScreenShare : null,
+                  // On, whichever of the two put it there — a shared window
+                  // or the board — since only one of them is ever the thing
+                  // actually on stage.
+                  sharing: _media.screenSharing || boardOpen,
+                  // Live media, or the standing to draw: opening the board is
+                  // a database write, not a published track, so a teacher
+                  // whose camera or microphone failed to connect must still
+                  // be able to put it up. Screen-sharing genuinely does need
+                  // the room connection, which is why that half of the
+                  // picker is hidden below on the same `_media.isLive` test.
+                  onShare: (_media.isLive || canEnd)
+                      ? () => _toggleShare(
+                            lesson.id,
+                            boardOpen: boardOpen,
+                            canDrawBoard: canEnd,
+                          )
+                      : null,
                   onHand: () {
                     setState(() => _handRaised = !_handRaised);
                     _pushPresence();
                   },
                   onChat: () => setState(() => _showChat = !_showChat),
-                  boardOn: boardOpen,
-                  // The teacher's alone, like ending the lesson: the board
-                  // appears on everybody's screen at once, and a student who
-                  // could put it there could take the class off the video.
-                  onBoard: canEnd
-                      ? () => _toggleBoard(lesson.id, !boardOpen)
-                      : null,
                   // Desktop only: the browser and phones do not let an app
                   // choose the input, and a button that cannot work is the
                   // thing this screen must never show.
@@ -1660,16 +1703,14 @@ class _ControlBar extends StatelessWidget {
   const _ControlBar({
     required this.micOn,
     required this.cameraOn,
-    required this.screenSharing,
-    required this.onScreenShare,
+    required this.sharing,
+    required this.onShare,
     required this.handRaised,
     required this.chatOn,
     required this.onMic,
     required this.onCamera,
     required this.onHand,
     required this.onChat,
-    required this.boardOn,
-    required this.onBoard,
     required this.onAudioDevices,
     required this.onLeave,
     required this.onEnd,
@@ -1681,22 +1722,20 @@ class _ControlBar extends StatelessWidget {
   final bool handRaised;
   final bool chatOn;
 
-  final bool screenSharing;
+  /// A window or the board is up on the room's stage in place of the camera.
+  final bool sharing;
 
   /// Null when there is no media connection to speak into. The buttons then
   /// render as unavailable and say why, rather than lighting up over nothing.
   final VoidCallback? onMic;
   final VoidCallback? onCamera;
 
-  /// Was wired to an empty callback: pressable, silent, and inert.
-  final VoidCallback? onScreenShare;
+  /// Opens the picker (a window, a display, or the board — whichever this
+  /// account may put up) while nothing is shared, and takes down whichever
+  /// of those is currently up while one is. Null with no media connection.
+  final VoidCallback? onShare;
   final VoidCallback onHand;
   final VoidCallback onChat;
-
-  final bool boardOn;
-
-  /// Null for a student: the board is the teacher's to put on screen.
-  final VoidCallback? onBoard;
 
   /// Null where the platform chooses the microphone for us.
   final VoidCallback? onAudioDevices;
@@ -1737,24 +1776,15 @@ class _ControlBar extends StatelessWidget {
               onTap: onCamera,
             ),
             _ControlButton(
-              icon: screenSharing
+              icon: sharing
                   ? Icons.stop_screen_share_rounded
                   : Icons.screen_share_outlined,
-              active: screenSharing,
-              tooltip: onScreenShare == null
-                  ? 'Ekranni ulashish mavjud emas — video ulanmagan'
-                  : (screenSharing
-                      ? 'Ulashishni to‘xtatish'
-                      : 'Ekranni ulashish'),
-              onTap: onScreenShare,
+              active: sharing,
+              tooltip: onShare == null
+                  ? 'Ulashish mavjud emas — video ulanmagan'
+                  : (sharing ? 'Ulashishni to‘xtatish' : 'Ulashish'),
+              onTap: onShare,
             ),
-            if (onBoard != null)
-              _ControlButton(
-                icon: Icons.draw_outlined,
-                active: boardOn,
-                tooltip: boardOn ? 'Doskani yopish' : 'Doskani ochish',
-                onTap: onBoard,
-              ),
             if (onAudioDevices != null)
               _ControlButton(
                 icon: Icons.tune_rounded,

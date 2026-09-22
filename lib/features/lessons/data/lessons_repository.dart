@@ -1,4 +1,7 @@
 import 'dart:async';
+// For Offset: the board's points are geometry, and the repository is where
+// they are packed into and out of JSON.
+import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -744,6 +747,94 @@ class LessonsRepository {
       'lesson_id': lessonId,
       'author_id': _db.auth.currentUser?.id,
       'body': body,
+    });
+  }
+
+  // ----------------------------------------------------------- the board ---
+
+  /// Every mark and marker on a lesson's board, oldest first, pushed as they
+  /// are made.
+  ///
+  /// A stream rather than a poll, for the same reason the chat is one: a
+  /// board that catches up every few seconds is a board the class watches
+  /// lagging behind the teacher's hand. Ordered by `seq` — two strokes can
+  /// share a millisecond, and "everything after the last clear" needs an
+  /// order it can trust.
+  Stream<List<BoardStroke>> boardStream(String lessonId) {
+    if (isDemo) return Stream.value(const []);
+
+    return _db
+        .from('ol_board_strokes')
+        .stream(primaryKey: ['id'])
+        .eq('lesson_id', lessonId)
+        .order('seq', ascending: true)
+        .map((rows) => rows.map(BoardStroke.fromMap).toList());
+  }
+
+  /// Files one finished stroke and returns the row's id.
+  ///
+  /// The id comes back so the drawing surface can keep showing its own stroke
+  /// until the same one arrives on the stream. Dropping it the moment the
+  /// insert returns makes the line vanish for the length of a round trip,
+  /// under the pen that just drew it.
+  Future<String> addBoardStroke(
+    String lessonId, {
+    required int color,
+    required double width,
+    required List<Offset> points,
+  }) async {
+    if (isDemo) throw StateError('Demo rejimda doskaga yozib bo‘lmaydi');
+    final row = await _db
+        .from('ol_board_strokes')
+        .insert({
+          'lesson_id': lessonId,
+          'author_id': _db.auth.currentUser?.id,
+          'kind': 'stroke',
+          'color': color,
+          'width': width,
+          'points': [
+            for (final p in points) [p.dx, p.dy],
+          ],
+        })
+        .select('id')
+        .single();
+    return row['id'] as String;
+  }
+
+  /// Takes back the last stroke this account drew on this board.
+  Future<void> undoBoardStroke(String lessonId) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    final me = _db.auth.currentUser?.id;
+    if (me == null) return;
+    final rows = await _db
+        .from('ol_board_strokes')
+        .select('id')
+        .eq('lesson_id', lessonId)
+        .eq('author_id', me)
+        .eq('kind', 'stroke')
+        .order('seq', ascending: false)
+        .limit(1);
+    if (rows.isEmpty) return;
+    await _db.from('ol_board_strokes').delete().eq('id', rows.first['id']);
+  }
+
+  /// Wipes the board by adding a marker rather than by deleting the ink.
+  ///
+  /// A delete of five hundred rows is five hundred realtime messages to every
+  /// person in the room; a marker is one. It also keeps the lesson's earlier
+  /// boards, which is what "saved with the lesson" has to mean.
+  Future<void> clearBoard(String lessonId) => _boardMarker(lessonId, 'clear');
+
+  /// Puts the board on, or takes it off, everyone's screen at once.
+  Future<void> setBoardOpen(String lessonId, bool open) =>
+      _boardMarker(lessonId, open ? 'open' : 'close');
+
+  Future<void> _boardMarker(String lessonId, String kind) async {
+    if (isDemo) throw StateError('Demo rejimda mavjud emas');
+    await _db.from('ol_board_strokes').insert({
+      'lesson_id': lessonId,
+      'author_id': _db.auth.currentUser?.id,
+      'kind': kind,
     });
   }
 

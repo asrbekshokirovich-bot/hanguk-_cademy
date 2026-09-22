@@ -298,6 +298,18 @@ final roomChatProvider =
   return ref.watch(lessonsRepositoryProvider).chatStream(lessonId);
 }, isAutoDispose: true);
 
+/// The lesson's board, as it is drawn.
+///
+/// Auto-disposing for the same reason the chat is: the realtime channel has
+/// to close when the room does.
+final roomBoardProvider =
+    StreamProvider.family<BoardState, String>((ref, lessonId) {
+  return ref
+      .watch(lessonsRepositoryProvider)
+      .boardStream(lessonId)
+      .map(BoardState.from);
+}, isAutoDispose: true);
+
 /// Who is in the live room, as they come and go.
 ///
 /// Re-evaluated on a timer as well as on every change, because membership

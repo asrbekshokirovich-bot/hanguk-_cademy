@@ -17,6 +17,7 @@ import '../data/live_media.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import 'audio_device_picker.dart';
+import 'board_canvas.dart';
 import 'screen_share_picker.dart';
 import '../../../core/clock.dart';
 import '../../../core/errors.dart';
@@ -274,6 +275,109 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     _pushPresence();
   }
 
+  /// The board's own answer to "am I on screen", so the teacher's own toggle
+  /// does not wait for the round trip. Cleared once the stream agrees.
+  bool? _boardWanted;
+
+  Future<void> _toggleBoard(String lessonId, bool open) async {
+    setState(() => _boardWanted = open);
+    try {
+      await ref.read(lessonsRepositoryProvider).setBoardOpen(lessonId, open);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _boardWanted = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Doskani ochib bo‘lmadi: ${hkErrorMessage(e)}')),
+      );
+    }
+  }
+
+  Future<void> _clearBoard(String lessonId) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: HkColors.royalBlue800,
+        title: const Text('Doskani tozalash', style: HkType.cardTitle),
+        content: Text(
+          'Doskadagi hamma narsa o‘chadi. Darsning oldingi doskalari '
+          'saqlanib qoladi.',
+          style: HkType.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Bekor qilish'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Tozalash',
+              style: TextStyle(color: HkColors.dangerBright),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    try {
+      await ref.read(lessonsRepositoryProvider).clearBoard(lessonId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tozalab bo‘lmadi: ${hkErrorMessage(e)}')),
+      );
+    }
+  }
+
+  Future<void> _undoBoard(String lessonId) async {
+    try {
+      await ref.read(lessonsRepositoryProvider).undoBoardStroke(lessonId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Qaytarib bo‘lmadi: ${hkErrorMessage(e)}')),
+      );
+    }
+  }
+
+  /// The stage, or the board over it.
+  ///
+  /// One or the other rather than both: the room is already a stage, a rail
+  /// and a control bar, and a board squeezed in beside them is too small to
+  /// write a Hangul syllable on. The video keeps running underneath — the
+  /// audio never stops — and the roster in the rail still says who is here.
+  Widget _stage(
+    Lesson lesson,
+    String? hostId, {
+    required bool canDraw,
+    required BoardState board,
+    required bool open,
+  }) {
+    if (!open) {
+      return _Stage(lesson: lesson, media: _media, hostId: hostId);
+    }
+    if (canDraw) {
+      return HkBoardEditor(
+        strokes: board.strokes,
+        onStroke: (color, width, points) =>
+            ref.read(lessonsRepositoryProvider).addBoardStroke(
+                  lesson.id,
+                  color: color,
+                  width: width,
+                  points: points,
+                ),
+        onUndo: () => _undoBoard(lesson.id),
+        onClear: () => _clearBoard(lesson.id),
+      );
+    }
+    return Center(
+      child: HkBoardView(
+        strokes: board.strokes,
+        emptyMessage: 'O‘qituvchi doskani ochdi — hozircha bo‘sh.',
+      ),
+    );
+  }
+
   /// Which microphone the room is listening to.
   ///
   /// There was no way to ask, let alone to change it: the app took the
@@ -380,6 +484,19 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     // again on the way to the database.
     final canEnd = lesson != null && ownsLesson(ref, lesson);
 
+    // Read once here rather than in each branch below: the board decides both
+    // what the stage shows and what the board button says.
+    final board = lesson == null
+        ? BoardState.empty
+        : ref.watch(roomBoardProvider(lesson.id)).value ?? BoardState.empty;
+    if (_boardWanted != null && _boardWanted == board.open) {
+      // The stream has caught up with the button that was pressed.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _boardWanted = null);
+      });
+    }
+    final boardOpen = _boardWanted ?? board.open;
+
     // Whoever the presence table has flagged as host — the teacher, by the
     // account id LiveKit also knows them by. The stage needs it to say
     // whether that person is speaking and whether their microphone is live,
@@ -442,10 +559,12 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
-                          child: _Stage(
-                            lesson: lesson,
-                            media: _media,
-                            hostId: hostId,
+                          child: _stage(
+                            lesson,
+                            hostId,
+                            canDraw: canEnd,
+                            board: board,
+                            open: boardOpen,
                           ),
                         ),
                         const SizedBox(width: HkSpace.gridGap),
@@ -463,10 +582,12 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                 else ...[
                   SizedBox(
                     height: 360,
-                    child: _Stage(
-                      lesson: lesson,
-                      media: _media,
-                      hostId: hostId,
+                    child: _stage(
+                      lesson,
+                      hostId,
+                      canDraw: canEnd,
+                      board: board,
+                      open: boardOpen,
                     ),
                   ),
                   const SizedBox(height: HkSpace.gridGap),
@@ -500,6 +621,13 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                     _pushPresence();
                   },
                   onChat: () => setState(() => _showChat = !_showChat),
+                  boardOn: boardOpen,
+                  // The teacher's alone, like ending the lesson: the board
+                  // appears on everybody's screen at once, and a student who
+                  // could put it there could take the class off the video.
+                  onBoard: canEnd
+                      ? () => _toggleBoard(lesson.id, !boardOpen)
+                      : null,
                   // Desktop only: the browser and phones do not let an app
                   // choose the input, and a button that cannot work is the
                   // thing this screen must never show.
@@ -1540,6 +1668,8 @@ class _ControlBar extends StatelessWidget {
     required this.onCamera,
     required this.onHand,
     required this.onChat,
+    required this.boardOn,
+    required this.onBoard,
     required this.onAudioDevices,
     required this.onLeave,
     required this.onEnd,
@@ -1562,6 +1692,11 @@ class _ControlBar extends StatelessWidget {
   final VoidCallback? onScreenShare;
   final VoidCallback onHand;
   final VoidCallback onChat;
+
+  final bool boardOn;
+
+  /// Null for a student: the board is the teacher's to put on screen.
+  final VoidCallback? onBoard;
 
   /// Null where the platform chooses the microphone for us.
   final VoidCallback? onAudioDevices;
@@ -1613,6 +1748,13 @@ class _ControlBar extends StatelessWidget {
                       : 'Ekranni ulashish'),
               onTap: onScreenShare,
             ),
+            if (onBoard != null)
+              _ControlButton(
+                icon: Icons.draw_outlined,
+                active: boardOn,
+                tooltip: boardOn ? 'Doskani yopish' : 'Doskani ochish',
+                onTap: onBoard,
+              ),
             if (onAudioDevices != null)
               _ControlButton(
                 icon: Icons.tune_rounded,

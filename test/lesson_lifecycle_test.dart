@@ -193,6 +193,27 @@ void main() {
     });
   });
 
+  group('the board is the teacher’s to put on screen', () {
+    // It appears on everybody's screen at once, so a student who could open
+    // it could take the class off the video mid-sentence. The policy refuses
+    // their writing anyway; this is the half of that rule the room shows.
+    testWidgets('the teacher taking the lesson is offered it', (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'teacher');
+      expect(find.byTooltip('Doskani ochish'), findsOneWidget);
+    });
+
+    testWidgets('a student is not', (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'student');
+      expect(find.byTooltip('Doskani ochish'), findsNothing);
+      expect(find.byTooltip('Doskani yopish'), findsNothing);
+    });
+
+    testWidgets('nor is a teacher whose lesson this is not', (tester) async {
+      await pump(tester, const LiveRoomScreen(), 'teacher', teacherId: 'ar');
+      expect(find.byTooltip('Doskani ochish'), findsNothing);
+    });
+  });
+
   group('the live room', () {
     testWidgets('lets staff end the lesson', (tester) async {
       await pump(tester, const LiveRoomScreen(), 'teacher');

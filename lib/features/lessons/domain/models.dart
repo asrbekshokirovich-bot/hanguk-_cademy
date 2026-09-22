@@ -277,6 +277,94 @@ class Recording {
 
 enum MaterialKind { pdf, doc, link, audio }
 
+/// One mark on a lesson's whiteboard, or one marker about the board itself.
+///
+/// Coordinates and thickness are fractions of the board, not pixels: the
+/// teacher writes in a 1440pt window and a student reads it in a 390pt one,
+/// and a stroke stored in pixels would land somewhere else on every screen.
+/// The board is drawn into a fixed 16:9 box, so 0..1 means the same place for
+/// everybody.
+class BoardStroke {
+  const BoardStroke({
+    required this.id,
+    required this.kind,
+    required this.seq,
+    this.color,
+    this.width,
+    this.points = const [],
+  });
+
+  final String id;
+
+  /// 'stroke' is ink. 'clear' hides everything before it, 'open' and 'close'
+  /// put the board on and off everyone's screen — all four in one table so
+  /// the board's whole state arrives on one stream.
+  final String kind;
+  final int seq;
+
+  /// ARGB, as [Color] carries it. Null on the markers.
+  final int? color;
+
+  /// A fraction of the board's width.
+  final double? width;
+  final List<Offset> points;
+
+  bool get isInk => kind == 'stroke';
+
+  factory BoardStroke.fromMap(Map<String, dynamic> map) {
+    final raw = map['points'];
+    return BoardStroke(
+      id: map['id'] as String,
+      kind: (map['kind'] as String?) ?? 'stroke',
+      seq: (map['seq'] as num?)?.toInt() ?? 0,
+      color: (map['color'] as num?)?.toInt(),
+      width: (map['width'] as num?)?.toDouble(),
+      points: raw is List
+          ? [
+              for (final p in raw)
+                if (p is List && p.length >= 2)
+                  Offset(
+                    (p[0] as num).toDouble(),
+                    (p[1] as num).toDouble(),
+                  ),
+            ]
+          : const [],
+    );
+  }
+}
+
+/// The board as it should be drawn: what survives the last "clear", and
+/// whether it is on screen at all.
+///
+/// Derived here rather than by each widget, because "everything after the
+/// last clear" is the one rule every viewer has to agree on.
+class BoardState {
+  const BoardState({required this.open, required this.strokes});
+
+  final bool open;
+  final List<BoardStroke> strokes;
+
+  static const empty = BoardState(open: false, strokes: []);
+
+  factory BoardState.from(List<BoardStroke> rows) {
+    var open = false;
+    final ink = <BoardStroke>[];
+    for (final row in rows) {
+      switch (row.kind) {
+        case 'open':
+          open = true;
+        case 'close':
+          open = false;
+        case 'clear':
+          ink.clear();
+        case 'stroke':
+          ink.add(row);
+      }
+    }
+    return BoardState(open: open, strokes: ink);
+  }
+}
+
 class LessonMaterial {
   const LessonMaterial({
     required this.id,

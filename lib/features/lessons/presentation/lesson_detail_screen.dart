@@ -10,6 +10,7 @@ import '../../../design_system/widgets/glass.dart';
 import '../../../design_system/widgets/states.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
+import 'board_canvas.dart';
 import 'material_link.dart';
 import 'submit_assignment_dialog.dart';
 
@@ -431,6 +432,10 @@ class _SideColumn extends ConsumerWidget {
         ),
         const SizedBox(height: HkSpace.gridGap),
         if (lessonId != null) ...[
+          // No gap after it: the card carries its own, because most lessons
+          // never open a board and a lone gap where nothing is drawn pushes
+          // the whole column down for no reason.
+          _BoardCard(lessonId: lessonId),
           _QuizCard(lessonId: lessonId),
           const SizedBox(height: HkSpace.gridGap),
           _HomeworkCard(lessonId: lessonId),
@@ -510,6 +515,44 @@ class _MaterialRow extends ConsumerWidget {
                 : HkColors.textSecondary,
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// What the teacher wrote on the board during the lesson.
+///
+/// The point of keeping strokes as rows rather than as pixels: the board is
+/// still here afterwards, at whatever size this screen is, and a student who
+/// missed the lesson reads the same handwriting the room saw.
+///
+/// Silent when nothing was drawn — an empty panel headed "Doska" on every
+/// lesson that never used one is noise.
+class _BoardCard extends ConsumerWidget {
+  const _BoardCard({required this.lessonId});
+
+  final String lessonId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final board =
+        ref.watch(roomBoardProvider(lessonId)).value ?? BoardState.empty;
+    if (board.strokes.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        GlassPanel(
+          radius: HkRadius.cardLarge,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Doska', style: HkType.sectionTitle),
+              const SizedBox(height: 14),
+              HkBoardView(strokes: board.strokes),
+            ],
+          ),
+        ),
+        const SizedBox(height: HkSpace.gridGap),
       ],
     );
   }
